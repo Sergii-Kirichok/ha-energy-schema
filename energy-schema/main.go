@@ -16,9 +16,9 @@ import (
 )
 
 // Home Assistant Supervisor proxy to Core API.
-const apiBase = "http://supervisor/core/api"
 const listen = ":8099"
 
+var apiBase = "http://supervisor/core/api"
 var token string
 
 var (
@@ -386,10 +386,23 @@ func loadOptions() {
 		return
 	}
 	var o struct {
-		RefreshSeconds int `json:"refresh_seconds"`
+		RefreshSeconds int    `json:"refresh_seconds"`
+		HaURL          string `json:"ha_url"`
+		HaToken        string `json:"ha_token"`
 	}
-	if json.Unmarshal(b, &o) == nil && o.RefreshSeconds > 0 {
+	if json.Unmarshal(b, &o) != nil {
+		return
+	}
+	if o.RefreshSeconds > 0 {
 		refresh = o.RefreshSeconds
+	}
+	if o.HaToken != "" {
+		token = o.HaToken
+		u := o.HaURL
+		if u == "" {
+			u = "http://homeassistant:8123"
+		}
+		apiBase = strings.TrimRight(u, "/") + "/api"
 	}
 }
 
