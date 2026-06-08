@@ -1,0 +1,5 @@
+# build artifacts
+/energy-schema/energy-schema
+/energy-schema/*.exe
+*.log
+.DS_Store
