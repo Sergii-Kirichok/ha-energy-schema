@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -60,12 +61,13 @@ func fetchAll() {
 		return
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 	var arr []struct {
 		EntityID string `json:"entity_id"`
 		State    string `json:"state"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
-		log.Println("decode:", err)
+	if derr := json.Unmarshal(body, &arr); derr != nil {
+		log.Printf("decode err=%v status=%d tokenlen=%d body=%.140q", derr, resp.StatusCode, len(token), string(body))
 		return
 	}
 	m := make(map[string]string)
@@ -393,6 +395,7 @@ func loadOptions() {
 
 func main() {
 	token = os.Getenv("SUPERVISOR_TOKEN")
+	log.Printf("start: SUPERVISOR_TOKEN len=%d apiBase=%s", len(token), apiBase)
 	loadOptions()
 	go func() {
 		for {
