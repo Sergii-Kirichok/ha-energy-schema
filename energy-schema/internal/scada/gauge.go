@@ -3,8 +3,9 @@ package scada
 import "math"
 
 const (
-	markerTipFactor = 2.3 // вынос острия (× sz) наружу от центра головы
-	markerInset     = 7.0 // полуширина полосы гейджа: центр головы — на ВНУТРЕННЕЙ дуге
+	markerTipFactor  = 1.0 // вынос острия (× sz) наружу: кончик ~у осевой линии полосы
+	markerHeadFactor = 0.6 // радиус головы капли (× sz)
+	markerInset      = 7.0 // полуширина полосы гейджа: центр головы — на ВНУТРЕННЕЙ дуге
 )
 
 // markerTip returns the teardrop tip point for the marker at angle a — it sits
@@ -23,7 +24,7 @@ func (s *Builder) marker(cx, cy, r, a, sz float64) {
 	rr := r - markerInset // центр головы — на внутренней дуге
 	mx, my := pt(cx, cy, rr, a)
 	ux, uy := (cx-mx)/rr, (cy-my)/rr      // единичный вектор к центру
-	hr := sz                              // радиус головы
+	hr := sz * markerHeadFactor           // радиус головы
 	d := sz * markerTipFactor             // вынос острия наружу
 	alpha := math.Acos(hr / d)            // полуугол касательных острия к голове
 	pd := math.Atan2(-uy, -ux)            // направление острия — НАРУЖУ (от центра)
