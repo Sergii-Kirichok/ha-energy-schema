@@ -204,9 +204,12 @@ func gAng(v, max float64) float64 {
 	}
 	return 180 - v/max*180
 }
-func (s *SB) marker(cx, cy, r, a, rad float64) {
+func (s *SB) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	s.p(`<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#ffffff" stroke="#0f1115" stroke-width="1.5"/>`, mx, my, rad)
+	rot := math.Atan2(cy-my, cx-mx)*180/math.Pi - 90
+	H, W := sz*1.5, sz*0.78
+	s.p(`<g transform="translate(%.1f,%.1f) rotate(%.1f)"><path d="M 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/></g>`,
+		mx, my, rot, H, 0.9*W, 0.25*H, W, -0.5*H, -H, -W, -0.5*H, -0.9*W, 0.25*H, H)
 }
 func (s *SB) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {
 	s.arc(cx, cy, r, 180, 0, "#23272f", 14)
@@ -241,8 +244,9 @@ func (s *SB) bar(x, y, w, h, val, max float64, bands []band, valTxt string) {
 		mv = max
 	}
 	mx := x + w*mv/max
-	s.poly("#ffffff", 2.5, "", mx, y-3, mx, y+h+3)
-	s.t(x+w/2, y+h/2+7, 20, "#ffffff", "middle", valTxt)
+	s.p(`<path d="M %.1f,%g C %.1f,%g %.1f,%g %.1f,%g C %.1f,%g %.1f,%g %.1f,%g Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/>`,
+		mx, y+h, mx+7, y+h+9, mx+7, y+h+18, mx, y+h+18, mx-7, y+h+18, mx-7, y+h+9, mx, y+h)
+	s.t(x+w/2, y+h/2+10, 28, "#ffffff", "middle", valTxt)
 }
 
 // icons (centered at ix,iy ~ 13px)
@@ -596,6 +600,9 @@ func renderSVG() string {
 	for i := 0; i < 3; i++ {
 		pw := numOf(fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1))
 		s.gauge(gx[i], 652, 58, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), pvLabels[i])
+		vv := numOf(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
+		aa := numOf(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
+		s.t(gx[i], 692, 12, cSub, "middle", fmt.Sprintf("%.0fВ · %.1fА", vv, aa))
 	}
 	s.t(380, 802, 12, cSub, "start", "Всего")
 	s.bar(380, 816, 520, 46, pvtot/1000, pvMax, []band{{pvT1, cAmb}, {pvT2, cGrn}, {pvT3, cOrg}, {pvMax, cRed}}, kw(pvtot))
