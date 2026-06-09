@@ -355,7 +355,7 @@ func renderSVG() string {
 	grnSt := greenLineState()
 	exporting := stateOf("sensor.sim_export") == "on" && grnSt == "on"
 	load := numOf("sensor.deye_sun_30k_load_power") / 1000
-	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power") + numOf("sensor.sim_pv4_power")
+	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power")
 	bp := numOf("sensor.deye_sun_30k_battery_voltage") * numOf("sensor.deye_sun_30k_battery_current")
 
 	// ===== FLOWS (under boxes) =====
@@ -592,16 +592,10 @@ func renderSVG() string {
 	s.box(360, 520, 560, 400)
 	s.head(360, 520, 560, "sun", "Солнечные поля", "")
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", numOf("sensor.deye_sun_30k_today_production")))
-	pvEnt := func(i int) string {
-		if i < 3 {
-			return fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
-		}
-		return "sensor.sim_pv4_power"
-	}
-	gx := []float64{448, 578, 708, 838}
-	for i := 0; i < 4; i++ {
-		pw := numOf(pvEnt(i))
-		s.gauge(gx[i], 652, 54, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), pvLabels[i])
+	gx := []float64{500, 650, 800}
+	for i := 0; i < 3; i++ {
+		pw := numOf(fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1))
+		s.gauge(gx[i], 652, 58, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), pvLabels[i])
 	}
 	s.t(380, 802, 12, cSub, "start", "Всего")
 	s.bar(380, 816, 520, 46, pvtot/1000, pvMax, []band{{pvT1, cAmb}, {pvT2, cGrn}, {pvT3, cOrg}, {pvMax, cRed}}, kw(pvtot))
