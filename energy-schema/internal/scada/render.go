@@ -314,7 +314,7 @@ func Render(st State, cfg config.Config) string {
 	// ===================== ROW 2 =====================
 	// Контактор — Zigbee-управляемый, с обратной связью по состоянию
 	s.box(24, 300, 190, 160)
-	ctLink := st.State("sensor.sim_contactor_link") != "lost" // обратная связь Zigbee (по умолч. есть)
+	ctLink := st.State("sensor.sim_contactor_link") != "lost" // обратная связь RS-485 (по умолч. есть)
 	ctOn := cont == "rybhoz" || cont == "green"
 	ctDot := cGry
 	if !ctLink {
@@ -325,7 +325,7 @@ func Render(st State, cfg config.Config) string {
 	s.head(24, 300, 190, "sw", "Контактор", ctDot)
 	// крупный статус вкл/выкл
 	if !ctLink {
-		s.t(119, 348, 13, cRed, "middle", "НЕТ СВЯЗИ Zigbee")
+		s.t(119, 348, 13, cRed, "middle", "НЕТ СВЯЗИ (485)")
 	} else if ctOn {
 		s.t(119, 348, 15, cGrn, "middle", "ВКЛЮЧЁН")
 	} else {
@@ -350,11 +350,11 @@ func Render(st State, cfg config.Config) string {
 	}
 	selRow(364, cfg.In1Name, "rybhoz", cGrn, stOn[rybSt])
 	selRow(394, cfg.In2Name, "green", cBlu, stOn[grnSt])
-	// низ: связь Zigbee + отдача
+	// низ: связь RS-485 + отдача
 	if ctLink {
-		s.t(34, 450, 10, cSub, "start", "Zigbee ✓")
+		s.t(34, 450, 10, cSub, "start", "RS-485 ✓")
 	} else {
-		s.t(34, 450, 10, cRed, "start", "Zigbee ✕")
+		s.t(34, 450, 10, cRed, "start", "RS-485 ✕")
 	}
 	if st.State("sensor.sim_export") == "on" {
 		s.t(204, 450, 10, cGrn, "end", "отдача ↑")
@@ -417,19 +417,55 @@ func Render(st State, cfg config.Config) string {
 	// частота сети + интервал реконнекта (после срабатывания защиты)
 	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
 
-	s.box(800, 300, 200, 160)
+	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
+	s.box(800, 300, 200, 175)
+	avrLink := st.State("sensor.sim_avr_link") == "ok"
 	avrLinkCol := cGrn
-	if st.State("sensor.sim_avr_link") != "ok" {
+	if !avrLink {
 		avrLinkCol = cRed
 	}
 	s.head(800, 300, 200, "sw", "АВР", avrLinkCol)
-	s.t(812, 352, 10, cSub, "start", "вход: инвертор")
-	s.t(812, 368, 10, cSub, "start", "резерв: "+cfg.In1Name)
-	s.t(988, 360, 10, cSub, "end", "выход: Дом")
-	if avrPos == "inverter" {
-		s.t(900, 410, 14, cGrn, "middle", "→ инвертор")
+	// температура в шкафу — у значка статуса
+	atemp := st.Num("sensor.sim_avr_temp")
+	atc := cGrn
+	if atemp >= 45 {
+		atc = cRed
+	} else if atemp >= 35 {
+		atc = cOrg
+	}
+	s.t(966, 327, 12, atc, "end", fmt.Sprintf("%.0f°C", atemp))
+	// крупный статус: через что работаем
+	if !avrLink {
+		s.t(900, 351, 13, cRed, "middle", "НЕТ СВЯЗИ (485)")
+	} else if avrPos == "inverter" {
+		s.t(900, 351, 14, cGrn, "middle", "ЧЕРЕЗ ИНВЕРТОР")
 	} else {
-		s.t(900, 410, 14, cOrg, "middle", "→ резерв")
+		s.t(900, 351, 14, cOrg, "middle", "РЕЗЕРВ — напрямую")
+	}
+	// селектор источника: инвертор / резерв (прямой ввод 1)
+	avrRow := func(y float64, name, key, col string) {
+		if avrPos == key {
+			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
+		} else {
+			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="none" stroke="%s" stroke-width="1"/>`, y, cBrd)
+		}
+		tc := cSub
+		if avrPos == key {
+			tc = col
+		}
+		s.t(822, y+16, 12, tc, "start", name)
+		if avrPos == key {
+			s.t(980, y+16, 12, col, "end", "→ Дом")
+		}
+	}
+	avrRow(363, "Инвертор", "inverter", cGrn)
+	avrRow(391, "Резерв · "+cfg.In1Name, "reserve", cOrg)
+	// статистика устройства + связь
+	s.t(812, 440, 10, cSub, "start", fmt.Sprintf("переключений: %.0f", st.Num("sensor.sim_avr_switches")))
+	if avrLink {
+		s.t(988, 440, 10, cSub, "end", "RS-485 ✓")
+	} else {
+		s.t(988, 440, 10, cRed, "end", "RS-485 ✕")
 	}
 
 	// Дом — гейдж
