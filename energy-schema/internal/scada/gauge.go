@@ -2,24 +2,28 @@ package scada
 
 import "math"
 
+const (
+	markerTipFactor = 2.3 // вынос острия (× sz) наружу от центра головы
+	markerInset     = 7.0 // полуширина полосы гейджа: центр головы — на ВНУТРЕННЕЙ дуге
+)
+
 // markerTip returns the teardrop tip point for the marker at angle a — it sits
-// d OUTSIDE the arc point (away from the gauge center), at distance r+d.
+// outward from the (inset) head center, at radius (r-markerInset)+d.
 func markerTip(cx, cy, r, a, sz float64) (float64, float64) {
-	mx, my := pt(cx, cy, r, a)
+	rr := r - markerInset
+	mx, my := pt(cx, cy, rr, a)
 	d := sz * markerTipFactor
-	return mx - (cx-mx)/r*d, my - (cy-my)/r*d
+	return mx - (cx-mx)/rr*d, my - (cy-my)/rr*d
 }
 
-const markerTipFactor = 2.3 // вынос острия (× sz) наружу от центра головы
-
-// marker draws a white teardrop at angle a on radius r: a round head whose
-// center sits on the arc (the band), tapering to a sharp point aimed OUTWARD,
-// away from the gauge center. Built from an explicit radial vector → correct at
-// any angle.
+// marker draws a white teardrop at angle a: a round head whose center sits on
+// the INNER edge of the band (closer to the gauge center), tapering to a sharp
+// point aimed OUTWARD. Built from an explicit radial vector → correct at any angle.
 func (s *Builder) marker(cx, cy, r, a, sz float64) {
-	mx, my := pt(cx, cy, r, a)
-	ux, uy := (cx-mx)/r, (cy-my)/r        // единичный вектор к центру
-	hr := sz                              // радиус головы (центр на дуге)
+	rr := r - markerInset // центр головы — на внутренней дуге
+	mx, my := pt(cx, cy, rr, a)
+	ux, uy := (cx-mx)/rr, (cy-my)/rr      // единичный вектор к центру
+	hr := sz                              // радиус головы
 	d := sz * markerTipFactor             // вынос острия наружу
 	alpha := math.Acos(hr / d)            // полуугол касательных острия к голове
 	pd := math.Atan2(-uy, -ux)            // направление острия — НАРУЖУ (от центра)
