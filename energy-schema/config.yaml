@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.1.4"
+version: "0.2.0"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы VELMUR (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -18,8 +18,20 @@ options:
   ha_url: "http://homeassistant:8123"
   ha_token: ""
   title: "Энергосистема"
+  in1_name: "Рыбхоз"
+  in2_name: "Зелёный"
+  pv1_label: "Поле 1"
+  pv2_label: "Поле 2"
+  pv3_label: "Поле 3"
+  pv4_label: "Поле 4"
 schema:
   refresh_seconds: int(1,60)
   ha_url: str
   ha_token: str?
   title: str?
+  in1_name: str?
+  in2_name: str?
+  pv1_label: str?
+  pv2_label: str?
+  pv3_label: str?
+  pv4_label: str?
