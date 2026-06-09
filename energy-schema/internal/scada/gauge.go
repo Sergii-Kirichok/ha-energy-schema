@@ -2,15 +2,34 @@ package scada
 
 import "math"
 
-// marker draws the white teardrop needle of a gauge at angle a on radius r.
-// The pointer (local +Y / the tip) is rotated to face the gauge center.
+// marker draws a white teardrop needle at angle a on radius r: a round head
+// riding on the arc that tapers to a sharp point aimed at the gauge center.
+// Built from an explicit inward vector, so it orients correctly at any angle.
+// markerTip returns the teardrop tip point for the marker at angle a — it sits
+// d inside the arc point, i.e. distance r-d from the gauge center (always inward).
+func markerTip(cx, cy, r, a, sz float64) (float64, float64) {
+	mx, my := pt(cx, cy, r, a)
+	d := sz * markerTipFactor
+	return mx + (cx-mx)/r*d, my + (cy-my)/r*d
+}
+
+const markerTipFactor = 2.3 // вынос острия (× sz) от центра головы
+
 func (s *Builder) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	rot := math.Atan2(mx-cx, cy-my) * 180 / math.Pi // местная +Y (остриё) → к центру
-	R := sz * 0.95                                  // радиус головы
-	T := sz * 1.8                                   // длина к острию
-	s.p(`<g transform="translate(%.1f,%.1f) rotate(%.1f)"><path d="M 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/></g>`,
-		mx, my, rot, -R, R*1.33, -R, R*0.55, T, 0.0, T, -R*0.55, T, -R*1.33, -R)
+	ux, uy := (cx-mx)/r, (cy-my)/r        // единичный вектор к центру (остриё туда)
+	hr := sz                              // радиус головы
+	d := sz * markerTipFactor             // вынос острия от центра головы
+	alpha := math.Acos(hr / d)            // полуугол касательных острия к голове
+	a0 := math.Atan2(uy, ux)              // направление к центру
+	tx, ty := markerTip(cx, cy, r, a, sz) // вершина (остриё) — к центру
+	s.p(`<path d="M %.1f,%.1f`, tx, ty)
+	const n = 16
+	for i := 0; i <= n; i++ { // дуга головы по внешней стороне (минуя клин острия)
+		ang := a0 + alpha + (2*math.Pi-2*alpha)*float64(i)/float64(n)
+		s.p(` L %.1f,%.1f`, mx+hr*math.Cos(ang), my+hr*math.Sin(ang))
+	}
+	s.p(` Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/>`)
 }
 
 // gauge draws a 180° semicircular gauge with colored bands, a needle, a value
