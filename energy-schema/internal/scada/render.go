@@ -501,6 +501,10 @@ func Render(st State, cfg config.Config) string {
 	s.marker(bcx, bcy, 78, gAng(soc, 100), 7)
 	s.t(bcx, bcy-2, 28, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
+	// ток батареи — слева от спидометра
+	s.t(58, 610, 11, cSub, "middle", "ток")
+	s.t(58, 630, 15, cTxt, "middle", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
+
 	// заряд/разряд — визуально (пилюля со стрелкой); покой = без стрелки
 	if bAlarm {
 		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, cRed, cRed)
@@ -518,7 +522,7 @@ func Render(st State, cfg config.Config) string {
 		s.t(174, 668, 14, cSub, "middle", "ожидание (idle)")
 	}
 
-	// сколько кВт·ч реально доступно сейчас (от текущего заряда до отключения)
+	// доступно сейчас: запас энергии до отключения + на сколько его хватит
 	cutoff := st.Num("number.deye_sun_30k_battery_shutdown_soc")
 	if cutoff <= 0 {
 		cutoff = st.Num("number.deye_sun_30k_battery_low_soc")
@@ -534,36 +538,21 @@ func Render(st State, cfg config.Config) string {
 	if usableKWh < 0 {
 		usableKWh = 0
 	}
-	s.t(174, 702, 11, cSub, "middle", "доступно сейчас (до отключения):")
-	rcol := cGrn
-	if usableKWh < capKWh*0.12 {
-		rcol = cOrg
-	}
-	s.t(174, 730, 24, rcol, "middle", fmt.Sprintf("%.1f кВт·ч", usableKWh))
-
-	// ток + SOH в одну строку
-	s.t(40, 762, 12, cSub, "start", "Ток")
-	s.t(150, 762, 13, cTxt, "end", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
-	s.t(196, 762, 12, cSub, "start", "SOH")
-	s.t(308, 762, 13, cTxt, "end", fmt.Sprintf("%.1f%%", st.Num("sensor.deye_sun_30k_battery_soh")))
-
-	// автономия: если свет пропадёт СЕЙЧАС, без генератора. PV помогает до заката,
-	// после — разряд по полной нагрузке. Берём текущую генерацию (по погоде).
+	// на сколько хватит при текущей нагрузке: PV помогает до заката, дальше — по нагрузке
 	loadKW := load
 	pvKW := pvtot / 1000
-	sunUp := pvKW > 0.1 || st.State("sun.sun") == "above_horizon"
 	hSun := 0.0
-	if sunUp {
+	if pvKW > 0.1 || st.State("sun.sun") == "above_horizon" {
 		hSun = st.HoursUntil("sun.sun", "next_setting")
 	}
-	r1 := loadKW - pvKW // разряд днём (нагрузка минус PV)
+	r1 := loadKW - pvKW
 	if r1 < 0 {
 		r1 = 0
 	}
 	autoH := 999.0
 	switch {
 	case loadKW < 0.05:
-	case r1 <= 0.001: // PV покрывает нагрузку → держимся до заката, дальше по нагрузке
+	case r1 <= 0.001:
 		autoH = hSun + usableKWh/loadKW
 	default:
 		if e1 := r1 * hSun; e1 >= usableKWh {
@@ -572,20 +561,23 @@ func Render(st State, cfg config.Config) string {
 			autoH = hSun + (usableKWh-e1)/loadKW
 		}
 	}
-	s.t(174, 802, 12, cSub, "middle", "если свет пропадёт сейчас:")
+	htxt := fmt.Sprintf("≈ %dч %02dм", int(autoH), int((autoH-math.Floor(autoH))*60))
 	if loadKW < 0.05 {
-		s.t(174, 834, 20, cGrn, "middle", "нет нагрузки")
+		htxt = "≈ —"
 	} else if autoH >= 48 {
-		s.t(174, 834, 22, cTxt, "middle", "> 2 суток")
-	} else {
-		s.t(174, 834, 24, cTxt, "middle", fmt.Sprintf("≈ %dч %02dм", int(autoH), int((autoH-math.Floor(autoH))*60)))
+		htxt = "≈ >2 сут"
 	}
-	sub := fmt.Sprintf("нагрузка %.1f кВт", loadKW)
-	if hSun > 0.1 && pvKW > 0.2 {
-		sub += fmt.Sprintf(" · PV %.1f кВт до заката ~%.0fч", pvKW, hSun)
+	rcol := cGrn
+	if usableKWh < capKWh*0.12 {
+		rcol = cOrg
 	}
-	s.t(174, 860, 10, cSub, "middle", sub)
-	s.t(174, 880, 10, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
+	s.t(174, 726, 12, cSub, "middle", "доступно сейчас")
+	s.t(174, 760, 20, rcol, "middle", fmt.Sprintf("%.1f кВт·ч  %s", usableKWh, htxt))
+
+	// низ: SOH, ёмкость, отключение
+	s.t(40, 824, 12, cSub, "start", "SOH")
+	s.t(308, 824, 13, cTxt, "end", fmt.Sprintf("%.1f %%", st.Num("sensor.deye_sun_30k_battery_soh")))
+	s.t(174, 856, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
 
 	// Солнышко
 	s.box(360, 520, 560, 400)
