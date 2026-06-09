@@ -96,10 +96,10 @@ func Render(st State, cfg config.Config) string {
 	s.flow(cGrn, rybSt, 3, false, 655, 219, 655, 290)
 	s.flow(cGrn, rybSt, 3, false, 875, 219, 875, 290)
 	s.poly(stOn[rybSt], 3, "", 435, 290, 875, 290)
-	s.flow(cGrn, rybSt, 3, false, 435, 290, 435, 314, 119, 314, 119, 300)
+	s.flow(cGrn, rybSt, 3, false, 435, 290, 119, 290, 119, 300)
 	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 290, 905, 290, 905, 300)
 	// Ввод2 -> Контактор
-	s.flow(cBlu, grnSt, 2, exporting, 1010, 150, 1010, 270, 95, 270, 95, 300)
+	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1015, 150, 1015, 250, 95, 250, 95, 300)
 	// Контактор -> Инвертор
 	cSt := "on"
 	if cont == "off" {
