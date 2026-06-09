@@ -94,21 +94,6 @@ func rybPhase(st State, ph int, contRyb bool) string {
 	return "bad"
 }
 
-// weatherRu maps a HA weather condition to a short Russian label.
-func weatherRu(c string) string {
-	m := map[string]string{
-		"sunny": "ясно", "clear-night": "ясно", "partlycloudy": "перем. обл.",
-		"cloudy": "пасмурно", "fog": "туман", "rainy": "дождь", "pouring": "ливень",
-		"hail": "град", "lightning": "гроза", "lightning-rainy": "гроза, дождь",
-		"snowy": "снег", "snowy-rainy": "снег, дождь", "windy": "ветрено",
-		"windy-variant": "ветрено", "exceptional": "экстрим",
-	}
-	if v, ok := m[c]; ok {
-		return v
-	}
-	return c
-}
-
 // stabOut is the state of stabilizer ph's output line: a real input break just
 // de-energizes the output ("off"), it isn't a fault on the output side.
 func stabOut(st State, ph int, contRyb bool) string {
@@ -194,8 +179,9 @@ func Render(st State, cfg config.Config) string {
 	}
 	// PV -> Инвертор
 	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 460)
-	// Генератор -> Инвертор: 2 линии (управление + мощность)
-	s.flow(cOrg, "on", 1, false, 1010, 520, 1010, 496, 600, 496, 600, 470)
+	// Генератор -> Инвертор: 2 линии. Управляющий сигнал на запуск — серая статичная,
+	// когда сигнала нет; анимированная оранжевая, когда сигнал подан. Мощность — зелёная при работе.
+	s.flow(cOrg, map[bool]string{true: "on", false: "off"}[st.State("sensor.sim_gen_start_signal") == "on"], 1, false, 1010, 520, 1010, 496, 600, 496, 600, 470)
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 484, 588, 484, 588, 460)
 
 	// ===================== ROW 1 =====================
@@ -582,10 +568,11 @@ func Render(st State, cfg config.Config) string {
 	// Солнышко
 	s.box(360, 520, 560, 400)
 	s.head(360, 520, 560, "sun", "Солнышко", "")
-	// текущая погода между названием и «сегодня» — чтобы на скрине были видны условия
+	// текущая погода: иконка состояния + значения, по центру шапки
 	if w := "weather.forecast_home_assistant"; st.State(w) != "" && st.State(w) != "unavailable" {
-		s.t(492, 547, 12, cSub, "start", fmt.Sprintf("%s · %.0f°C · обл %.0f%% · %.1f м/с",
-			weatherRu(st.State(w)), st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
+		s.wicon(st.State(w), 548, 540)
+		s.t(566, 548, 14, cTxt, "start", fmt.Sprintf("%.0f°C · обл %.0f%% · %.1f м/с",
+			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
 	gx := []float64{500, 650, 800}

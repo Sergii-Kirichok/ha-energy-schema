@@ -52,3 +52,76 @@ func (s *Builder) head(x, y, w float64, kind, ttl, statusCol string) {
 		s.dot(x+w-16, y+18, 6, statusCol)
 	}
 }
+
+// wiconKind maps a HA weather condition to a glyph kind.
+func wiconKind(c string) string {
+	switch c {
+	case "sunny", "clear-night":
+		return "sun"
+	case "partlycloudy":
+		return "partly"
+	case "rainy", "pouring", "snowy-rainy":
+		return "rain"
+	case "lightning", "lightning-rainy":
+		return "storm"
+	case "snowy", "hail":
+		return "snow"
+	case "windy", "windy-variant":
+		return "wind"
+	case "fog":
+		return "fog"
+	default: // cloudy, exceptional, unknown
+		return "cloud"
+	}
+}
+
+// wicon draws a small weather glyph for a HA condition, centered at (ix,iy).
+func (s *Builder) wicon(cond string, ix, iy float64) {
+	sun := func(cx, cy, r float64) {
+		s.p(`<circle cx="%.1f" cy="%.1f" r="%.1f" fill="%s"/>`, cx, cy, r, cAmb)
+		for a := 0; a < 8; a++ {
+			x1, y1 := pt(cx, cy, r+2.5, float64(a)*45)
+			x2, y2 := pt(cx, cy, r+5, float64(a)*45)
+			s.p(`<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="1.8"/>`, x1, y1, x2, y2, cAmb)
+		}
+	}
+	cloud := func(cx, cy float64) {
+		s.p(`<circle cx="%.1f" cy="%.1f" r="5" fill="%s"/><circle cx="%.1f" cy="%.1f" r="7" fill="%s"/><circle cx="%.1f" cy="%.1f" r="5.5" fill="%s"/>`,
+			cx-7, cy+1, cSub, cx, cy-3, cSub, cx+7, cy+1, cSub)
+	}
+	switch wiconKind(cond) {
+	case "sun":
+		sun(ix, iy, 6)
+	case "partly":
+		sun(ix-4, iy-4, 4)
+		cloud(ix+3, iy+3)
+	case "rain":
+		cloud(ix, iy-2)
+		for i := 0; i < 3; i++ {
+			x := ix - 7 + float64(i)*7
+			s.p(`<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2" stroke-linecap="round"/>`, x, iy+6, x-2, iy+12, cBlu)
+		}
+	case "storm":
+		cloud(ix, iy-2)
+		s.p(`<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="%s"/>`,
+			ix+2, iy+5, ix-3, iy+11, ix, iy+11, ix-2, iy+16, ix+5, iy+8, cAmb)
+	case "snow":
+		cloud(ix, iy-2)
+		for i := 0; i < 3; i++ {
+			x := ix - 7 + float64(i)*7
+			s.p(`<circle cx="%.1f" cy="%.1f" r="1.7" fill="#e5e7eb"/>`, x, iy+11)
+		}
+	case "wind":
+		for i := 0; i < 3; i++ {
+			y := iy - 4 + float64(i)*5
+			s.p(`<path d="M %.1f %.1f h 11 a 3.2 3.2 0 1 1 -3 3.2" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round"/>`, ix-8, y, cSub)
+		}
+	case "fog":
+		for i := 0; i < 4; i++ {
+			y := iy - 6 + float64(i)*4
+			s.p(`<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2" stroke-linecap="round"/>`, ix-9, y, ix+9, y, cSub)
+		}
+	default:
+		cloud(ix, iy)
+	}
+}
