@@ -5,11 +5,11 @@ export SUPERVISOR_TOKEN="$TK"
 
 ha store reload >/dev/null 2>&1
 echo "=== update $SLUG ==="
-ha addons update "$SLUG" 2>&1 | tail -3
-ha addons restart "$SLUG" >/dev/null 2>&1
+ha apps update "$SLUG" 2>&1 | tail -3
+ha apps restart "$SLUG" >/dev/null 2>&1
 sleep 12
 echo "=== logs ==="
-ha addons logs "$SLUG" 2>&1 | tail -5
+ha apps logs "$SLUG" 2>&1 | tail -5
 echo "=== svg bytes ==="
 sudo wc -c /config/www/energy_schema.svg 2>&1
 echo "=== done ==="
