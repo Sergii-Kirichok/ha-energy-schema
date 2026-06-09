@@ -206,19 +206,11 @@ func gAng(v, max float64) float64 {
 }
 func (s *SB) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	d := math.Hypot(cx-mx, cy-my)
-	if d == 0 {
-		d = 1
-	}
-	ix, iy := (cx-mx)/d, (cy-my)/d // единичный вектор «внутрь» (к центру)
-	px, py := -iy, ix              // перпендикуляр
-	Rb := sz * 0.85
-	bx, by := mx-ix*sz*0.15, my-iy*sz*0.15 // голова чуть наружу, на дуге
-	tx, ty := mx+ix*sz*1.7, my+iy*sz*1.7   // остриё к центру
-	b1x, b1y := bx+px*Rb*0.8, by+py*Rb*0.8
-	b2x, b2y := bx-px*Rb*0.8, by-py*Rb*0.8
-	s.p(`<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="#ffffff"/>`, tx, ty, b1x, b1y, b2x, b2y)
-	s.p(`<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#ffffff" stroke="#0f1115" stroke-width="1"/>`, bx, by, Rb)
+	rot := math.Atan2(mx-cx, cy-my) * 180 / math.Pi // местная +Y (остриё) → к центру
+	R := sz * 0.95                                   // радиус головы
+	T := sz * 1.8                                    // длина к острию
+	s.p(`<g transform="translate(%.1f,%.1f) rotate(%.1f)"><path d="M 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/></g>`,
+		mx, my, rot, -R, R*1.33, -R, R*0.55, T, 0.0, T, -R*0.55, T, -R*1.33, -R, -R)
 }
 func (s *SB) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {
 	s.arc(cx, cy, r, 180, 0, "#23272f", 14)
