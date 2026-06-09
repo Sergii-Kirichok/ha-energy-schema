@@ -204,28 +204,26 @@ func Render(st State, cfg config.Config) string {
 		s.box(x, 44, 190, 175)
 		s.head(x, 44, 190, "sine", fmt.Sprintf("Стаб L%d", ph), linkCol)
 		if !linkOk {
-			// устройство не отвечает: линия жива (инв.) → стабилизатор в обходе (байпас);
-			// иначе питание не подтверждено. Показываем последнее известное + давность.
-			if rybPhase(st, ph, contRyb) == "lost" {
+			// Стабилизатор офлайн. Линия — ОТДЕЛЬНЫЙ источник: если она под
+			// напряжением (датчик линии / инвертор) — стабилизатор просто в обходе
+			// (байпас), питание идёт мимо. Иначе питание не подтверждено.
+			lineAlive := rybPhase(st, ph, contRyb) != "bad"
+			if lineAlive {
 				s.t(x+95, 92, 14, cOrg, "middle", "ТРАНЗИТ (байпас)")
-				s.t(x+95, 110, 10, cSub, "middle", "связи нет · линия жива (инв.)")
+				s.t(x+95, 110, 10, cSub, "middle", "стабилизатор офлайн")
+				// ТЕКУЩЕЕ напряжение линии (её данные доступны, источник отдельный)
+				s.t(x+95, 142, 17, cTxt, "middle", fmt.Sprintf("%d В", st.Int(p+"_vin")))
+				s.t(x+95, 160, 10, cSub, "middle", "на линии (живое)")
 			} else {
-				s.t(x+95, 92, 14, cRed, "middle", "НЕТ СВЯЗИ")
-				s.t(x+95, 110, 10, cSub, "middle", "питание не подтверждено")
+				s.t(x+95, 100, 14, cRed, "middle", "НЕТ СВЯЗИ")
+				s.t(x+95, 122, 11, cSub, "middle", "питание не подтверждено")
 			}
-			if st.LastState(p+"_vin") == "" {
-				s.t(x+95, 160, 11, cSub, "middle", "истории нет")
-			} else {
-				s.t(x+14, 136, 10, cSub, "start", "последнее известное:")
-				lrow := func(n int, label, val string) {
-					s.t(x+14, 156+float64(n)*19, 10, cSub, "start", label)
-					s.t(x+176, 156+float64(n)*19, 11, cSub, "end", val)
-				}
-				lrow(0, "вход → выход", fmt.Sprintf("%d → %dВ", st.LastInt(p+"_vin"), st.LastInt(p+"_vout")))
-				lrow(1, "ступень · нагрузка", fmt.Sprintf("%d · %.0fА", st.LastInt(p+"_step"), st.LastNum(p+"_load")))
+			// последнее, что отдал САМ стабилизатор (выход/ступень) — до сбоя
+			if st.LastState(p+"_vout") != "" {
+				s.t(x+95, 188, 10, cSub, "middle", fmt.Sprintf("посл. от стаб.: выход %dВ · ст %d", st.LastInt(p+"_vout"), st.LastInt(p+"_step")))
 			}
-			if info := st.LostInfo(p + "_on"); info != "" {
-				s.t(x+95, 210, 10, cOrg, "middle", "данных нет уже "+info)
+			if info := st.LostInfo(p + "_vout"); info != "" {
+				s.t(x+95, 210, 10, cOrg, "middle", "стаб. молчит уже "+info)
 			}
 			continue
 		}
