@@ -21,6 +21,15 @@ func pathD(pts []float64) string {
 	return d
 }
 
+// pathLen returns the total polyline length through the flat x,y pairs.
+func pathLen(pts []float64) float64 {
+	total := 0.0
+	for i := 2; i < len(pts); i += 2 {
+		total += math.Hypot(pts[i]-pts[i-2], pts[i+1]-pts[i-1])
+	}
+	return total
+}
+
 // revPts returns the x,y pairs in reverse order (for reversed flow animation).
 func revPts(pts []float64) []float64 {
 	r := make([]float64, len(pts))

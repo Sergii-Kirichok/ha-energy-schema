@@ -41,6 +41,18 @@ func TestPathD(t *testing.T) {
 	}
 }
 
+func TestPathLen(t *testing.T) {
+	if got := pathLen([]float64{0, 0, 3, 4}); got != 5 {
+		t.Errorf("pathLen 3-4-5 = %v, want 5", got)
+	}
+	if got := pathLen([]float64{0, 0, 0, 10, 10, 10}); got != 20 {
+		t.Errorf("pathLen L-shape = %v, want 20", got)
+	}
+	if got := pathLen([]float64{5, 5}); got != 0 {
+		t.Errorf("pathLen single point = %v, want 0", got)
+	}
+}
+
 func TestRevPts(t *testing.T) {
 	got := revPts([]float64{1, 2, 3, 4, 5, 6})
 	want := []float64{5, 6, 3, 4, 1, 2}

@@ -1,10 +1,18 @@
 package scada
 
+const (
+	flowBaseSpeed  = 34.0  // px/сек при нулевой нагрузке (медленно)
+	flowLoadSpeed  = 9.0   // +px/сек на каждый кВт (больше нагрузка → быстрее)
+	flowMaxSpeed   = 120.0 // потолок скорости, px/сек
+	flowDotSpacing = 110.0 // целевой интервал между кружочками, px
+)
+
 // flow draws an energy path between points (flat x,y pairs) by state:
 //   - "off": grey dashed line
 //   - "bad": red dashed line with a ✕ at the midpoint
-//   - otherwise: solid colored line with moving dots whose speed scales with
-//     magKW (bigger flow → faster). reverse flips the dot direction.
+//   - otherwise: solid colored line with moving dots at a UNIFORM linear speed
+//     (px/sec, independent of line length); more load (magKW) → a bit faster.
+//     Dot count scales with length so spacing stays constant. reverse flips dir.
 func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float64) {
 	if st == "off" {
 		s.poly(cGry, 2, "7 7", pts...)
@@ -21,14 +29,17 @@ func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float
 	if reverse {
 		pd = pathD(revPts(pts))
 	}
-	dur := 2.6 - magKW*0.12
-	if dur < 0.5 {
-		dur = 0.5
+	speed := flowBaseSpeed + magKW*flowLoadSpeed // px/сек, одинаково по всей линии
+	if speed > flowMaxSpeed {
+		speed = flowMaxSpeed
 	}
-	if dur > 2.6 {
-		dur = 2.6
+	L := pathLen(pts)
+	dur := L / speed // длиннее линия → дольше проход (но та же скорость)
+	n := int(L/flowDotSpacing + 0.5)
+	if n < 1 {
+		n = 1
 	}
-	for k := 0; k < 3; k++ {
-		s.p(`<circle r="4.5" fill="%s"><animateMotion dur="%.2fs" repeatCount="indefinite" begin="-%.2fs" path="%s"/></circle>`, col, dur, float64(k)*dur/3, pd)
+	for k := 0; k < n; k++ {
+		s.p(`<circle r="4.5" fill="%s"><animateMotion dur="%.2fs" repeatCount="indefinite" begin="-%.2fs" path="%s"/></circle>`, col, dur, float64(k)*dur/float64(n), pd)
 	}
 }
