@@ -9,7 +9,7 @@ import (
 
 func storeFrom(m map[string]string) *hass.Store {
 	s := hass.NewStore()
-	s.Replace(m)
+	s.ReplaceStates(m)
 	return s
 }
 

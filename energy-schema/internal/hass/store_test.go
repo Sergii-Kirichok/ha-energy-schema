@@ -1,10 +1,37 @@
 package hass
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestStoreLastGoodAndLost(t *testing.T) {
+	s := NewStore()
+	s.ReplaceStates(map[string]string{"sensor.x": "5"})
+	if !s.Available("sensor.x") || s.LastNum("sensor.x") != 5 {
+		t.Fatalf("after real value: avail=%v last=%v", s.Available("sensor.x"), s.LastNum("sensor.x"))
+	}
+	if s.LostInfo("sensor.x") != "" {
+		t.Errorf("LostInfo while available = %q, want empty", s.LostInfo("sensor.x"))
+	}
+	// device drops out: state unavailable, last changed 12 min ago
+	s.Replace(map[string]Entity{
+		"sensor.x": {State: "unavailable", LastChanged: time.Now().Add(-12 * time.Minute)},
+	})
+	if s.Available("sensor.x") {
+		t.Error("Available should be false when unavailable")
+	}
+	if s.LastNum("sensor.x") != 5 {
+		t.Errorf("LastNum after drop = %v, want 5 (last-good preserved)", s.LastNum("sensor.x"))
+	}
+	if got := s.LostInfo("sensor.x"); got != "12 мин" {
+		t.Errorf("LostInfo = %q, want '12 мин'", got)
+	}
+}
 
 func TestStoreAccessors(t *testing.T) {
 	s := NewStore()
-	s.Replace(map[string]string{
+	s.ReplaceStates(map[string]string{
 		"sensor.v":   " 12.5 ",
 		"sensor.i":   "3.6",
 		"switch.x":   "on",
@@ -44,11 +71,11 @@ func TestStoreAccessors(t *testing.T) {
 
 func TestStoreReplaceIsAtomicSwap(t *testing.T) {
 	s := NewStore()
-	s.Replace(map[string]string{"a": "1"})
+	s.ReplaceStates(map[string]string{"a": "1"})
 	if s.Num("a") != 1 {
 		t.Fatal("first replace failed")
 	}
-	s.Replace(map[string]string{"b": "2"})
+	s.ReplaceStates(map[string]string{"b": "2"})
 	if s.Num("a") != 0 {
 		t.Error("old key still present after replace")
 	}

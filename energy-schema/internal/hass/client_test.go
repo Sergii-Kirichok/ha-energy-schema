@@ -13,7 +13,7 @@ func TestFetchStates(t *testing.T) {
 		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[
-			{"entity_id":"sensor.a","state":"1.5","attributes":{"unit":"kW"}},
+			{"entity_id":"sensor.a","state":"1.5","last_changed":"2026-06-09T17:42:00+00:00","attributes":{"unit":"kW"}},
 			{"entity_id":"switch.b","state":"on"}
 		]`))
 	}))
@@ -30,8 +30,11 @@ func TestFetchStates(t *testing.T) {
 	if gotAuth != "Bearer TOK42" {
 		t.Errorf("auth = %q, want Bearer TOK42", gotAuth)
 	}
-	if m["sensor.a"] != "1.5" || m["switch.b"] != "on" {
+	if m["sensor.a"].State != "1.5" || m["switch.b"].State != "on" {
 		t.Errorf("parsed map = %v", m)
+	}
+	if m["sensor.a"].LastChanged.IsZero() {
+		t.Error("last_changed not parsed for sensor.a")
 	}
 	if len(m) != 2 {
 		t.Errorf("len = %d, want 2", len(m))

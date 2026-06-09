@@ -91,7 +91,7 @@ func fixtureStore() *hass.Store {
 		m[gen+"_load"] = "0"
 	}
 	st := hass.NewStore()
-	st.Replace(m)
+	st.ReplaceStates(m)
 	return st
 }
 

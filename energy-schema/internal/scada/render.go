@@ -15,6 +15,11 @@ type State interface {
 	Num(entity string) float64
 	Int(entity string) int
 	On(entity string) bool
+	// last-good snapshot + offline duration (for devices that dropped out)
+	LastState(entity string) string
+	LastNum(entity string) float64
+	LastInt(entity string) int
+	LostInfo(entity string) string
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -199,13 +204,28 @@ func Render(st State, cfg config.Config) string {
 		s.box(x, 44, 190, 175)
 		s.head(x, 44, 190, "sine", fmt.Sprintf("Стаб L%d", ph), linkCol)
 		if !linkOk {
-			// устройство не отвечает — телеметрии нет, показываем только диагноз
-			s.t(x+95, 120, 15, cRed, "middle", "НЕТ СВЯЗИ")
-			s.t(x+95, 142, 11, cSub, "middle", "с устройством")
+			// устройство не отвечает: линия жива (инв.) → стабилизатор в обходе (байпас);
+			// иначе питание не подтверждено. Показываем последнее известное + давность.
 			if rybPhase(st, ph, contRyb) == "lost" {
-				s.t(x+95, 180, 12, cOrg, "middle", "линия жива (по инв.)")
+				s.t(x+95, 92, 14, cOrg, "middle", "ТРАНЗИТ (байпас)")
+				s.t(x+95, 110, 10, cSub, "middle", "связи нет · линия жива (инв.)")
 			} else {
-				s.t(x+95, 180, 12, cSub, "middle", "питание не подтверждено")
+				s.t(x+95, 92, 14, cRed, "middle", "НЕТ СВЯЗИ")
+				s.t(x+95, 110, 10, cSub, "middle", "питание не подтверждено")
+			}
+			if st.LastState(p+"_vin") == "" {
+				s.t(x+95, 160, 11, cSub, "middle", "истории нет")
+			} else {
+				s.t(x+14, 136, 10, cSub, "start", "последнее известное:")
+				lrow := func(n int, label, val string) {
+					s.t(x+14, 156+float64(n)*19, 10, cSub, "start", label)
+					s.t(x+176, 156+float64(n)*19, 11, cSub, "end", val)
+				}
+				lrow(0, "вход → выход", fmt.Sprintf("%d → %dВ", st.LastInt(p+"_vin"), st.LastInt(p+"_vout")))
+				lrow(1, "ступень · нагрузка", fmt.Sprintf("%d · %.0fА", st.LastInt(p+"_step"), st.LastNum(p+"_load")))
+			}
+			if info := st.LostInfo(p + "_on"); info != "" {
+				s.t(x+95, 210, 10, cOrg, "middle", "данных нет уже "+info)
 			}
 			continue
 		}
