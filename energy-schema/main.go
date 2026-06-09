@@ -495,12 +495,10 @@ func renderSVG() string {
 	} else {
 		s.t(515, 352, 12, cGrn, "middle", "Статус: норма")
 	}
-	s.t(515, 382, 12, cSub, "middle", "мощность")
-	s.t(515, 402, 16, cTxt, "middle", kw(numOf("sensor.deye_sun_30k_power")))
 	if gridIn {
-		s.t(515, 432, 12, cGrn, "middle", "берёт от сети ✓")
+		s.t(515, 402, 13, cGrn, "middle", "берёт от сети ✓")
 	} else {
-		s.t(515, 432, 12, cOrg, "middle", "от сети НЕ берёт ✕")
+		s.t(515, 402, 13, cOrg, "middle", "от сети НЕ берёт ✕")
 	}
 
 	s.box(800, 300, 200, 160)

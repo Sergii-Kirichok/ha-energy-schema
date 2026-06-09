@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.3.6"
+version: "0.3.7"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы VELMUR (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
