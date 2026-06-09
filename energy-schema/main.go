@@ -172,7 +172,7 @@ func (s *SB) flow(col, st string, magKW float64, reverse bool, pts ...float64) {
 		dur = 2.6
 	}
 	for k := 0; k < 3; k++ {
-		s.p(`<circle r="4.5" fill="%s"><animateMotion dur="%.2fs" repeatCount="indefinite" begin="%.2fs" path="%s"/></circle>`, col, dur, float64(k)*dur/3, pd)
+		s.p(`<circle r="4.5" fill="%s"><animateMotion dur="%.2fs" repeatCount="indefinite" begin="-%.2fs" path="%s"/></circle>`, col, dur, float64(k)*dur/3, pd)
 	}
 }
 
@@ -278,7 +278,14 @@ func (s *SB) icon(kind string, ix, iy float64, col string) {
 	case "leaf":
 		s.p(`<path d="M %g %g q 14,-16 0,-22 q -14,6 0,22 Z" fill="none" stroke="%s" stroke-width="2"/>`, ix, iy+10, col)
 	case "sw":
-		s.p(`<circle cx="%g" cy="%g" r="3" fill="%s"/><circle cx="%g" cy="%g" r="3" fill="%s"/><line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2.5"/>`, ix-11, iy+6, col, ix+11, iy+6, col, ix-11, iy+6, ix+9, iy-7, col)
+		// transfer switch: 2 входа сверху, 1 выход снизу, нож на выбранный вход
+		s.p(`<circle cx="%g" cy="%g" r="2.6" fill="%s"/><circle cx="%g" cy="%g" r="2.6" fill="%s"/><circle cx="%g" cy="%g" r="2.6" fill="%s"/>`, ix-9, iy-8, col, ix+9, iy-8, col, ix, iy+10, col)
+		s.p(`<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.8"/><line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.8"/>`, ix-9, iy-8, ix-9, iy-13, col, ix+9, iy-8, ix+9, iy-13, col)
+		s.p(`<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2.6"/>`, ix, iy+10, ix-9, iy-6, col)
+	case "regen":
+		// двунаправленный знак (импорт/отдача = регенерация)
+		s.p(`<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2"/><polygon points="%g,%g %g,%g %g,%g" fill="%s"/>`, ix-6, iy+9, ix-6, iy-6, col, ix-6, iy-11, ix-10, iy-4, ix-2, iy-4, col)
+		s.p(`<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2"/><polygon points="%g,%g %g,%g %g,%g" fill="%s"/>`, ix+6, iy-9, ix+6, iy+6, col, ix+6, iy+11, ix+10, iy+4, ix+2, iy+4, col)
 	}
 }
 
@@ -437,7 +444,7 @@ func renderSVG() string {
 	}
 	// Ввод2 Зелёный
 	s.box(1000, 44, 180, 160)
-	s.head(1000, 44, 180, "leaf", in2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
+	s.head(1000, 44, 180, "regen", in2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
 	dt, dc := "потребление", cBlu
 	if stateOf("sensor.sim_green_dir") == "export" {
 		dt, dc = "отдача ↑", cGrn
