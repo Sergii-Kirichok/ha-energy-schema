@@ -206,10 +206,12 @@ func gAng(v, max float64) float64 {
 }
 func (s *SB) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	rot := math.Atan2(cy-my, cx-mx)*180/math.Pi - 90
-	H, W := sz*1.5, sz*0.78
-	s.p(`<g transform="translate(%.1f,%.1f) rotate(%.1f)"><path d="M 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f C %.1f,%.1f %.1f,%.1f 0,%.1f Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/></g>`,
-		mx, my, rot, H, 0.9*W, 0.25*H, W, -0.5*H, -H, -W, -0.5*H, -0.9*W, 0.25*H, H)
+	rot := math.Atan2(cx-mx, my-cy) * 180 / math.Pi // остриё к центру
+	R := sz * 0.85
+	L := sz * 1.9
+	sh := R * 0.707
+	s.p(`<g transform="translate(%.1f,%.1f) rotate(%.1f)"><path d="M 0,%.1f L %.1f,%.1f A %.1f %.1f 0 1 1 %.1f,%.1f Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/></g>`,
+		mx, my, rot, -L, sh, -sh, R, R, -sh, -sh)
 }
 func (s *SB) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {
 	s.arc(cx, cy, r, 180, 0, "#23272f", 14)
