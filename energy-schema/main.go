@@ -206,7 +206,7 @@ func gAng(v, max float64) float64 {
 }
 func (s *SB) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	rot := math.Atan2(cx-mx, my-cy) * 180 / math.Pi // остриё к центру
+	rot := math.Atan2(cx-mx, my-cy)*180/math.Pi + 180 // остриём к центру (голова на дуге)
 	R := sz * 0.85
 	L := sz * 1.9
 	sh := R * 0.707
