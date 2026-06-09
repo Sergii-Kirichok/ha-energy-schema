@@ -4,6 +4,12 @@
 # Quick start:  make check   |   make bump && make release MSG="..."
 SHELL := sh
 
+# Disable Git-Bash/MSYS automatic POSIX->Windows path conversion. Without this,
+# plink/pscp args like /bin/sh and /home/star/.ssh/ha_addon get rewritten to
+# C:\Program Files\Git\... before the remote shell ever sees them.
+export MSYS_NO_PATHCONV := 1
+export MSYS2_ARG_CONV_EXCL := *
+
 GO       ?= go
 ADDON_DIR := energy-schema
 PKGS      := ./...
