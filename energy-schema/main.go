@@ -345,7 +345,7 @@ func renderSVG() string {
 	grnSt := greenLineState()
 	exporting := stateOf("sensor.sim_export") == "on" && grnSt == "on"
 	load := numOf("sensor.sim_home_load_kw")
-	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power")
+	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power") + numOf("sensor.sim_pv4_power")
 	bp := numOf("sensor.deye_sun_30k_battery_power")
 
 	// ===== FLOWS (under boxes) =====
@@ -516,9 +516,12 @@ func renderSVG() string {
 	}
 	s.t(bcx, bcy+24, 14, bpc, "middle", bps)
 	// автономия
-	cutoff := numOf("number.deye_sun_30k_battery_low_soc")
+	cutoff := numOf("number.deye_sun_30k_battery_shutdown_soc")
 	if cutoff <= 0 {
-		cutoff = 20
+		cutoff = numOf("number.deye_sun_30k_battery_low_soc")
+	}
+	if cutoff <= 0 {
+		cutoff = 15
 	}
 	usable := battCap * (soc - cutoff) / 100
 	netKW := (load*1000 - pvtot) / 1000
@@ -538,13 +541,19 @@ func renderSVG() string {
 	// Солнечные поля
 	s.box(360, 520, 560, 400)
 	s.head(360, 520, 560, "sun", "Солнечные поля", "")
-	gx := []float64{460, 640, 820}
-	for i := 0; i < 3; i++ {
-		pw := numOf(fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1))
-		s.gauge(gx[i], 660, 64, pw/1000, 10, []band{{10, cAmb}}, kw(pw), pvLabels[i])
+	pvEnt := func(i int) string {
+		if i < 3 {
+			return fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
+		}
+		return "sensor.sim_pv4_power"
 	}
-	s.t(380, 800, 12, cSub, "start", "Всего")
-	s.bar(380, 815, 520, 46, pvtot/1000, pvMax, []band{{pvT1, cAmb}, {pvT2, cGrn}, {pvT3, cOrg}, {pvMax, cRed}}, kw(pvtot))
+	gx := []float64{448, 578, 708, 838}
+	for i := 0; i < 4; i++ {
+		pw := numOf(pvEnt(i))
+		s.gauge(gx[i], 652, 54, pw/1000, 10, []band{{10, cAmb}}, kw(pw), pvLabels[i])
+	}
+	s.t(380, 802, 12, cSub, "start", "Всего")
+	s.bar(380, 816, 520, 46, pvtot/1000, pvMax, []band{{pvT1, cAmb}, {pvT2, cGrn}, {pvT3, cOrg}, {pvMax, cRed}}, kw(pvtot))
 
 	// Генератор
 	s.box(956, 520, 464, 400)
