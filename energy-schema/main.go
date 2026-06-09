@@ -354,7 +354,7 @@ func renderSVG() string {
 	rybSt := rybLineState()
 	grnSt := greenLineState()
 	exporting := stateOf("sensor.sim_export") == "on" && grnSt == "on"
-	load := numOf("sensor.sim_home_load_kw")
+	load := numOf("sensor.deye_sun_30k_load_power") / 1000
 	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power") + numOf("sensor.sim_pv4_power")
 	bp := numOf("sensor.deye_sun_30k_battery_power")
 
@@ -495,8 +495,8 @@ func renderSVG() string {
 	} else {
 		s.t(515, 352, 12, cGrn, "middle", "Статус: норма")
 	}
-	s.t(515, 382, 12, cSub, "middle", "потери (ср.)")
-	s.t(515, 402, 16, cSub, "middle", fmt.Sprintf("%.0f Вт", avgLoss()))
+	s.t(515, 382, 12, cSub, "middle", "мощность")
+	s.t(515, 402, 16, cTxt, "middle", kw(numOf("sensor.deye_sun_30k_power")))
 	if gridIn {
 		s.t(515, 432, 12, cGrn, "middle", "берёт от сети ✓")
 	} else {
