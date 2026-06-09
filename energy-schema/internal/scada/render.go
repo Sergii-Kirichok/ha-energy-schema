@@ -171,24 +171,32 @@ func Render(st State, cfg config.Config) string {
 			s.t(x+95, 210, 11, cRed, "middle", "линия отключена")
 		}
 	}
-	// Ввод2 Зелёный
-	s.box(1020, 44, 180, 160)
-	s.head(1020, 44, 180, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
-	dt, dc := "потребление", cBlu
-	if st.State("sensor.sim_green_dir") == "export" {
-		dt, dc = "отдача ↑", cGrn
+	// Ввод2 Зелёный — карточка того же размера, что и Рыбхоз (240×175)
+	s.box(1020, 44, 240, 175)
+	s.head(1020, 44, 240, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
+	// состояние/направление — честно: когда ввод не запитан, не пишем «потребление»
+	if grnSt == "off" {
+		s.t(1140, 94, 12, cGry, "middle", "ввод отключён")
+	} else {
+		dt, dc := "потребление", cBlu
+		if st.State("sensor.sim_green_dir") == "export" {
+			dt, dc = "отдача ↑", cGrn
+		}
+		s.t(1140, 94, 12, dc, "middle", dt)
 	}
-	s.t(1032, 86, 12, dc, "start", dt)
 	for ph := 1; ph <= 3; ph++ {
-		y := 104.0 + float64(ph-1)*26
-		c := phCol(st, fmt.Sprintf("sensor.sim_green_l%d_on", ph), fmt.Sprintf("sensor.sim_green_l%d_v", ph), 200, 250)
-		s.dot(1036, y-4, 5, c)
-		s.t(1050, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
-		if st.On(fmt.Sprintf("sensor.sim_green_l%d_on", ph)) {
-			s.t(1078, y, 12, cTxt, "start", fmt.Sprintf("%dВ", st.Int(fmt.Sprintf("sensor.sim_green_l%d_v", ph))))
-			s.t(1188, y, 12, cTxt, "end", fmt.Sprintf("%.0fА", st.Num(fmt.Sprintf("sensor.sim_green_l%d_a", ph))))
+		y := 120.0 + float64(ph-1)*32
+		onE := fmt.Sprintf("sensor.sim_green_l%d_on", ph)
+		vE := fmt.Sprintf("sensor.sim_green_l%d_v", ph)
+		aE := fmt.Sprintf("sensor.sim_green_l%d_a", ph)
+		s.dot(1040, y-5, 5, phCol(st, onE, vE, 200, 250))
+		s.t(1056, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
+		if st.On(onE) {
+			v := st.Num(vE)
+			a := st.Num(aE)
+			s.t(1248, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
 		} else {
-			s.t(1078, y, 11, cGry, "start", "— нет —")
+			s.t(1248, y, 12, cGry, "end", "— нет —")
 		}
 	}
 
