@@ -127,20 +127,29 @@ func Render(st State, cfg config.Config) string {
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "lost": cOrg, "off": cGry}
 	contRyb := cont == "rybhoz"
 	// Рыбхоз: КАЖДАЯ фаза — своё состояние; обрыв одной не валит остальные.
+	// L2/L3 разведены по высоте (верх y=30 и y=14), стояк L2 правее (x=328) —
+	// чтобы маркеры аварии («?»/✕) не наезжали на L1 и друг на друга.
 	s.flow(cGrn, rybPhase(st, 1, contRyb), 2, false, 264, 108, 340, 108)
-	s.flow(cGrn, rybPhase(st, 2, contRyb), 2, false, 264, 144, 310, 144, 310, 30, 655, 30, 655, 44)
-	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 20, 875, 20, 875, 44)
+	s.flow(cGrn, rybPhase(st, 2, contRyb), 2, false, 264, 144, 328, 144, 328, 30, 655, 30, 655, 44)
+	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 14, 875, 14, 875, 44)
 	// выходы 3 стабилизаторов -> общая шина (y=275) -> Контактор и АВР(резерв)
 	out1, out2, out3 := stabOut(st, 1, contRyb), stabOut(st, 2, contRyb), stabOut(st, 3, contRyb)
 	s.flow(cGrn, out1, 3, false, 435, 219, 435, 275)
 	s.flow(cGrn, out2, 3, false, 655, 219, 655, 275)
 	s.flow(cGrn, out3, 3, false, 875, 219, 875, 275)
-	// общая шина жива, пока питает хоть один стабилизатор
+	// шина: зелёная ТОЛЬКО если все три выхода в норме; оранжевая если хоть одна
+	// фаза в потере связи/байпасе (стабилизация под вопросом); серая если всё off.
 	busSt := "off"
-	if out1 != "off" || out2 != "off" || out3 != "off" {
+	if out1 == "on" && out2 == "on" && out3 == "on" {
 		busSt = "on"
+	} else if out1 != "off" || out2 != "off" || out3 != "off" {
+		busSt = "lost"
 	}
-	s.poly(stOn[busSt], 3, "", 435, 275, 875, 275)
+	busDash := ""
+	if busSt == "lost" {
+		busDash = "6 5"
+	}
+	s.poly(stOn[busSt], 3, busDash, 435, 275, 875, 275)
 	s.flow(cGrn, busSt, 3, false, 435, 275, 119, 275, 119, 300)
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
 	// Ввод2 -> Контактор
