@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func TestStoreAttrs(t *testing.T) {
+	s := NewStore()
+	s.Replace(map[string]Entity{
+		"weather.x": {State: "partlycloudy", Attrs: map[string]string{"temperature": "17.7", "cloud_coverage": "13"}},
+		"sun.sun":   {State: "above_horizon", Attrs: map[string]string{"next_setting": time.Now().Add(3 * time.Hour).Format(time.RFC3339Nano)}},
+	})
+	if got := s.Attr("weather.x", "temperature"); got != "17.7" {
+		t.Errorf("Attr = %q", got)
+	}
+	if got := s.AttrNum("weather.x", "cloud_coverage"); got != 13 {
+		t.Errorf("AttrNum = %v", got)
+	}
+	if h := s.HoursUntil("sun.sun", "next_setting"); h < 2.9 || h > 3.1 {
+		t.Errorf("HoursUntil = %v, want ~3", h)
+	}
+	if s.HoursUntil("weather.x", "nope") != 0 {
+		t.Error("HoursUntil for missing attr should be 0")
+	}
+	if s.Attr("weather.x", "nope") != "" {
+		t.Error("missing attr should be empty")
+	}
+}
+
 func TestStoreLastGoodAndLost(t *testing.T) {
 	s := NewStore()
 	s.ReplaceStates(map[string]string{"sensor.x": "5"})

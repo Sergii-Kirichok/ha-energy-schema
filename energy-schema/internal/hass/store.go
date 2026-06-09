@@ -11,10 +11,11 @@ import (
 	"time"
 )
 
-// Entity is one HA state plus when it last changed.
+// Entity is one HA state plus when it last changed and its scalar attributes.
 type Entity struct {
 	State       string
 	LastChanged time.Time
+	Attrs       map[string]string // scalar attributes only (lists/objects skipped)
 }
 
 // real reports whether a state carries an actual value (not offline/empty).
@@ -112,6 +113,35 @@ func (s *Store) LostInfo(entity string) string {
 		return ""
 	}
 	return humanDur(time.Since(cur.LastChanged))
+}
+
+func (s *Store) attr(entity, key string) string {
+	s.mu.RLock()
+	a := s.cur[entity].Attrs
+	s.mu.RUnlock()
+	if a == nil {
+		return ""
+	}
+	return a[key]
+}
+
+// Attr returns a scalar attribute value ("" if absent).
+func (s *Store) Attr(entity, key string) string { return s.attr(entity, key) }
+
+// AttrNum parses a scalar attribute as float64 (0 on error).
+func (s *Store) AttrNum(entity, key string) float64 { return parseF(s.attr(entity, key)) }
+
+// HoursUntil parses an attribute as an RFC3339 timestamp and returns the hours
+// from now until it (clamped to >=0, 0 if absent/unparseable).
+func (s *Store) HoursUntil(entity, key string) float64 {
+	t, err := time.Parse(time.RFC3339Nano, s.attr(entity, key))
+	if err != nil {
+		return 0
+	}
+	if h := time.Until(t).Hours(); h > 0 {
+		return h
+	}
+	return 0
 }
 
 func humanDur(d time.Duration) string {

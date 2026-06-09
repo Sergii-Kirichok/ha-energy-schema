@@ -20,6 +20,10 @@ type State interface {
 	LastNum(entity string) float64
 	LastInt(entity string) int
 	LostInfo(entity string) string
+	// scalar attributes + time-until helpers (weather, sunset)
+	Attr(entity, key string) string
+	AttrNum(entity, key string) float64
+	HoursUntil(entity, key string) float64
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -88,6 +92,21 @@ func rybPhase(st State, ph int, contRyb bool) string {
 		return "lost"
 	}
 	return "bad"
+}
+
+// weatherRu maps a HA weather condition to a short Russian label.
+func weatherRu(c string) string {
+	m := map[string]string{
+		"sunny": "ясно", "clear-night": "ясно", "partlycloudy": "перем. обл.",
+		"cloudy": "пасмурно", "fog": "туман", "rainy": "дождь", "pouring": "ливень",
+		"hail": "град", "lightning": "гроза", "lightning-rainy": "гроза, дождь",
+		"snowy": "снег", "snowy-rainy": "снег, дождь", "windy": "ветрено",
+		"windy-variant": "ветрено", "exceptional": "экстрим",
+	}
+	if v, ok := m[c]; ok {
+		return v
+	}
+	return c
 }
 
 // stabOut is the state of stabilizer ph's output line: a real input break just
@@ -167,7 +186,12 @@ func Render(st State, cfg config.Config) string {
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
-	s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 488, 470, 488, 470, 460)
+	// Батарея <-> Инвертор: движение только при заряде/разряде; в покое (idle) — статичная линия
+	if math.Abs(bp) > 20 {
+		s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 488, 470, 488, 470, 460)
+	} else {
+		s.poly(cPur, 3, "", 174, 520, 174, 488, 470, 488, 470, 460)
+	}
 	// PV -> Инвертор
 	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 460)
 	// Генератор -> Инвертор: 2 линии (управление + мощность)
@@ -357,20 +381,20 @@ func Render(st State, cfg config.Config) string {
 		tc = cOrg
 	}
 	s.t(560, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
-	// фактическое использование сети: реле + наличие — СЛЕВА
+	// фактическое использование сети: реле + наличие — СЛЕВА (опущено от шапки)
 	gridP := st.Num("sensor.deye_sun_30k_grid_power")
 	if !gridAvail {
-		s.t(414, 344, 12, cGry, "start", "сеть: нет ✕")
+		s.t(414, 351, 12, cGry, "start", "сеть: нет ✕")
 	} else if gridBonded {
-		s.t(414, 344, 12, cGrn, "start", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
+		s.t(414, 351, 12, cGrn, "start", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
 	} else {
-		s.t(414, 344, 12, cOrg, "start", "сеть: откл. защитой ✕")
+		s.t(414, 351, 12, cOrg, "start", "сеть: откл. защитой ✕")
 	}
 	// статус инвертора — СПРАВА
 	if invProb {
-		s.t(686, 344, 12, cRed, "end", "Ошибка: "+invState)
+		s.t(686, 351, 12, cRed, "end", "Ошибка: "+invState)
 	} else {
-		s.t(686, 344, 12, cGrn, "end", "Статус: норма")
+		s.t(686, 351, 12, cGrn, "end", "Статус: норма")
 	}
 	// напряжение и нагрузка по фазам на входе (сеть)
 	s.t(414, 368, 10, cSub, "start", "фаза")
@@ -422,42 +446,47 @@ func Render(st State, cfg config.Config) string {
 		bStatCol = cRed
 	}
 	s.head(24, 520, 300, "batt", "Батарея", bStatCol)
+	// температура — рядом со значком статуса (не отдельной строкой)
+	btemp := st.Num("sensor.deye_sun_30k_battery_temperature")
+	btc := cGrn
+	if btemp >= 45 {
+		btc = cRed
+	} else if btemp >= 35 {
+		btc = cOrg
+	}
+	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
+
 	soc := st.Num("sensor.deye_sun_30k_battery")
-	bcx, bcy := 174.0, 626.0
-	s.arc(bcx, bcy, 80, 180, 0, "#23272f", 13)
+	bcx, bcy := 174.0, 624.0
+	s.arc(bcx, bcy, 78, 180, 0, "#23272f", 13)
 	socCol := cGrn
 	if soc < 20 {
 		socCol = cRed
 	} else if soc < 50 {
 		socCol = cAmb
 	}
-	s.arc(bcx, bcy, 80, 180, gAng(soc, 100), socCol, 13)
-	s.marker(bcx, bcy, 80, gAng(soc, 100), 7)
-	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
-	bps, bpc := "ожидание", cSub
-	if bp < -20 {
-		bps, bpc = "заряд "+kw(-bp), cGrn
-	} else if bp > 20 {
-		bps, bpc = "разряд "+kw(bp), cOrg
-	}
-	s.t(bcx, bcy+22, 13, bpc, "middle", bps)
-	brow := func(n int, label, val, col string) {
-		s.t(40, 686+float64(n)*24, 12, cSub, "start", label)
-		s.t(308, 686+float64(n)*24, 13, col, "end", val)
-	}
-	bstT := map[string]string{"charging": "заряд", "discharging": "разряд", "static": "ожидание", "standby": "ожидание", "full": "полна", "sleep": "сон"}[st.State("sensor.deye_sun_30k_battery_state")]
-	if bstT == "" {
-		bstT = st.State("sensor.deye_sun_30k_battery_state")
-	}
-	scol := cTxt
+	s.arc(bcx, bcy, 78, 180, gAng(soc, 100), socCol, 13)
+	s.marker(bcx, bcy, 78, gAng(soc, 100), 7)
+	s.t(bcx, bcy-2, 28, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
+
+	// заряд/разряд — визуально (пилюля со стрелкой); покой = без стрелки
 	if bAlarm {
-		bstT, scol = "АВАРИЯ", cRed
+		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, cRed, cRed)
+		s.t(174, 668, 15, cRed, "middle", "⚠ АВАРИЯ БАТАРЕИ")
+	} else if bp < -20 {
+		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cGrn, cGrn)
+		s.p(`<polygon points="70,670 78,654 86,670" fill="%s"/>`, cGrn)
+		s.t(190, 668, 15, cGrn, "middle", "ЗАРЯД "+kw(-bp))
+	} else if bp > 20 {
+		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cOrg, cOrg)
+		s.p(`<polygon points="70,654 78,670 86,654" fill="%s"/>`, cOrg)
+		s.t(190, 668, 15, cOrg, "middle", "РАЗРЯД "+kw(bp))
+	} else {
+		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
+		s.t(174, 668, 14, cSub, "middle", "ожидание (idle)")
 	}
-	brow(0, "Статус", bstT, scol)
-	brow(1, "Температура", fmt.Sprintf("%d °C", st.Int("sensor.deye_sun_30k_battery_temperature")), cTxt)
-	brow(2, "Ток", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")), cTxt)
-	brow(3, "SOH", fmt.Sprintf("%.1f %%", st.Num("sensor.deye_sun_30k_battery_soh")), cTxt)
-	// автономия
+
+	// сколько кВт·ч реально доступно сейчас (от текущего заряда до отключения)
 	cutoff := st.Num("number.deye_sun_30k_battery_shutdown_soc")
 	if cutoff <= 0 {
 		cutoff = st.Num("number.deye_sun_30k_battery_low_soc")
@@ -465,24 +494,75 @@ func Render(st State, cfg config.Config) string {
 	if cutoff <= 0 {
 		cutoff = 15
 	}
-	usable := cfg.BattCap * (soc - cutoff) / 100
-	netKW := (load*1000 - pvtot) / 1000
-	s.t(174, 806, 12, cSub, "middle", "автономно (без ген.):")
-	if netKW <= 0.05 {
-		s.t(174, 834, 19, cGrn, "middle", "заряд / избыток")
-	} else {
-		h := usable / netKW
-		if h < 0 {
-			h = 0
-		}
-		s.t(174, 836, 22, cTxt, "middle", fmt.Sprintf("≈ %dч %02dм", int(h), int((h-math.Floor(h))*60)))
+	capKWh := st.Num("number.deye_sun_30k_battery_capacity") * st.Num("sensor.deye_sun_30k_battery_voltage") / 1000
+	if capKWh < 1 {
+		capKWh = cfg.BattCap
 	}
-	s.t(174, 864, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", cfg.BattCap, cutoff))
-	s.t(174, 884, 10, cSub, "middle", "* грубо; погода/генерация — далее")
+	usableKWh := capKWh * (soc - cutoff) / 100
+	if usableKWh < 0 {
+		usableKWh = 0
+	}
+	s.t(174, 702, 11, cSub, "middle", "доступно сейчас (до отключения):")
+	rcol := cGrn
+	if usableKWh < capKWh*0.12 {
+		rcol = cOrg
+	}
+	s.t(174, 730, 24, rcol, "middle", fmt.Sprintf("%.1f кВт·ч", usableKWh))
+
+	// ток + SOH в одну строку
+	s.t(40, 762, 12, cSub, "start", "Ток")
+	s.t(150, 762, 13, cTxt, "end", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
+	s.t(196, 762, 12, cSub, "start", "SOH")
+	s.t(308, 762, 13, cTxt, "end", fmt.Sprintf("%.1f%%", st.Num("sensor.deye_sun_30k_battery_soh")))
+
+	// автономия: если свет пропадёт СЕЙЧАС, без генератора. PV помогает до заката,
+	// после — разряд по полной нагрузке. Берём текущую генерацию (по погоде).
+	loadKW := load
+	pvKW := pvtot / 1000
+	sunUp := pvKW > 0.1 || st.State("sun.sun") == "above_horizon"
+	hSun := 0.0
+	if sunUp {
+		hSun = st.HoursUntil("sun.sun", "next_setting")
+	}
+	r1 := loadKW - pvKW // разряд днём (нагрузка минус PV)
+	if r1 < 0 {
+		r1 = 0
+	}
+	autoH := 999.0
+	switch {
+	case loadKW < 0.05:
+	case r1 <= 0.001: // PV покрывает нагрузку → держимся до заката, дальше по нагрузке
+		autoH = hSun + usableKWh/loadKW
+	default:
+		if e1 := r1 * hSun; e1 >= usableKWh {
+			autoH = usableKWh / r1
+		} else {
+			autoH = hSun + (usableKWh-e1)/loadKW
+		}
+	}
+	s.t(174, 802, 12, cSub, "middle", "если свет пропадёт сейчас:")
+	if loadKW < 0.05 {
+		s.t(174, 834, 20, cGrn, "middle", "нет нагрузки")
+	} else if autoH >= 48 {
+		s.t(174, 834, 22, cTxt, "middle", "> 2 суток")
+	} else {
+		s.t(174, 834, 24, cTxt, "middle", fmt.Sprintf("≈ %dч %02dм", int(autoH), int((autoH-math.Floor(autoH))*60)))
+	}
+	sub := fmt.Sprintf("нагрузка %.1f кВт", loadKW)
+	if hSun > 0.1 && pvKW > 0.2 {
+		sub += fmt.Sprintf(" · PV %.1f кВт до заката ~%.0fч", pvKW, hSun)
+	}
+	s.t(174, 860, 10, cSub, "middle", sub)
+	s.t(174, 880, 10, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
 
 	// Солнышко
 	s.box(360, 520, 560, 400)
 	s.head(360, 520, 560, "sun", "Солнышко", "")
+	// текущая погода между названием и «сегодня» — чтобы на скрине были видны условия
+	if w := "weather.forecast_home_assistant"; st.State(w) != "" && st.State(w) != "unavailable" {
+		s.t(492, 547, 12, cSub, "start", fmt.Sprintf("%s · %.0f°C · обл %.0f%% · %.1f м/с",
+			weatherRu(st.State(w)), st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
+	}
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
 	gx := []float64{500, 650, 800}
 	for i := 0; i < 3; i++ {

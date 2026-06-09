@@ -33,7 +33,7 @@ func Default() Config {
 		In1Name:  "Рыбхоз",
 		In2Name:  "Зелёный",
 		PVLabels: [3]string{"Поле 1", "Поле 2", "Поле 3"},
-		BattCap:  30.0,
+		BattCap:  60.0,
 		HomeMax:  30.0, HomeT1: 3.0, HomeT2: 5.0, HomeT3: 25.0,
 		PVMax: 33.0, PVT1: 5.0, PVT2: 20.0, PVT3: 25.0,
 	}

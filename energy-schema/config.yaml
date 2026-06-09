@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.4.28"
+version: "0.4.29"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы BobRIXOS (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -23,7 +23,7 @@ options:
   pv1_label: "Поле 1"
   pv2_label: "Поле 2"
   pv3_label: "Поле 3"
-  batt_capacity_kwh: 30
+  batt_capacity_kwh: 60
   home_max: 30
   home_t1: 3
   home_t2: 5
