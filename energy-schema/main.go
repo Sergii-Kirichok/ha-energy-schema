@@ -356,7 +356,7 @@ func renderSVG() string {
 	exporting := stateOf("sensor.sim_export") == "on" && grnSt == "on"
 	load := numOf("sensor.deye_sun_30k_load_power") / 1000
 	pvtot := numOf("sensor.deye_sun_30k_pv1_power") + numOf("sensor.deye_sun_30k_pv2_power") + numOf("sensor.deye_sun_30k_pv3_power") + numOf("sensor.sim_pv4_power")
-	bp := numOf("sensor.deye_sun_30k_battery_power")
+	bp := numOf("sensor.deye_sun_30k_battery_voltage") * numOf("sensor.deye_sun_30k_battery_current")
 
 	// ===== FLOWS (under boxes) =====
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}
