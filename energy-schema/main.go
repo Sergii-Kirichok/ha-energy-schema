@@ -479,14 +479,28 @@ func renderSVG() string {
 		s.t(119, 410, 11, cSub, "middle", "отдача выкл")
 	}
 
+	df := stateOf("sensor.deye_sun_30k_device_fault")
+	da := stateOf("sensor.deye_sun_30k_device_alarm")
+	invState := stateOf("sensor.deye_sun_30k_device_state")
+	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
 	s.box(400, 300, 230, 160)
-	s.head(400, 300, 230, "inv", "Инвертор", map[bool]string{true: cGrn, false: cGry}[genRun || gridIn])
-	s.t(515, 388, 12, cSub, "middle", "потери (ср.)")
-	s.t(515, 410, 16, cSub, "middle", fmt.Sprintf("%.0f Вт", avgLoss()))
-	if gridIn {
-		s.t(515, 440, 12, cGrn, "middle", "берёт от сети ✓")
+	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
+	if invProb {
+		hc = cRed
+	}
+	s.head(400, 300, 230, "inv", "Инвертор", hc)
+	if invProb {
+		s.p(`<polygon points="%g,%g %g,%g %g,%g" fill="none" stroke="%s" stroke-width="2"/><text x="%g" y="%g" font-size="13" font-weight="bold" fill="%s" text-anchor="middle">!</text>`, 600, 314, 590, 332, 610, 332, cRed, 600, 330, cRed)
+		s.t(515, 352, 13, cRed, "middle", "Ошибка: "+invState)
 	} else {
-		s.t(515, 440, 12, cOrg, "middle", "от сети НЕ берёт ✕")
+		s.t(515, 352, 12, cGrn, "middle", "Статус: норма")
+	}
+	s.t(515, 382, 12, cSub, "middle", "потери (ср.)")
+	s.t(515, 402, 16, cSub, "middle", fmt.Sprintf("%.0f Вт", avgLoss()))
+	if gridIn {
+		s.t(515, 432, 12, cGrn, "middle", "берёт от сети ✓")
+	} else {
+		s.t(515, 432, 12, cOrg, "middle", "от сети НЕ берёт ✕")
 	}
 
 	s.box(800, 300, 200, 160)
@@ -512,26 +526,47 @@ func renderSVG() string {
 	// ===================== ROW 3 =====================
 	// Батарея
 	s.box(24, 520, 300, 400)
-	s.head(24, 520, 300, "batt", "Батарея", "")
+	bAlarm := on("binary_sensor.deye_sun_30k_battery_fault") || on("binary_sensor.deye_sun_30k_battery_alarm")
+	bStatCol := cGrn
+	if bAlarm {
+		bStatCol = cRed
+	}
+	s.head(24, 520, 300, "batt", "Батарея", bStatCol)
 	soc := numOf("sensor.deye_sun_30k_battery")
-	bcx, bcy := 174.0, 660.0
-	s.arc(bcx, bcy, 92, 180, 0, "#23272f", 14)
+	bcx, bcy := 174.0, 626.0
+	s.arc(bcx, bcy, 80, 180, 0, "#23272f", 13)
 	socCol := cGrn
 	if soc < 20 {
 		socCol = cRed
 	} else if soc < 50 {
 		socCol = cAmb
 	}
-	s.arc(bcx, bcy, 92, 180, gAng(soc, 100), socCol, 14)
-	s.marker(bcx, bcy, 92, gAng(soc, 100), 8)
-	s.t(bcx, bcy-4, 30, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
+	s.arc(bcx, bcy, 80, 180, gAng(soc, 100), socCol, 13)
+	s.marker(bcx, bcy, 80, gAng(soc, 100), 7)
+	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 	bps, bpc := "ожидание", cSub
 	if bp < -20 {
 		bps, bpc = "заряд "+kw(-bp), cGrn
 	} else if bp > 20 {
 		bps, bpc = "разряд "+kw(bp), cOrg
 	}
-	s.t(bcx, bcy+24, 14, bpc, "middle", bps)
+	s.t(bcx, bcy+22, 13, bpc, "middle", bps)
+	brow := func(n int, label, val, col string) {
+		s.t(40, 686+float64(n)*24, 12, cSub, "start", label)
+		s.t(308, 686+float64(n)*24, 13, col, "end", val)
+	}
+	bstT := map[string]string{"charging": "заряд", "discharging": "разряд", "static": "ожидание", "standby": "ожидание", "full": "полна", "sleep": "сон"}[stateOf("sensor.deye_sun_30k_battery_state")]
+	if bstT == "" {
+		bstT = stateOf("sensor.deye_sun_30k_battery_state")
+	}
+	scol := cTxt
+	if bAlarm {
+		bstT, scol = "АВАРИЯ", cRed
+	}
+	brow(0, "Статус", bstT, scol)
+	brow(1, "Температура", fmt.Sprintf("%d °C", iv("sensor.deye_sun_30k_battery_temperature")), cTxt)
+	brow(2, "Ток", fmt.Sprintf("%.1f А", numOf("sensor.deye_sun_30k_battery_current")), cTxt)
+	brow(3, "SOH", fmt.Sprintf("%.1f %%", numOf("sensor.deye_sun_30k_battery_soh")), cTxt)
 	// автономия
 	cutoff := numOf("number.deye_sun_30k_battery_shutdown_soc")
 	if cutoff <= 0 {
@@ -542,22 +577,23 @@ func renderSVG() string {
 	}
 	usable := battCap * (soc - cutoff) / 100
 	netKW := (load*1000 - pvtot) / 1000
-	s.t(174, 740, 12, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", battCap, cutoff))
+	s.t(174, 806, 12, cSub, "middle", "автономно (без ген.):")
 	if netKW <= 0.05 {
-		s.t(174, 776, 17, cGrn, "middle", "заряд / избыток")
+		s.t(174, 834, 19, cGrn, "middle", "заряд / избыток")
 	} else {
 		h := usable / netKW
 		if h < 0 {
 			h = 0
 		}
-		s.t(174, 770, 13, cSub, "middle", "автономно (без ген.):")
-		s.t(174, 798, 22, cTxt, "middle", fmt.Sprintf("≈ %dч %02dм", int(h), int((h-math.Floor(h))*60)))
+		s.t(174, 836, 22, cTxt, "middle", fmt.Sprintf("≈ %dч %02dм", int(h), int((h-math.Floor(h))*60)))
 	}
-	s.t(174, station(), 10, cSub, "middle", "* грубо; учёт погоды/генерации — далее")
+	s.t(174, 864, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", battCap, cutoff))
+	s.t(174, 884, 10, cSub, "middle", "* грубо; погода/генерация — далее")
 
 	// Солнечные поля
 	s.box(360, 520, 560, 400)
 	s.head(360, 520, 560, "sun", "Солнечные поля", "")
+	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", numOf("sensor.deye_sun_30k_today_production")))
 	pvEnt := func(i int) string {
 		if i < 3 {
 			return fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
