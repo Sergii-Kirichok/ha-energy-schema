@@ -144,7 +144,9 @@ func Render(st State, cfg config.Config) string {
 
 	// ===== FLOWS (under boxes) =====
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "lost": cOrg, "off": cGry}
-	contRyb := cont == "rybhoz"
+	// Контактор — одно реле: ВЫКЛ → Ввод1 Рыбхоз (по автоматам, дефолт); ВКЛ → Ввод2 Зелёный.
+	contOn := cont == "on"
+	contRyb := !contOn // активный ввод = Рыбхоз, пока контактор выключен
 	// Рыбхоз: КАЖДАЯ фаза — своё состояние; обрыв одной не валит остальные.
 	// L2/L3 разведены по высоте (верх y=30 и y=14), стояк L2 правее (x=328) —
 	// чтобы маркеры аварии («?»/✕) не наезжали на L1 и друг на друга.
@@ -173,11 +175,9 @@ func Render(st State, cfg config.Config) string {
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
 	// Ввод2 -> Контактор
 	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
-	// Контактор -> Инвертор
+	// Контактор -> Инвертор (активный ввод всегда питает инвертор)
 	cSt := "on"
-	if cont == "off" {
-		cSt = "off"
-	} else if !gridIn {
+	if !gridIn {
 		cSt = "bad"
 	}
 	s.flow(cBlu, cSt, 2, false, 214, 380, 400, 380)
@@ -312,54 +312,51 @@ func Render(st State, cfg config.Config) string {
 	}
 
 	// ===================== ROW 2 =====================
-	// Контактор — Zigbee-управляемый, с обратной связью по состоянию
-	s.box(24, 300, 190, 160)
+	// Контактор — одно реле (RS-485), с обратной связью: ВЫКЛ=Ввод1, ВКЛ=Ввод2
+	s.box(24, 300, 190, 175)
 	ctLink := st.State("sensor.sim_contactor_link") != "lost" // обратная связь RS-485 (по умолч. есть)
-	ctOn := cont == "rybhoz" || cont == "green"
-	ctDot := cGry
+	ctDot := cGrn
 	if !ctLink {
 		ctDot = cRed
-	} else if ctOn {
-		ctDot = cGrn
 	}
 	s.head(24, 300, 190, "sw", "Контактор", ctDot)
-	// крупный статус вкл/выкл
+	// крупный статус: состояние реле → какой ввод в работе
 	if !ctLink {
 		s.t(119, 348, 13, cRed, "middle", "НЕТ СВЯЗИ (485)")
-	} else if ctOn {
-		s.t(119, 348, 15, cGrn, "middle", "ВКЛЮЧЁН")
+	} else if contOn {
+		s.t(119, 348, 15, cBlu, "middle", "ВКЛ → Ввод 2")
 	} else {
-		s.t(119, 348, 15, cGry, "middle", "ОТКЛЮЧЁН")
+		s.t(119, 348, 15, cGrn, "middle", "ВЫКЛ → Ввод 1")
 	}
-	// селектор линий: активная подсвечена, у каждой — индикатор «живости» линии
-	selRow := func(y float64, name, key, col, liveCol string) {
-		if cont == key {
+	// какой ввод сейчас активен (подсветка) + индикатор «живости» линии + при каком реле
+	selRow := func(y float64, name, note, col, liveCol string, active bool) {
+		if active {
 			s.p(`<rect x="34" y="%g" width="160" height="26" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
 		} else {
 			s.p(`<rect x="34" y="%g" width="160" height="26" rx="6" fill="none" stroke="%s" stroke-width="1"/>`, y, cBrd)
 		}
 		s.dot(50, y+13, 5, liveCol)
-		tc := cSub
-		if cont == key {
-			tc = col
+		tc, nc := cSub, cSub
+		if active {
+			tc, nc = col, col
 		}
 		s.t(66, y+17, 13, tc, "start", name)
-		if cont == key {
-			s.t(186, y+17, 14, col, "end", "→")
-		}
+		s.t(186, y+17, 9, nc, "end", note)
 	}
-	selRow(364, cfg.In1Name, "rybhoz", cGrn, stOn[rybSt])
-	selRow(394, cfg.In2Name, "green", cBlu, stOn[grnSt])
+	selRow(364, cfg.In1Name, "по умолч.", cGrn, stOn[rybSt], !contOn)
+	selRow(394, cfg.In2Name, "реле вкл", cBlu, stOn[grnSt], contOn)
+	// пояснение защиты: без управляющего питания контактор остаётся на Вводе 1
+	s.t(119, 442, 9, cSub, "middle", "перекидной · без питания → Ввод 1 (защита)")
 	// низ: связь RS-485 + отдача
 	if ctLink {
-		s.t(34, 450, 10, cSub, "start", "RS-485 ✓")
+		s.t(34, 462, 10, cSub, "start", "RS-485 ✓")
 	} else {
-		s.t(34, 450, 10, cRed, "start", "RS-485 ✕")
+		s.t(34, 462, 10, cRed, "start", "RS-485 ✕")
 	}
 	if st.State("sensor.sim_export") == "on" {
-		s.t(204, 450, 10, cGrn, "end", "отдача ↑")
+		s.t(204, 462, 10, cGrn, "end", "отдача ↑")
 	} else {
-		s.t(204, 450, 10, cSub, "end", "отдача —")
+		s.t(204, 462, 10, cSub, "end", "отдача —")
 	}
 
 	df := st.State("sensor.deye_sun_30k_device_fault")

@@ -13,7 +13,7 @@ import (
 // fixtureStore is a deterministic, branch-exercising snapshot of HA states.
 func fixtureStore() *hass.Store {
 	m := map[string]string{
-		"sensor.sim_contactor": "rybhoz",
+		"sensor.sim_contactor": "off",
 		"sensor.sim_inv_grid":  "on",
 		"sensor.sim_avr_pos":   "inverter",
 		"sensor.sim_avr_link":  "ok",
