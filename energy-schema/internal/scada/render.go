@@ -99,7 +99,7 @@ func Render(st State, cfg config.Config) string {
 	s.flow(cGrn, rybSt, 3, false, 435, 290, 435, 314, 119, 314, 119, 300)
 	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 290, 905, 290, 905, 300)
 	// Ввод2 -> Контактор
-	s.flow(cBlu, grnSt, 2, exporting, 1000, 150, 1000, 270, 95, 270, 95, 300)
+	s.flow(cBlu, grnSt, 2, exporting, 1010, 150, 1010, 270, 95, 270, 95, 300)
 	// Контактор -> Инвертор
 	cSt := "on"
 	if cont == "off" {
@@ -169,23 +169,23 @@ func Render(st State, cfg config.Config) string {
 		}
 	}
 	// Ввод2 Зелёный
-	s.box(1000, 44, 180, 160)
-	s.head(1000, 44, 180, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
+	s.box(1010, 44, 180, 160)
+	s.head(1010, 44, 180, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
 	dt, dc := "потребление", cBlu
 	if st.State("sensor.sim_green_dir") == "export" {
 		dt, dc = "отдача ↑", cGrn
 	}
-	s.t(1012, 86, 12, dc, "start", dt)
+	s.t(1022, 86, 12, dc, "start", dt)
 	for ph := 1; ph <= 3; ph++ {
 		y := 104.0 + float64(ph-1)*26
 		c := phCol(st, fmt.Sprintf("sensor.sim_green_l%d_on", ph), fmt.Sprintf("sensor.sim_green_l%d_v", ph), 200, 250)
-		s.dot(1016, y-4, 5, c)
-		s.t(1030, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.dot(1026, y-4, 5, c)
+		s.t(1040, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
 		if st.On(fmt.Sprintf("sensor.sim_green_l%d_on", ph)) {
-			s.t(1058, y, 12, cTxt, "start", fmt.Sprintf("%dВ", st.Int(fmt.Sprintf("sensor.sim_green_l%d_v", ph))))
-			s.t(1168, y, 12, cTxt, "end", fmt.Sprintf("%.0fА", st.Num(fmt.Sprintf("sensor.sim_green_l%d_a", ph))))
+			s.t(1068, y, 12, cTxt, "start", fmt.Sprintf("%dВ", st.Int(fmt.Sprintf("sensor.sim_green_l%d_v", ph))))
+			s.t(1178, y, 12, cTxt, "end", fmt.Sprintf("%.0fА", st.Num(fmt.Sprintf("sensor.sim_green_l%d_a", ph))))
 		} else {
-			s.t(1058, y, 11, cGry, "start", "— нет —")
+			s.t(1068, y, 11, cGry, "start", "— нет —")
 		}
 	}
 
