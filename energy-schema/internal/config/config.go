@@ -17,7 +17,7 @@ type Config struct {
 	Title    string
 	In1Name  string
 	In2Name  string
-	PVLabels [4]string
+	PVLabels [3]string
 
 	BattCap                         float64
 	HomeMax, HomeT1, HomeT2, HomeT3 float64
@@ -32,7 +32,7 @@ func Default() Config {
 		Title:    "Энергосистема",
 		In1Name:  "Рыбхоз",
 		In2Name:  "Зелёный",
-		PVLabels: [4]string{"Поле 1", "Поле 2", "Поле 3", "Поле 4"},
+		PVLabels: [3]string{"Поле 1", "Поле 2", "Поле 3"},
 		BattCap:  30.0,
 		HomeMax:  30.0, HomeT1: 3.0, HomeT2: 5.0, HomeT3: 25.0,
 		PVMax: 33.0, PVT1: 5.0, PVT2: 20.0, PVT3: 25.0,
@@ -50,7 +50,6 @@ type options struct {
 	Pv1            string  `json:"pv1_label"`
 	Pv2            string  `json:"pv2_label"`
 	Pv3            string  `json:"pv3_label"`
-	Pv4            string  `json:"pv4_label"`
 	BattCap        float64 `json:"batt_capacity_kwh"`
 	HomeMax        float64 `json:"home_max"`
 	HomeT1         float64 `json:"home_t1"`
@@ -90,7 +89,7 @@ func (c *Config) apply(o options) {
 	if o.In2Name != "" {
 		c.In2Name = o.In2Name
 	}
-	for i, v := range []string{o.Pv1, o.Pv2, o.Pv3, o.Pv4} {
+	for i, v := range []string{o.Pv1, o.Pv2, o.Pv3} {
 		if v != "" {
 			c.PVLabels[i] = v
 		}

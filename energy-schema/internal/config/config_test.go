@@ -17,7 +17,7 @@ func TestDefault(t *testing.T) {
 	if c.In1Name != "Рыбхоз" || c.In2Name != "Зелёный" {
 		t.Errorf("input names = %q / %q", c.In1Name, c.In2Name)
 	}
-	if c.PVLabels[3] != "Поле 4" {
+	if c.PVLabels[2] != "Поле 3" {
 		t.Errorf("PVLabels = %v", c.PVLabels)
 	}
 	if c.HomeMax != 30 || c.PVMax != 33 {
