@@ -2,31 +2,32 @@ package scada
 
 import "math"
 
-// marker draws a white teardrop needle at angle a on radius r: a round head
-// riding on the arc that tapers to a sharp point aimed at the gauge center.
-// Built from an explicit inward vector, so it orients correctly at any angle.
 // markerTip returns the teardrop tip point for the marker at angle a — it sits
-// d inside the arc point, i.e. distance r-d from the gauge center (always inward).
+// d OUTSIDE the arc point (away from the gauge center), at distance r+d.
 func markerTip(cx, cy, r, a, sz float64) (float64, float64) {
 	mx, my := pt(cx, cy, r, a)
 	d := sz * markerTipFactor
-	return mx + (cx-mx)/r*d, my + (cy-my)/r*d
+	return mx - (cx-mx)/r*d, my - (cy-my)/r*d
 }
 
-const markerTipFactor = 2.3 // вынос острия (× sz) от центра головы
+const markerTipFactor = 2.3 // вынос острия (× sz) наружу от центра головы
 
+// marker draws a white teardrop at angle a on radius r: a round head whose
+// center sits on the arc (the band), tapering to a sharp point aimed OUTWARD,
+// away from the gauge center. Built from an explicit radial vector → correct at
+// any angle.
 func (s *Builder) marker(cx, cy, r, a, sz float64) {
 	mx, my := pt(cx, cy, r, a)
-	ux, uy := (cx-mx)/r, (cy-my)/r        // единичный вектор к центру (остриё туда)
-	hr := sz                              // радиус головы
-	d := sz * markerTipFactor             // вынос острия от центра головы
+	ux, uy := (cx-mx)/r, (cy-my)/r        // единичный вектор к центру
+	hr := sz                              // радиус головы (центр на дуге)
+	d := sz * markerTipFactor             // вынос острия наружу
 	alpha := math.Acos(hr / d)            // полуугол касательных острия к голове
-	a0 := math.Atan2(uy, ux)              // направление к центру
-	tx, ty := markerTip(cx, cy, r, a, sz) // вершина (остриё) — к центру
+	pd := math.Atan2(-uy, -ux)            // направление острия — НАРУЖУ (от центра)
+	tx, ty := markerTip(cx, cy, r, a, sz) // вершина (остриё) — наружу
 	s.p(`<path d="M %.1f,%.1f`, tx, ty)
 	const n = 16
-	for i := 0; i <= n; i++ { // дуга головы по внешней стороне (минуя клин острия)
-		ang := a0 + alpha + (2*math.Pi-2*alpha)*float64(i)/float64(n)
+	for i := 0; i <= n; i++ { // дуга головы со стороны центра (минуя клин острия)
+		ang := pd + alpha + (2*math.Pi-2*alpha)*float64(i)/float64(n)
 		s.p(` L %.1f,%.1f`, mx+hr*math.Cos(ang), my+hr*math.Sin(ang))
 	}
 	s.p(` Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/>`)
