@@ -586,45 +586,72 @@ func Render(st State, cfg config.Config) string {
 	s.t(380, 802, 12, cSub, "start", "Всего")
 	s.bar(380, 816, 520, 46, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
 
-	// Генератор
-	s.box(956, 520, 464, 400)
+	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
+	s.box(956, 520, 464, 300)
 	gk := "gen"
-	gtc, gtxt := cGry, "выключен"
+	gtc, gtxt := cGry, "ВЫКЛЮЧЕН"
 	if genRun {
-		gk, gtc, gtxt = "genrun", cGrn, "работает"
+		gk, gtc, gtxt = "genrun", cGrn, "РАБОТАЕТ"
 	}
 	s.head(956, 520, 464, gk, "Генератор", gtc)
-	gl := func(n int, label, val, col string) {
-		s.t(972, 576+float64(n)*28, 12, cSub, "start", label)
-		s.t(1200, 576+float64(n)*28, 13, col, "end", val)
-	}
-	gl(0, "Состояние", gtxt, gtc)
+	s.t(1388, 547, 15, gtc, "end", gtxt)
+
+	// сигнал на запуск — «ключик» (зел=запущен / оранж=прогрев / красн=не завёлся / серый=нет)
 	sig := st.State("sensor.sim_gen_start_signal") == "on"
-	gl(1, "Сигнал на запуск", map[bool]string{true: "ЕСТЬ", false: "нет"}[sig], map[bool]string{true: cOrg, false: cSub}[sig])
-	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
-	gl(2, "Подогрев", map[bool]string{true: "вкл", false: "выкл"}[htOn], map[bool]string{true: cOrg, false: cSub}[htOn])
-	gl(3, "Температура", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")), cTxt)
 	tts := st.Num("sensor.sim_gen_time_to_start_min")
-	ttsTxt, ttsCol := "—", cSub
-	if sig && !genRun {
-		ttsTxt, ttsCol = fmt.Sprintf("%.0f мин", tts), cOrg
+	var sigCol, sigTxt string
+	switch {
+	case !sig:
+		sigCol, sigTxt = cGry, "сигнала нет"
+	case genRun:
+		sigCol, sigTxt = cGrn, "сигнал · запущен"
+	case tts > 0:
+		sigCol, sigTxt = cOrg, fmt.Sprintf("сигнал · прогрев %.0fм", tts)
+	default:
+		sigCol, sigTxt = cRed, "сигнал · НЕ ЗАВЁЛСЯ"
 	}
-	gl(4, "До запуска (прогрев)", ttsTxt, ttsCol)
+	s.p(`<rect x="972" y="568" width="220" height="30" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<circle cx="990" cy="583" r="4" fill="none" stroke="%s" stroke-width="2"/><line x1="994" y1="583" x2="1006" y2="583" stroke="%s" stroke-width="2"/><line x1="1006" y1="583" x2="1006" y2="588" stroke="%s" stroke-width="2"/><line x1="1002" y1="583" x2="1002" y2="587" stroke="%s" stroke-width="2"/>`, sigCol, sigCol, sigCol, sigCol)
+	s.t(1014, 587, 12, sigCol, "start", sigTxt)
+
+	// подогрев ОЖ + температура
+	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
+	htCol, htTxt := cSub, "подогрев выкл"
+	if htOn {
+		htCol, htTxt = cOrg, "подогрев вкл"
+	}
+	s.p(`<rect x="1204" y="568" width="200" height="30" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
+	for i := 0; i < 3; i++ {
+		x := 1220.0 + float64(i)*5
+		s.p(`<path d="M %.1f 590 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
+	}
+	s.t(1242, 587, 12, htCol, "start", htTxt)
+	s.t(1396, 587, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
+
+	// наработка + замена масла — крупно
+	s.t(972, 644, 11, cSub, "start", "Наработка")
+	s.t(972, 668, 19, cTxt, "start", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
 	oil := st.Num("sensor.sim_gen_oil_remaining_h")
-	oc := cSub
+	oilCol := cTxt
 	if oil < 10 {
-		oc = cRed
+		oilCol = cRed
+	} else if oil < 30 {
+		oilCol = cOrg
 	}
-	gl(5, "До замены масла", fmt.Sprintf("%.0f ч", oil), oc)
-	gl(6, "Наработка", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")), cTxt)
-	s.t(972, 800, 11, cSub, "start", "фаза      U          нагрузка")
+	s.t(1404, 644, 11, cSub, "end", "До замены масла")
+	s.t(1404, 668, 19, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
+
+	// нагрузка по фазам
+	s.t(972, 706, 11, cSub, "start", "Нагрузка по фазам")
+	s.t(1090, 728, 10, cSub, "start", "U")
+	s.t(1404, 728, 10, cSub, "end", "ток · мощность")
 	for ph := 1; ph <= 3; ph++ {
-		y := 800.0 + float64(ph)*28
+		y := 750.0 + float64(ph-1)*22
 		p := fmt.Sprintf("sensor.sim_gen_l%d", ph)
-		a := st.Num(p + "_load")
+		a, v := st.Num(p+"_load"), st.Num(p+"_v")
 		s.t(972, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(1040, y, 13, cTxt, "start", fmt.Sprintf("%dВ", st.Int(p+"_v")))
-		s.t(1200, y, 13, cTxt, "end", fmt.Sprintf("%.0fА · %.2fкВт", a, a*st.Num(p+"_v")/1000))
+		s.t(1090, y, 13, cTxt, "start", fmt.Sprintf("%.0f В", v))
+		s.t(1404, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
 	}
 
 	s.p(`</svg>`)
