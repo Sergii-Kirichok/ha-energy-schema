@@ -167,7 +167,7 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.flow(cBlu, cSt, 2, false, 264, 380, 400, 380)
 	// Инвертор -> АВР (осн.)
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 700, 380, 800, 380)
+	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 740, 380, 800, 380)
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
@@ -349,13 +349,13 @@ func Render(st State, cfg config.Config) string {
 	da := st.State("sensor.deye_sun_30k_device_alarm")
 	invState := st.State("sensor.deye_sun_30k_device_state")
 	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
-	s.box(400, 300, 300, 160)
+	s.box(400, 300, 340, 160)
 	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
 	if invProb {
 		hc = cRed
 	}
-	s.head(400, 300, 300, "inv", "Инвертор", hc)
-	// температура инвертора — в шапке, посередине
+	s.head(400, 300, 340, "inv", "Инвертор", hc)
+	// температура инвертора — в шапке
 	temp := st.Num("sensor.deye_sun_30k_temperature")
 	tc := cGrn
 	if temp >= 65 {
@@ -363,11 +363,11 @@ func Render(st State, cfg config.Config) string {
 	} else if temp >= 50 {
 		tc = cOrg
 	}
-	s.t(560, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
-	// фактическое использование сети: реле + наличие — СЛЕВА (опущено от шапки)
+	s.t(580, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
+	// наличие/использование сети — СЛЕВА: КРАСНЫМ когда сети нет (проблема входа)
 	gridP := st.Num("sensor.deye_sun_30k_grid_power")
 	if !gridAvail {
-		s.t(414, 351, 12, cGry, "start", "сеть: нет ✕")
+		s.t(414, 351, 12, cRed, "start", "сеть: НЕТ ✕")
 	} else if gridBonded {
 		s.t(414, 351, 12, cGrn, "start", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
 	} else {
@@ -375,27 +375,30 @@ func Render(st State, cfg config.Config) string {
 	}
 	// статус инвертора — СПРАВА
 	if invProb {
-		s.t(686, 351, 12, cRed, "end", "Ошибка: "+invState)
+		s.t(726, 351, 12, cRed, "end", "Ошибка: "+invState)
 	} else {
-		s.t(686, 351, 12, cGrn, "end", "Статус: норма")
+		s.t(726, 351, 12, cGrn, "end", "Статус: норма")
 	}
-	// напряжение и нагрузка по фазам на входе (сеть)
-	s.t(414, 368, 10, cSub, "start", "фаза")
-	s.t(536, 368, 10, cSub, "start", "U вход")
-	s.t(686, 368, 10, cSub, "end", "нагрузка")
+	// по фазам: ВХОД (сеть) и ВЫХОД (инвертор → дом) — это РАЗНЫЕ счётчики.
+	// При пропаже сети вход = 0В (красный), а выход инвертора держит ~230В.
+	s.t(414, 372, 10, cSub, "start", "фаза")
+	s.t(540, 372, 10, cSub, "end", "сеть · вход")
+	s.t(726, 372, 10, cSub, "end", "инвертор → дом")
 	for ph := 1; ph <= 3; ph++ {
-		y := 386.0 + float64(ph-1)*18
+		y := 390.0 + float64(ph-1)*17
 		gv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_voltage", ph))
 		gw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_power", ph))
-		vc := cGrn
+		ov := st.Num(fmt.Sprintf("sensor.deye_sun_30k_output_l%d_voltage", ph))
+		lw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_load_l%d_power", ph))
+		gc := cTxt
 		if gv < 1 {
-			vc = cSub
+			gc = cRed // нет фазы сети
 		} else if gv < 205 || gv > 250 {
-			vc = cOrg
+			gc = cOrg
 		}
 		s.t(414, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(536, y, 12, vc, "start", fmt.Sprintf("%.0f В", gv))
-		s.t(686, y, 12, cTxt, "end", fmt.Sprintf("%.0f Вт", gw))
+		s.t(540, y, 11, gc, "end", fmt.Sprintf("%.0fВ·%.0fВт", gv, gw))
+		s.t(726, y, 11, cTxt, "end", fmt.Sprintf("%.0fВ·%.0fВт", ov, lw))
 	}
 	// частота сети + интервал реконнекта (после срабатывания защиты)
 	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
