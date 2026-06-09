@@ -191,12 +191,24 @@ func Render(st State, cfg config.Config) string {
 		ph := i + 1
 		x := stabX[i]
 		p := fmt.Sprintf("sensor.sim_ryb_l%d", ph)
+		linkOk := st.State(p+"_link") == "ok"
 		linkCol := cGrn
-		if st.State(p+"_link") != "ok" {
+		if !linkOk {
 			linkCol = cRed
 		}
 		s.box(x, 44, 190, 175)
 		s.head(x, 44, 190, "sine", fmt.Sprintf("Стаб L%d", ph), linkCol)
+		if !linkOk {
+			// устройство не отвечает — телеметрии нет, показываем только диагноз
+			s.t(x+95, 120, 15, cRed, "middle", "НЕТ СВЯЗИ")
+			s.t(x+95, 142, 11, cSub, "middle", "с устройством")
+			if rybPhase(st, ph, contRyb) == "lost" {
+				s.t(x+95, 180, 12, cOrg, "middle", "линия жива (по инв.)")
+			} else {
+				s.t(x+95, 180, 12, cSub, "middle", "питание не подтверждено")
+			}
+			continue
+		}
 		mc, mt := cBlu, "стабилизация"
 		if st.State(p+"_mode") == "transit" {
 			mc, mt = cSub, "транзит"
