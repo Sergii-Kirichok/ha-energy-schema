@@ -434,15 +434,18 @@ func Render(st State, cfg config.Config) string {
 		atc = cOrg
 	}
 	s.t(966, 327, 12, atc, "end", fmt.Sprintf("%.0f°C", atemp))
-	// крупный статус: через что работаем
-	if !avrLink {
-		s.t(900, 351, 13, cRed, "middle", "НЕТ СВЯЗИ (485)")
-	} else if avrPos == "inverter" {
-		s.t(900, 351, 14, cGrn, "middle", "ЧЕРЕЗ ИНВЕРТОР")
-	} else {
-		s.t(900, 351, 14, cOrg, "middle", "РЕЗЕРВ — напрямую")
+	// режим работы — пилюля (важно: можем ли МЫ им управлять)
+	avrMode := st.State("sensor.sim_avr_mode")
+	modeCol, modeTxt := cGrn, "АВТО — переключается сам"
+	if avrMode == "manual" {
+		modeCol, modeTxt = cBlu, "РУЧНОЙ — управляем мы"
 	}
-	// селектор источника: инвертор / резерв (прямой ввод 1)
+	if !avrLink {
+		modeCol, modeTxt = cRed, "НЕТ СВЯЗИ (RS-485)"
+	}
+	s.p(`<rect x="812" y="340" width="176" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, modeCol, modeCol)
+	s.t(900, 357, 11, modeCol, "middle", modeTxt)
+	// селектор источника: через что сейчас питается Дом (инвертор / резерв = прямой Ввод 1)
 	avrRow := func(y float64, name, key, col string) {
 		if avrPos == key {
 			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
@@ -458,15 +461,11 @@ func Render(st State, cfg config.Config) string {
 			s.t(980, y+16, 12, col, "end", "→ Дом")
 		}
 	}
-	avrRow(363, "Инвертор", "inverter", cGrn)
-	avrRow(391, "Резерв · "+cfg.In1Name, "reserve", cOrg)
-	// статистика устройства + связь
-	s.t(812, 440, 10, cSub, "start", fmt.Sprintf("переключений: %.0f", st.Num("sensor.sim_avr_switches")))
-	if avrLink {
-		s.t(988, 440, 10, cSub, "end", "RS-485 ✓")
-	} else {
-		s.t(988, 440, 10, cRed, "end", "RS-485 ✕")
-	}
+	avrRow(376, "Инвертор", "inverter", cGrn)
+	avrRow(404, "Резерв · "+cfg.In1Name, "reserve", cOrg)
+	// статистика переключений: всего и за сегодня — отдельно
+	s.t(900, 446, 11, cTxt, "middle", fmt.Sprintf("переключений всего: %.0f", st.Num("sensor.sim_avr_switches")))
+	s.t(900, 464, 10, cSub, "middle", fmt.Sprintf("из них сегодня: %.0f", st.Num("sensor.sim_avr_switches_today")))
 
 	// Дом — гейдж
 	s.box(1140, 290, 280, 190)
