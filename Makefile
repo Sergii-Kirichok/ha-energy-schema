@@ -2,7 +2,19 @@
 #
 # Run from Git Bash (needs sh, go, and for deploy: plink/pscp from PuTTY).
 # Quick start:  make check   |   make bump && make release MSG="..."
+# Run recipes under Git-for-Windows sh even when make is launched from
+# PowerShell/cmd (where sh is not on PATH). The 8.3 short path (PROGRA~1) avoids
+# spaces that would otherwise break SHELL; falls back to plain sh (Git Bash /
+# Linux / macOS). Without this, POSIX recipes (VAR=1 cmd, pipes, printf) fail.
+ifeq ($(OS),Windows_NT)
+SHELL := $(firstword $(wildcard C:/PROGRA~1/Git/usr/bin/sh.exe) sh)
+# Launched from PowerShell/cmd, sh inherits their PATH and can't find the Git
+# coreutils (tail, rm, sed, grep, expr). Prepend Git's usr/bin so recipes work.
+export PATH := C:/PROGRA~1/Git/usr/bin;$(PATH)
+else
 SHELL := sh
+endif
+.SHELLFLAGS := -c
 
 # Disable Git-Bash/MSYS automatic POSIX->Windows path conversion. Without this,
 # plink/pscp args like /bin/sh and /home/star/.ssh/ha_addon get rewritten to
@@ -56,8 +68,9 @@ build:
 	cd $(ADDON_DIR) && CGO_ENABLED=0 $(GO) build -trimpath -o $(LOCALBIN) ./cmd/energy-schema
 
 ## golden: regenerate the render SVG snapshot after an intentional visual change
+golden: export UPDATE_GOLDEN := 1
 golden:
-	cd $(ADDON_DIR) && UPDATE_GOLDEN=1 $(GO) test ./internal/scada/ -run TestRenderGolden
+	cd $(ADDON_DIR) && $(GO) test ./internal/scada/ -run TestRenderGolden
 
 ## check: fmt-check + vet + test (CI gate)
 check: fmt-check vet test
