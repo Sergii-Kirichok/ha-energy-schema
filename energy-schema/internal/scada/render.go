@@ -3,6 +3,7 @@ package scada
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"energy-schema/internal/config"
 )
@@ -74,7 +75,9 @@ func Render(st State, cfg config.Config) string {
 	s.t(1428, 28, 18, cTxt, "end", cfg.Title)
 
 	cont := st.State("sensor.sim_contactor")
-	gridIn := st.State("sensor.sim_inv_grid") == "on"
+	gridAvail := st.On("binary_sensor.deye_sun_30k_grid")
+	gridBonded := strings.Contains(st.State("sensor.deye_sun_30k_device_relay"), "Grid")
+	gridIn := gridBonded
 	avrPos := st.State("sensor.sim_avr_pos")
 	genRun := st.State("sensor.sim_gen_state") == "running"
 	rybSt := rybLineState(st)
@@ -109,7 +112,7 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.flow(cBlu, cSt, 2, false, 214, 380, 400, 380)
 	// Инвертор -> АВР (осн.)
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 630, 380, 800, 380)
+	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 700, 380, 800, 380)
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
@@ -209,23 +212,56 @@ func Render(st State, cfg config.Config) string {
 	da := st.State("sensor.deye_sun_30k_device_alarm")
 	invState := st.State("sensor.deye_sun_30k_device_state")
 	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
-	s.box(400, 300, 230, 160)
+	s.box(400, 300, 300, 160)
 	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
 	if invProb {
 		hc = cRed
 	}
-	s.head(400, 300, 230, "inv", "Инвертор", hc)
+	s.head(400, 300, 300, "inv", "Инвертор", hc)
+	// температура инвертора — в шапке, посередине
+	temp := st.Num("sensor.deye_sun_30k_temperature")
+	tc := cGrn
+	if temp >= 65 {
+		tc = cRed
+	} else if temp >= 50 {
+		tc = cOrg
+	}
+	s.t(560, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
+	// статус инвертора
 	if invProb {
-		s.p(`<polygon points="%g,%g %g,%g %g,%g" fill="none" stroke="%s" stroke-width="2"/><text x="%g" y="%g" font-size="13" font-weight="bold" fill="%s" text-anchor="middle">!</text>`, 600.0, 314.0, 590.0, 332.0, 610.0, 332.0, cRed, 600.0, 330.0, cRed)
-		s.t(515, 352, 13, cRed, "middle", "Ошибка: "+invState)
+		s.t(414, 344, 12, cRed, "start", "Ошибка: "+invState)
 	} else {
-		s.t(515, 352, 12, cGrn, "middle", "Статус: норма")
+		s.t(414, 344, 12, cGrn, "start", "Статус: норма")
 	}
-	if gridIn {
-		s.t(515, 402, 13, cGrn, "middle", "берёт от сети ✓")
+	// фактическое использование сети: реле + наличие
+	gridP := st.Num("sensor.deye_sun_30k_grid_power")
+	if !gridAvail {
+		s.t(686, 344, 12, cGry, "end", "сеть: нет ✕")
+	} else if gridBonded {
+		s.t(686, 344, 12, cGrn, "end", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
 	} else {
-		s.t(515, 402, 13, cOrg, "middle", "от сети НЕ берёт ✕")
+		s.t(686, 344, 12, cOrg, "end", "сеть: откл. защитой ✕")
 	}
+	// напряжение и нагрузка по фазам на входе (сеть)
+	s.t(414, 368, 10, cSub, "start", "фаза")
+	s.t(536, 368, 10, cSub, "start", "U вход")
+	s.t(686, 368, 10, cSub, "end", "нагрузка")
+	for ph := 1; ph <= 3; ph++ {
+		y := 386.0 + float64(ph-1)*18
+		gv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_voltage", ph))
+		gw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_power", ph))
+		vc := cGrn
+		if gv < 1 {
+			vc = cSub
+		} else if gv < 205 || gv > 250 {
+			vc = cOrg
+		}
+		s.t(414, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.t(536, y, 12, vc, "start", fmt.Sprintf("%.0f В", gv))
+		s.t(686, y, 12, cTxt, "end", fmt.Sprintf("%.0f Вт", gw))
+	}
+	// частота сети + интервал реконнекта (после срабатывания защиты)
+	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
 
 	s.box(800, 300, 200, 160)
 	avrLinkCol := cGrn
@@ -314,9 +350,9 @@ func Render(st State, cfg config.Config) string {
 	s.t(174, 864, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", cfg.BattCap, cutoff))
 	s.t(174, 884, 10, cSub, "middle", "* грубо; погода/генерация — далее")
 
-	// Солнечные поля
+	// Солнышко
 	s.box(360, 520, 560, 400)
-	s.head(360, 520, 560, "sun", "Солнечные поля", "")
+	s.head(360, 520, 560, "sun", "Солнышко", "")
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
 	gx := []float64{500, 650, 800}
 	for i := 0; i < 3; i++ {

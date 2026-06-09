@@ -42,6 +42,20 @@ func fixtureStore() *hass.Store {
 		"sensor.deye_sun_30k_device_state":        "Normal",
 		"sensor.deye_sun_30k_today_production":    "14",
 
+		// grid input (inverter card)
+		"binary_sensor.deye_sun_30k_grid":            "on",
+		"sensor.deye_sun_30k_device_relay":           "Inverter-Grid",
+		"sensor.deye_sun_30k_grid_power":             "1891",
+		"sensor.deye_sun_30k_grid_frequency":         "50",
+		"sensor.deye_sun_30k_temperature":            "36.8",
+		"sensor.deye_sun_30k_grid_l1_voltage":        "229.6",
+		"sensor.deye_sun_30k_grid_l2_voltage":        "214.5",
+		"sensor.deye_sun_30k_grid_l3_voltage":        "207.7",
+		"sensor.deye_sun_30k_grid_l1_power":          "585",
+		"sensor.deye_sun_30k_grid_l2_power":          "301",
+		"sensor.deye_sun_30k_grid_l3_power":          "1005",
+		"number.deye_sun_30k_grid_reconnection_time": "70",
+
 		"number.deye_sun_30k_battery_shutdown_soc": "15",
 		"number.deye_sun_30k_battery_low_soc":      "10",
 		"binary_sensor.deye_sun_30k_battery_fault": "off",
