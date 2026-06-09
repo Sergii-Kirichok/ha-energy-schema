@@ -91,15 +91,15 @@ func Render(st State, cfg config.Config) string {
 	s.flow(rc, rybSt, 2, false, 264, 108, 340, 108)
 	s.flow(rc, rybSt, 2, false, 264, 144, 310, 144, 310, 30, 655, 30, 655, 44)
 	s.flow(rc, rybSt, 2, false, 264, 180, 284, 180, 284, 20, 875, 20, 875, 44)
-	// выходы 3 стабилизаторов -> общая шина (y=290) -> Контактор и АВР(резерв)
-	s.flow(cGrn, rybSt, 3, false, 435, 219, 435, 290)
-	s.flow(cGrn, rybSt, 3, false, 655, 219, 655, 290)
-	s.flow(cGrn, rybSt, 3, false, 875, 219, 875, 290)
-	s.poly(stOn[rybSt], 3, "", 435, 290, 875, 290)
-	s.flow(cGrn, rybSt, 3, false, 435, 290, 119, 290, 119, 300)
-	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 290, 905, 290, 905, 300)
+	// выходы 3 стабилизаторов -> общая шина (y=275) -> Контактор и АВР(резерв)
+	s.flow(cGrn, rybSt, 3, false, 435, 219, 435, 275)
+	s.flow(cGrn, rybSt, 3, false, 655, 219, 655, 275)
+	s.flow(cGrn, rybSt, 3, false, 875, 219, 875, 275)
+	s.poly(stOn[rybSt], 3, "", 435, 275, 875, 275)
+	s.flow(cGrn, rybSt, 3, false, 435, 275, 119, 275, 119, 300)
+	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
 	// Ввод2 -> Контактор
-	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1015, 150, 1015, 250, 95, 250, 95, 300)
+	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
 	// Контактор -> Инвертор
 	cSt := "on"
 	if cont == "off" {
