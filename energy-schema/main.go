@@ -362,16 +362,16 @@ func renderSVG() string {
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}
 	rc := stOn[rybSt]
 	// Рыбхоз L1->Стаб1 (прямо в левый бок), L2/L3 через верхний зазор
-	s.flow(rc, rybSt, 2, false, 264, 108, 300, 108)
-	s.flow(rc, rybSt, 2, false, 264, 144, 282, 144, 282, 32, 615, 32, 615, 44)
-	s.flow(rc, rybSt, 2, false, 264, 180, 274, 180, 274, 22, 835, 22, 835, 44)
+	s.flow(rc, rybSt, 2, false, 264, 108, 340, 108)
+	s.flow(rc, rybSt, 2, false, 264, 144, 300, 144, 300, 30, 655, 30, 655, 44)
+	s.flow(rc, rybSt, 2, false, 264, 180, 290, 180, 290, 20, 875, 20, 875, 44)
 	// выходы 3 стабилизаторов -> общая шина (y=290) -> Контактор и АВР(резерв)
-	s.flow(cGrn, rybSt, 3, false, 395, 219, 395, 290)
-	s.flow(cGrn, rybSt, 3, false, 615, 219, 615, 290)
-	s.flow(cGrn, rybSt, 3, false, 835, 219, 835, 290)
-	s.poly(stOn[rybSt], 3, "", 395, 290, 835, 290)
-	s.flow(cGrn, rybSt, 3, false, 395, 290, 395, 314, 119, 314, 119, 300)
-	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 835, 290, 900, 290, 900, 300)
+	s.flow(cGrn, rybSt, 3, false, 435, 219, 435, 290)
+	s.flow(cGrn, rybSt, 3, false, 655, 219, 655, 290)
+	s.flow(cGrn, rybSt, 3, false, 875, 219, 875, 290)
+	s.poly(stOn[rybSt], 3, "", 435, 290, 875, 290)
+	s.flow(cGrn, rybSt, 3, false, 435, 290, 435, 314, 119, 314, 119, 300)
+	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 290, 905, 290, 905, 300)
 	// Ввод2 -> Контактор
 	s.flow(cBlu, grnSt, 2, exporting, 1000, 150, 1000, 270, 95, 270, 95, 300)
 	// Контактор -> Инвертор
@@ -395,8 +395,8 @@ func renderSVG() string {
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 484, 588, 484, 588, 460)
 
 	// ===================== ROW 1 =====================
-	s.box(24, 60, 240, 170)
-	s.head(24, 60, 240, "fish", in1Name, stOn[rybSt])
+	s.box(24, 44, 240, 175)
+	s.head(24, 44, 240, "fish", in1Name, stOn[rybSt])
 	for ph := 1; ph <= 3; ph++ {
 		y := 108.0 + float64(ph-1)*36
 		onE := fmt.Sprintf("sensor.sim_ryb_l%d_on", ph)
@@ -413,7 +413,7 @@ func renderSVG() string {
 		}
 	}
 	// Стабилизаторы
-	stabX := []float64{300, 520, 740}
+	stabX := []float64{340, 560, 780}
 	for i := 0; i < 3; i++ {
 		ph := i + 1
 		x := stabX[i]
