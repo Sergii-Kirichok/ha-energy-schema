@@ -1,0 +1,21 @@
+# Local deploy configuration for `make deploy` / `make remote-update` / `make logs`.
+#
+#   cp deploy.local.mk.example deploy.local.mk   # then fill in DEPLOY_PASS
+#
+# deploy.local.mk is gitignored — keep real credentials out of this PUBLIC repo.
+#
+# Deploy goes through two SSH hops:
+#   dev box --(plink/pscp)--> bridge host (FreeBSD) --(ssh + add-on key)--> HAOS
+
+# Bridge host (first hop), reached with plink/pscp:
+DEPLOY_HOST := 192.168.0.16
+DEPLOY_USER := star
+DEPLOY_PASS := change-me
+
+# HAOS (second hop), reached from the bridge host via the add-on SSH key:
+HA_HOST := 192.168.0.17
+HA_USER := stari40k
+HA_KEY  := /home/star/.ssh/ha_addon
+
+# Add-on slug as shown by `ha addons` (repo-hash prefix + "_" + config.yaml slug):
+ADDON_SLUG := 1089f1d1_energy_schema

@@ -1,5 +1,13 @@
 # build artifacts
 /energy-schema/energy-schema
 /energy-schema/*.exe
+/build/
 *.log
 .DS_Store
+
+# IDE
+/.idea/
+
+# local deploy secrets (host/password/key/slug) — NEVER commit (public repo)
+/deploy.local.mk
+/coverage.out
