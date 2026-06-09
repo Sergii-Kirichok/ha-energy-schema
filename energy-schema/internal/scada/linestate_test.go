@@ -70,6 +70,41 @@ func TestGreenLineState(t *testing.T) {
 	}
 }
 
+func TestRybPhase(t *testing.T) {
+	on := storeFrom(map[string]string{"sensor.sim_ryb_l1_on": "on"})
+	if got := rybPhase(on, 1, true); got != "on" {
+		t.Errorf("energized -> %q, want on", got)
+	}
+	// датчик молчит, но инвертор видит напряжение (контактор на Рыбхозе) -> потеря связи
+	lost := storeFrom(map[string]string{"sensor.deye_sun_30k_grid_l1_voltage": "226"})
+	if got := rybPhase(lost, 1, true); got != "lost" {
+		t.Errorf("off+inverter -> %q, want lost", got)
+	}
+	// датчик молчит и инвертор не подтверждает -> реальный обрыв
+	brk := storeFrom(map[string]string{"sensor.deye_sun_30k_grid_l1_voltage": "0"})
+	if got := rybPhase(brk, 1, true); got != "bad" {
+		t.Errorf("off+no-inverter -> %q, want bad", got)
+	}
+	// инвертор видит напряжение, но контактор НЕ на Рыбхозе -> верить нельзя -> обрыв
+	if got := rybPhase(lost, 1, false); got != "bad" {
+		t.Errorf("off+inverter+notRyb -> %q, want bad", got)
+	}
+}
+
+func TestStabOut(t *testing.T) {
+	on := storeFrom(map[string]string{"sensor.sim_ryb_l2_on": "on"})
+	if got := stabOut(on, 2, true); got != "on" {
+		t.Errorf("on -> %q, want on", got)
+	}
+	if got := stabOut(storeFrom(map[string]string{}), 2, true); got != "off" {
+		t.Errorf("break -> %q, want off (output de-energized)", got)
+	}
+	lost := storeFrom(map[string]string{"sensor.deye_sun_30k_grid_l2_voltage": "226"})
+	if got := stabOut(lost, 2, true); got != "lost" {
+		t.Errorf("lost -> %q, want lost", got)
+	}
+}
+
 func TestPhCol(t *testing.T) {
 	s := storeFrom(map[string]string{
 		"on.ok":   "on",

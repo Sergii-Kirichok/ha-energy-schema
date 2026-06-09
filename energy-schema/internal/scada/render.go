@@ -67,6 +67,37 @@ func greenLineState(st State) string {
 	return "on"
 }
 
+// rybPhase diagnoses ONE Рыбхоз phase line (independently of the others):
+//
+//	"on"   — фаза под напряжением (нормальный поток);
+//	"lost" — датчик линии молчит, НО инвертор видит напряжение на этой фазе →
+//	         линия жива, потеряна связь с датчиком/устройством (оранжевый «?»);
+//	"bad"  — линии нет и инвертор фазу не подтверждает → реальный обрыв (красный ✕).
+//
+// Сверка по инвертору достоверна, только когда контактор кормит инвертор Рыбхозом.
+func rybPhase(st State, ph int, contRyb bool) string {
+	if st.On(fmt.Sprintf("sensor.sim_ryb_l%d_on", ph)) {
+		return "on"
+	}
+	if contRyb && st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_voltage", ph)) > 150 {
+		return "lost"
+	}
+	return "bad"
+}
+
+// stabOut is the state of stabilizer ph's output line: a real input break just
+// de-energizes the output ("off"), it isn't a fault on the output side.
+func stabOut(st State, ph int, contRyb bool) string {
+	switch rybPhase(st, ph, contRyb) {
+	case "bad":
+		return "off"
+	case "lost":
+		return "lost"
+	default:
+		return "on"
+	}
+}
+
 // Render builds the full SVG single-line diagram from the current state snapshot.
 func Render(st State, cfg config.Config) string {
 	s := &Builder{}
@@ -88,19 +119,25 @@ func Render(st State, cfg config.Config) string {
 	bp := st.Num("sensor.deye_sun_30k_battery_voltage") * st.Num("sensor.deye_sun_30k_battery_current")
 
 	// ===== FLOWS (under boxes) =====
-	stOn := map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}
-	rc := stOn[rybSt]
-	// Рыбхоз L1->Стаб1 (прямо в левый бок), L2/L3 через верхний зазор
-	s.flow(rc, rybSt, 2, false, 264, 108, 340, 108)
-	s.flow(rc, rybSt, 2, false, 264, 144, 310, 144, 310, 30, 655, 30, 655, 44)
-	s.flow(rc, rybSt, 2, false, 264, 180, 284, 180, 284, 20, 875, 20, 875, 44)
+	stOn := map[string]string{"on": cGrn, "bad": cOrg, "lost": cOrg, "off": cGry}
+	contRyb := cont == "rybhoz"
+	// Рыбхоз: КАЖДАЯ фаза — своё состояние; обрыв одной не валит остальные.
+	s.flow(cGrn, rybPhase(st, 1, contRyb), 2, false, 264, 108, 340, 108)
+	s.flow(cGrn, rybPhase(st, 2, contRyb), 2, false, 264, 144, 310, 144, 310, 30, 655, 30, 655, 44)
+	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 20, 875, 20, 875, 44)
 	// выходы 3 стабилизаторов -> общая шина (y=275) -> Контактор и АВР(резерв)
-	s.flow(cGrn, rybSt, 3, false, 435, 219, 435, 275)
-	s.flow(cGrn, rybSt, 3, false, 655, 219, 655, 275)
-	s.flow(cGrn, rybSt, 3, false, 875, 219, 875, 275)
-	s.poly(stOn[rybSt], 3, "", 435, 275, 875, 275)
-	s.flow(cGrn, rybSt, 3, false, 435, 275, 119, 275, 119, 300)
-	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
+	out1, out2, out3 := stabOut(st, 1, contRyb), stabOut(st, 2, contRyb), stabOut(st, 3, contRyb)
+	s.flow(cGrn, out1, 3, false, 435, 219, 435, 275)
+	s.flow(cGrn, out2, 3, false, 655, 219, 655, 275)
+	s.flow(cGrn, out3, 3, false, 875, 219, 875, 275)
+	// общая шина жива, пока питает хоть один стабилизатор
+	busSt := "off"
+	if out1 != "off" || out2 != "off" || out3 != "off" {
+		busSt = "on"
+	}
+	s.poly(stOn[busSt], 3, "", 435, 275, 875, 275)
+	s.flow(cGrn, busSt, 3, false, 435, 275, 119, 275, 119, 300)
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
 	// Ввод2 -> Контактор
 	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
 	// Контактор -> Инвертор
@@ -131,12 +168,19 @@ func Render(st State, cfg config.Config) string {
 		onE := fmt.Sprintf("sensor.sim_ryb_l%d_on", ph)
 		vE := fmt.Sprintf("sensor.sim_ryb_l%d_vin", ph)
 		aE := fmt.Sprintf("sensor.sim_ryb_l%d_load", ph)
-		s.dot(44, y-5, 5, phCol(st, onE, vE, 200, 250))
+		ps := rybPhase(st, ph, contRyb)
+		dotCol := phCol(st, onE, vE, 200, 250)
+		if ps == "lost" {
+			dotCol = cOrg
+		}
+		s.dot(44, y-5, 5, dotCol)
 		s.t(60, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
 		if st.On(onE) {
 			v := st.Num(vE)
 			a := st.Num(aE)
 			s.t(252, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
+		} else if ps == "lost" {
+			s.t(252, y, 12, cOrg, "end", "потеря связи")
 		} else {
 			s.t(252, y, 12, cRed, "end", "обрыв")
 		}
@@ -168,7 +212,11 @@ func Render(st State, cfg config.Config) string {
 		row(2, "нагрузка", fmt.Sprintf("%.0fА · %.2fкВт", loadA, loadA*st.Num(p+"_vout")/1000))
 		row(3, "U мин/макс", fmt.Sprintf("%d / %dВ", st.Int(p+"_vmin"), st.Int(p+"_vmax")))
 		if !st.On(p + "_on") {
-			s.t(x+95, 210, 11, cRed, "middle", "линия отключена")
+			if rybPhase(st, ph, contRyb) == "lost" {
+				s.t(x+95, 210, 11, cOrg, "middle", "потеря связи (датчик)")
+			} else {
+				s.t(x+95, 210, 11, cRed, "middle", "линия отключена")
+			}
 		}
 	}
 	// Ввод2 Зелёный — карточка того же размера, что и Рыбхоз (240×175)

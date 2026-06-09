@@ -8,8 +8,10 @@ const (
 )
 
 // flow draws an energy path between points (flat x,y pairs) by state:
-//   - "off": grey dashed line
-//   - "bad": red dashed line with a ✕ at the midpoint
+//   - "off":  grey dashed line (deliberately not powered)
+//   - "bad":  red dashed line with a ✕ at the midpoint (real break/fault)
+//   - "lost": orange dashed line with a «?» at the midpoint (sensor link lost,
+//     line probably still live)
 //   - otherwise: solid colored line with moving dots at a UNIFORM linear speed
 //     (px/sec, independent of line length); more load (magKW) → a bit faster.
 //     Dot count scales with length so spacing stays constant. reverse flips dir.
@@ -26,6 +28,13 @@ func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float
 		s.p(`<circle cx="%.1f" cy="%.1f" r="11" fill="#0f1115"/>`, mx, my)
 		s.p(`<path d="M %.1f,%.1f L %.1f,%.1f M %.1f,%.1f L %.1f,%.1f" stroke="%s" stroke-width="3" stroke-linecap="round"/>`,
 			mx-xr, my-xr, mx+xr, my+xr, mx-xr, my+xr, mx+xr, my-xr, cRed)
+		return
+	}
+	if st == "lost" {
+		s.poly(cOrg, 2.5, "6 5", pts...)
+		mx, my := pointAt(pts, pathLen(pts)/2)
+		s.p(`<circle cx="%.1f" cy="%.1f" r="10" fill="#0f1115" stroke="%s" stroke-width="1.5"/>`, mx, my, cOrg)
+		s.t(mx, my+5, 15, cOrg, "middle", "?")
 		return
 	}
 	s.poly(col, 3, "", pts...)
