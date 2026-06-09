@@ -201,19 +201,54 @@ func Render(st State, cfg config.Config) string {
 	}
 
 	// ===================== ROW 2 =====================
+	// Контактор — Zigbee-управляемый, с обратной связью по состоянию
 	s.box(24, 300, 190, 160)
-	s.head(24, 300, 190, "sw", "Контактор", "")
-	act, ac := "выкл", cGry
-	if cont == "rybhoz" {
-		act, ac = "→ "+cfg.In1Name, cGrn
-	} else if cont == "green" {
-		act, ac = "→ "+cfg.In2Name, cBlu
+	ctLink := st.State("sensor.sim_contactor_link") != "lost" // обратная связь Zigbee (по умолч. есть)
+	ctOn := cont == "rybhoz" || cont == "green"
+	ctDot := cGry
+	if !ctLink {
+		ctDot = cRed
+	} else if ctOn {
+		ctDot = cGrn
 	}
-	s.t(119, 380, 15, ac, "middle", act)
-	if st.State("sensor.sim_export") == "on" {
-		s.t(119, 410, 11, cGrn, "middle", "отдача → "+cfg.In2Name+" ↑")
+	s.head(24, 300, 190, "sw", "Контактор", ctDot)
+	// крупный статус вкл/выкл
+	if !ctLink {
+		s.t(119, 348, 13, cRed, "middle", "НЕТ СВЯЗИ Zigbee")
+	} else if ctOn {
+		s.t(119, 348, 15, cGrn, "middle", "ВКЛЮЧЁН")
 	} else {
-		s.t(119, 410, 11, cSub, "middle", "отдача выкл")
+		s.t(119, 348, 15, cGry, "middle", "ОТКЛЮЧЁН")
+	}
+	// селектор линий: активная подсвечена, у каждой — индикатор «живости» линии
+	selRow := func(y float64, name, key, col, liveCol string) {
+		if cont == key {
+			s.p(`<rect x="34" y="%g" width="160" height="26" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
+		} else {
+			s.p(`<rect x="34" y="%g" width="160" height="26" rx="6" fill="none" stroke="%s" stroke-width="1"/>`, y, cBrd)
+		}
+		s.dot(50, y+13, 5, liveCol)
+		tc := cSub
+		if cont == key {
+			tc = col
+		}
+		s.t(66, y+17, 13, tc, "start", name)
+		if cont == key {
+			s.t(186, y+17, 14, col, "end", "→")
+		}
+	}
+	selRow(364, cfg.In1Name, "rybhoz", cGrn, stOn[rybSt])
+	selRow(394, cfg.In2Name, "green", cBlu, stOn[grnSt])
+	// низ: связь Zigbee + отдача
+	if ctLink {
+		s.t(34, 450, 10, cSub, "start", "Zigbee ✓")
+	} else {
+		s.t(34, 450, 10, cRed, "start", "Zigbee ✕")
+	}
+	if st.State("sensor.sim_export") == "on" {
+		s.t(204, 450, 10, cGrn, "end", "отдача ↑")
+	} else {
+		s.t(204, 450, 10, cSub, "end", "отдача —")
 	}
 
 	df := st.State("sensor.deye_sun_30k_device_fault")
