@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.2.0"
+version: "0.3.0"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы VELMUR (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -24,6 +24,15 @@ options:
   pv2_label: "Поле 2"
   pv3_label: "Поле 3"
   pv4_label: "Поле 4"
+  batt_capacity_kwh: 30
+  home_max: 30
+  home_t1: 3
+  home_t2: 5
+  home_t3: 25
+  pv_max: 33
+  pv_t1: 5
+  pv_t2: 20
+  pv_t3: 25
 schema:
   refresh_seconds: int(1,60)
   ha_url: str
@@ -35,3 +44,12 @@ schema:
   pv2_label: str?
   pv3_label: str?
   pv4_label: str?
+  batt_capacity_kwh: float?
+  home_max: float?
+  home_t1: float?
+  home_t2: float?
+  home_t3: float?
+  pv_max: float?
+  pv_t1: float?
+  pv_t2: float?
+  pv_t3: float?
