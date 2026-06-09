@@ -195,31 +195,34 @@ type band struct {
 	col string
 }
 
-func (s *SB) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {
-	ang := func(v float64) float64 {
-		if v > max {
-			v = max
-		}
-		if v < 0 {
-			v = 0
-		}
-		return 180 - v/max*180
+func gAng(v, max float64) float64 {
+	if v > max {
+		v = max
 	}
+	if v < 0 {
+		v = 0
+	}
+	return 180 - v/max*180
+}
+func (s *SB) marker(cx, cy, r, a, rad float64) {
+	mx, my := pt(cx, cy, r, a)
+	s.p(`<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#ffffff" stroke="#0f1115" stroke-width="1.5"/>`, mx, my, rad)
+}
+func (s *SB) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {
+	s.arc(cx, cy, r, 180, 0, "#23272f", 14)
 	prev := 0.0
 	cur := cSub
 	for _, b := range bands {
-		s.arc(cx, cy, r, ang(prev), ang(b.thr), b.col, 12)
+		s.arc(cx, cy, r, gAng(prev, max), gAng(b.thr, max), b.col, 14)
 		if val >= prev && val < b.thr {
 			cur = b.col
 		}
 		prev = b.thr
 	}
-	nx, ny := pt(cx, cy, r-3, ang(val))
-	s.poly("#e5e7eb", 2.5, "", cx, cy, nx, ny)
-	s.dot(cx, cy, 4, "#e5e7eb")
-	s.t(cx, cy+26, 19, cur, "middle", valTxt)
+	s.marker(cx, cy, r, gAng(val, max), r*0.12)
+	s.t(cx, cy, r*0.30, cur, "middle", valTxt)
 	if label != "" {
-		s.t(cx, cy+44, 11, cSub, "middle", label)
+		s.t(cx, cy+20, 12, cSub, "middle", label)
 	}
 }
 
@@ -350,15 +353,20 @@ func renderSVG() string {
 
 	// ===== FLOWS (under boxes) =====
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}
-	// Рыбхоз -> каждый стабилизатор (отдельные линии)
 	rc := stOn[rybSt]
-	s.flow(rc, rybSt, 2, false, 204, 96, 280, 96, 280, 44, 395, 44, 395, 44)
-	s.flow(rc, rybSt, 2, false, 204, 120, 250, 120, 250, 230, 615, 230, 615, 194)
-	s.flow(rc, rybSt, 2, false, 204, 144, 230, 144, 230, 246, 835, 246, 835, 194)
-	// Стаб -> Контактор (стабилизированный Ввод1)
-	s.flow(cGrn, rybSt, 3, false, 395, 194, 395, 268, 119, 268, 119, 300)
+	// Рыбхоз L1->Стаб1 (прямо в левый бок), L2/L3 через верхний зазор
+	s.flow(rc, rybSt, 2, false, 264, 108, 300, 108)
+	s.flow(rc, rybSt, 2, false, 264, 144, 282, 144, 282, 32, 615, 32, 615, 44)
+	s.flow(rc, rybSt, 2, false, 264, 180, 274, 180, 274, 22, 835, 22, 835, 44)
+	// выходы 3 стабилизаторов -> общая шина (y=290) -> Контактор и АВР(резерв)
+	s.flow(cGrn, rybSt, 3, false, 395, 219, 395, 290)
+	s.flow(cGrn, rybSt, 3, false, 615, 219, 615, 290)
+	s.flow(cGrn, rybSt, 3, false, 835, 219, 835, 290)
+	s.poly(stOn[rybSt], 3, "", 395, 290, 835, 290)
+	s.flow(cGrn, rybSt, 3, false, 395, 290, 395, 314, 119, 314, 119, 300)
+	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 835, 290, 900, 290, 900, 300)
 	// Ввод2 -> Контактор
-	s.flow(cBlu, grnSt, 2, exporting, 1085, 120, 1085, 274, 119, 274, 119, 300)
+	s.flow(cBlu, grnSt, 2, exporting, 1000, 150, 1000, 270, 95, 270, 95, 300)
 	// Контактор -> Инвертор
 	cSt := "on"
 	if cont == "off" {
@@ -369,8 +377,6 @@ func renderSVG() string {
 	s.flow(cBlu, cSt, 2, false, 214, 380, 400, 380)
 	// Инвертор -> АВР (осн.)
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 630, 380, 800, 380)
-	// Стаб -> АВР (резерв)
-	s.flow(cGrn, map[bool]string{true: rybSt, false: "off"}[avrPos == "reserve"], 3, false, 900, 194, 900, 380)
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
@@ -382,18 +388,21 @@ func renderSVG() string {
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 484, 588, 484, 588, 460)
 
 	// ===================== ROW 1 =====================
-	s.box(24, 64, 180, 140)
-	s.head(24, 64, 180, "fish", in1Name, stOn[rybSt])
+	s.box(24, 60, 240, 170)
+	s.head(24, 60, 240, "fish", in1Name, stOn[rybSt])
 	for ph := 1; ph <= 3; ph++ {
-		y := 96.0 + float64(ph-1)*24
-		c := phCol(fmt.Sprintf("sensor.sim_ryb_l%d_on", ph), fmt.Sprintf("sensor.sim_ryb_l%d_vin", ph), 200, 250)
-		s.dot(40, y-4, 5, c)
-		s.t(54, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
-		if on(fmt.Sprintf("sensor.sim_ryb_l%d_on", ph)) {
-			s.t(80, y, 12, cTxt, "start", fmt.Sprintf("%dВ", iv(fmt.Sprintf("sensor.sim_ryb_l%d_vin", ph))))
-			s.t(190, y, 12, cTxt, "end", fmt.Sprintf("%.0fА", numOf(fmt.Sprintf("sensor.sim_ryb_l%d_load", ph))))
+		y := 108.0 + float64(ph-1)*36
+		onE := fmt.Sprintf("sensor.sim_ryb_l%d_on", ph)
+		vE := fmt.Sprintf("sensor.sim_ryb_l%d_vin", ph)
+		aE := fmt.Sprintf("sensor.sim_ryb_l%d_load", ph)
+		s.dot(44, y-5, 5, phCol(onE, vE, 200, 250))
+		s.t(60, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
+		if on(onE) {
+			v := numOf(vE)
+			a := numOf(aE)
+			s.t(252, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
 		} else {
-			s.t(80, y, 11, cRed, "start", "обрыв")
+			s.t(252, y, 12, cRed, "end", "обрыв")
 		}
 	}
 	// Стабилизаторы
@@ -406,24 +415,24 @@ func renderSVG() string {
 		if stateOf(p+"_link") != "ok" {
 			linkCol = cRed
 		}
-		s.box(x, 44, 190, 150)
+		s.box(x, 44, 190, 175)
 		s.head(x, 44, 190, "sine", fmt.Sprintf("Стаб L%d", ph), linkCol)
 		mc, mt := cBlu, "стабилизация"
 		if stateOf(p+"_mode") == "transit" {
 			mc, mt = cSub, "транзит"
 		}
-		s.t(x+12, 84, 11, mc, "start", mt)
+		s.t(x+95, 100, 12, mc, "middle", mt)
 		loadA := numOf(p + "_load")
 		row := func(n int, label, val string) {
-			s.t(x+12, 100+float64(n)*22, 11, cSub, "start", label)
-			s.t(x+178, 100+float64(n)*22, 12, cTxt, "end", val)
+			s.t(x+14, 124+float64(n)*22, 11, cSub, "start", label)
+			s.t(x+176, 124+float64(n)*22, 12, cTxt, "end", val)
 		}
 		row(0, "вход → выход", fmt.Sprintf("%d → %dВ", iv(p+"_vin"), iv(p+"_vout")))
-		row(1, "ступень", fmt.Sprintf("%+d", iv(p+"_step")))
+		row(1, "ступень", fmt.Sprintf("%d", iv(p+"_step")))
 		row(2, "нагрузка", fmt.Sprintf("%.0fА · %.2fкВт", loadA, loadA*numOf(p+"_vout")/1000))
-		row(3, "U мин/макс (ч)", fmt.Sprintf("%d / %dВ", iv(p+"_vmin"), iv(p+"_vmax")))
+		row(3, "U мин/макс", fmt.Sprintf("%d / %dВ", iv(p+"_vmin"), iv(p+"_vmax")))
 		if !on(p + "_on") {
-			s.t(x+95, 188, 11, cRed, "middle", "линия отключена")
+			s.t(x+95, 210, 11, cRed, "middle", "линия отключена")
 		}
 	}
 	// Ввод2 Зелёный
@@ -499,14 +508,15 @@ func renderSVG() string {
 	s.head(24, 520, 300, "batt", "Батарея", "")
 	soc := numOf("sensor.deye_sun_30k_battery")
 	bcx, bcy := 174.0, 660.0
-	s.arc(bcx, bcy, 92, 180, 0, "#2b2f38", 14)
+	s.arc(bcx, bcy, 92, 180, 0, "#23272f", 14)
 	socCol := cGrn
 	if soc < 20 {
 		socCol = cRed
 	} else if soc < 50 {
 		socCol = cAmb
 	}
-	s.arc(bcx, bcy, 92, 180, 180-soc*1.8, socCol, 14)
+	s.arc(bcx, bcy, 92, 180, gAng(soc, 100), socCol, 14)
+	s.marker(bcx, bcy, 92, gAng(soc, 100), 8)
 	s.t(bcx, bcy-4, 30, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 	bps, bpc := "ожидание", cSub
 	if bp < -20 {
@@ -550,7 +560,7 @@ func renderSVG() string {
 	gx := []float64{448, 578, 708, 838}
 	for i := 0; i < 4; i++ {
 		pw := numOf(pvEnt(i))
-		s.gauge(gx[i], 652, 54, pw/1000, 10, []band{{10, cAmb}}, kw(pw), pvLabels[i])
+		s.gauge(gx[i], 652, 54, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), pvLabels[i])
 	}
 	s.t(380, 802, 12, cSub, "start", "Всего")
 	s.bar(380, 816, 520, 46, pvtot/1000, pvMax, []band{{pvT1, cAmb}, {pvT2, cGrn}, {pvT3, cOrg}, {pvMax, cRed}}, kw(pvtot))
