@@ -53,6 +53,22 @@ func TestPathLen(t *testing.T) {
 	}
 }
 
+func TestPointAt(t *testing.T) {
+	// midpoint of a straight horizontal line
+	if x, y := pointAt([]float64{0, 0, 10, 0}, 5); x != 5 || y != 0 {
+		t.Errorf("pointAt mid straight = %v,%v, want 5,0", x, y)
+	}
+	// L-shape length 20, half (10) lands exactly on the corner
+	pts := []float64{0, 0, 0, 10, 10, 10}
+	if x, y := pointAt(pts, pathLen(pts)/2); x != 0 || y != 10 {
+		t.Errorf("pointAt L mid = %v,%v, want 0,10", x, y)
+	}
+	// distance into the second segment
+	if x, y := pointAt(pts, 15); x != 5 || y != 10 {
+		t.Errorf("pointAt 15 = %v,%v, want 5,10", x, y)
+	}
+}
+
 func TestRevPts(t *testing.T) {
 	got := revPts([]float64{1, 2, 3, 4, 5, 6})
 	want := []float64{5, 6, 3, 4, 1, 2}

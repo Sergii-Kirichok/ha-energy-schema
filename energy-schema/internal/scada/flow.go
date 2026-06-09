@@ -20,8 +20,12 @@ func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float
 	}
 	if st == "bad" {
 		s.poly(cRed, 2.5, "7 7", pts...)
-		mx, my := pts[len(pts)/2/2*2], pts[len(pts)/2/2*2+1]
-		s.t(mx, my-6, 17, cRed, "middle", "✕")
+		// ✕ ровно на середине линии (по длине пути), тёмная подложка маскирует пунктир
+		mx, my := pointAt(pts, pathLen(pts)/2)
+		const xr = 7.0
+		s.p(`<circle cx="%.1f" cy="%.1f" r="11" fill="#0f1115"/>`, mx, my)
+		s.p(`<path d="M %.1f,%.1f L %.1f,%.1f M %.1f,%.1f L %.1f,%.1f" stroke="%s" stroke-width="3" stroke-linecap="round"/>`,
+			mx-xr, my-xr, mx+xr, my+xr, mx-xr, my+xr, mx+xr, my-xr, cRed)
 		return
 	}
 	s.poly(col, 3, "", pts...)

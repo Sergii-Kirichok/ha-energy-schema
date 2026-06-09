@@ -270,20 +270,20 @@ func Render(st State, cfg config.Config) string {
 		tc = cOrg
 	}
 	s.t(560, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
-	// статус инвертора
-	if invProb {
-		s.t(414, 344, 12, cRed, "start", "Ошибка: "+invState)
-	} else {
-		s.t(414, 344, 12, cGrn, "start", "Статус: норма")
-	}
-	// фактическое использование сети: реле + наличие
+	// фактическое использование сети: реле + наличие — СЛЕВА
 	gridP := st.Num("sensor.deye_sun_30k_grid_power")
 	if !gridAvail {
-		s.t(686, 344, 12, cGry, "end", "сеть: нет ✕")
+		s.t(414, 344, 12, cGry, "start", "сеть: нет ✕")
 	} else if gridBonded {
-		s.t(686, 344, 12, cGrn, "end", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
+		s.t(414, 344, 12, cGrn, "start", fmt.Sprintf("сеть: %.2f кВт ✓", gridP/1000))
 	} else {
-		s.t(686, 344, 12, cOrg, "end", "сеть: откл. защитой ✕")
+		s.t(414, 344, 12, cOrg, "start", "сеть: откл. защитой ✕")
+	}
+	// статус инвертора — СПРАВА
+	if invProb {
+		s.t(686, 344, 12, cRed, "end", "Ошибка: "+invState)
+	} else {
+		s.t(686, 344, 12, cGrn, "end", "Статус: норма")
 	}
 	// напряжение и нагрузка по фазам на входе (сеть)
 	s.t(414, 368, 10, cSub, "start", "фаза")

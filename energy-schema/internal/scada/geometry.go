@@ -30,6 +30,28 @@ func pathLen(pts []float64) float64 {
 	return total
 }
 
+// pointAt returns the point at distance dist along the polyline (flat x,y pairs).
+func pointAt(pts []float64, dist float64) (float64, float64) {
+	if len(pts) < 4 {
+		return pts[0], pts[1]
+	}
+	for i := 2; i < len(pts); i += 2 {
+		seg := math.Hypot(pts[i]-pts[i-2], pts[i+1]-pts[i-1])
+		if dist <= seg || i == len(pts)-2 {
+			t := 0.0
+			if seg > 0 {
+				t = dist / seg
+			}
+			if t > 1 {
+				t = 1
+			}
+			return pts[i-2] + (pts[i]-pts[i-2])*t, pts[i-1] + (pts[i+1]-pts[i-1])*t
+		}
+		dist -= seg
+	}
+	return pts[len(pts)-2], pts[len(pts)-1]
+}
+
 // revPts returns the x,y pairs in reverse order (for reversed flow animation).
 func revPts(pts []float64) []float64 {
 	r := make([]float64, len(pts))
