@@ -17,9 +17,11 @@ import (
 
 // Home Assistant Supervisor proxy to Core API.
 const listen = ":8099"
+const wwwDir = "/homeassistant/www"
 
 var apiBase = "http://supervisor/core/api"
 var token string
+var title = "Энергосистема"
 
 var (
 	smu     sync.Mutex
@@ -209,6 +211,7 @@ func renderSVG() string {
 	s := &SB{}
 	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 680" font-family="Arial,Helvetica,sans-serif">`)
 	s.p(`<rect x="0" y="0" width="1180" height="680" fill="#0f1115"/>`)
+	s.t(1160, 28, 18, cTxt, "end", title)
 	rybCol, rybDash := rybState()
 	grnCol, grnDash := greenState()
 	cont := stateOf("sensor.sim_contactor")
@@ -389,12 +392,16 @@ func loadOptions() {
 		RefreshSeconds int    `json:"refresh_seconds"`
 		HaURL          string `json:"ha_url"`
 		HaToken        string `json:"ha_token"`
+		Title          string `json:"title"`
 	}
 	if json.Unmarshal(b, &o) != nil {
 		return
 	}
 	if o.RefreshSeconds > 0 {
 		refresh = o.RefreshSeconds
+	}
+	if o.Title != "" {
+		title = o.Title
 	}
 	if o.HaToken != "" {
 		token = o.HaToken
@@ -406,14 +413,31 @@ func loadOptions() {
 	}
 }
 
+func writeFiles() {
+	if err := os.WriteFile(wwwDir+"/energy_schema.svg", []byte(renderSVG()), 0644); err != nil {
+		log.Println("write svg:", err)
+	}
+}
+func writeWrapper() {
+	h := fmt.Sprintf(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#0f1115;height:100%%}#c{width:100%%}svg{width:100%%;height:auto;display:block}</style></head><body><div id="c"></div><script>
+function load(){fetch('energy_schema.svg?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t})}
+load();setInterval(load,%d000);</script></body></html>`, refresh)
+	if err := os.WriteFile(wwwDir+"/energy_schema.html", []byte(h), 0644); err != nil {
+		log.Println("write html:", err)
+	}
+}
+
 func main() {
 	token = os.Getenv("SUPERVISOR_TOKEN")
-	log.Printf("start: SUPERVISOR_TOKEN len=%d apiBase=%s", len(token), apiBase)
 	loadOptions()
+	log.Printf("start: tokenlen=%d apiBase=%s title=%q", len(token), apiBase, title)
+	os.MkdirAll(wwwDir, 0755)
+	writeWrapper()
 	go func() {
 		for {
 			fetchAll()
 			sampleLoss()
+			writeFiles()
 			time.Sleep(5 * time.Second)
 		}
 	}()
