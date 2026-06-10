@@ -182,9 +182,9 @@ func Render(st State, cfg config.Config) string {
 	// Рыбхоз: КАЖДАЯ фаза — своё состояние; обрыв одной не валит остальные.
 	// L2/L3 разведены по высоте (верх y=30 и y=14), стояк L2 правее (x=328) —
 	// чтобы маркеры аварии («?»/✕) не наезжали на L1 и друг на друга.
-	s.flow(cGrn, rybPhase(st, 1, contRyb), 2, false, 264, 108, 340, 108)
-	s.flow(cGrn, rybPhase(st, 2, contRyb), 2, false, 264, 144, 328, 144, 328, 30, 655, 30, 655, 44)
-	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 14, 875, 14, 875, 44)
+	s.flow(cGrn, rybPhase(st, 1, contRyb), 2, false, 264, 108, 360, 108)
+	s.flow(cGrn, rybPhase(st, 2, contRyb), 2, false, 264, 144, 328, 144, 328, 30, 720, 30, 720, 44)
+	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 14, 985, 14, 985, 44)
 	// выходы 3 стабилизаторов -> общая шина (y=275) -> Контактор и АВР(резерв)
 	out1, out2, out3 := stabOut(st, 1, contRyb), stabOut(st, 2, contRyb), stabOut(st, 3, contRyb)
 	// стабилизаторы отдают мощность, только если есть потребитель: контактор на
@@ -196,9 +196,9 @@ func Render(st State, cfg config.Config) string {
 		}
 		return "off"
 	}
-	s.flow(cGrn, og(out1), 3, false, 435, 219, 435, 275)
-	s.flow(cGrn, og(out2), 3, false, 655, 219, 655, 275)
-	s.flow(cGrn, og(out3), 3, false, 875, 219, 875, 275)
+	s.flow(cGrn, og(out1), 3, false, 455, 219, 455, 275)
+	s.flow(cGrn, og(out2), 3, false, 720, 219, 720, 275)
+	s.flow(cGrn, og(out3), 3, false, 985, 219, 985, 275)
 	// шина: зелёная если все выходы в норме; оранжевая при потере; серая штрихованая
 	// если всё off ИЛИ нет потребителя.
 	busSt := "off"
@@ -217,13 +217,15 @@ func Render(st State, cfg config.Config) string {
 	case "off":
 		busDash = "7 7"
 	}
-	s.poly(stOn[busSt], 3, busDash, 435, 275, 875, 275)
-	// шина -> контактор: активна только когда контактор на Ввод1 (стабилизаторы)
-	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[contRyb], 3, false, 435, 275, 119, 275, 119, 300)
+	s.poly(stOn[busSt], 3, busDash, 455, 275, 985, 275)
+	// шина -> контактор: активна только когда контактор на Ввод1 (стабилизаторы);
+	// заводим к центру карточки контактора (x≈132, рядом с Ввод2 на 156)
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[contRyb], 3, false, 455, 275, 132, 275, 132, 300)
 	// шина -> АВР(резерв): активна только когда АВР в резерве
-	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
-	// Ввод2 -> Контактор: активна только когда контактор на Ввод2
-	s.flow(cBlu, map[bool]string{true: grnSt, false: "off"}[contOn], 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 985, 275, 905, 275, 905, 300)
+	// Ввод2 -> Контактор: активна только когда контактор на Ввод2; выходим снизу
+	// карточки Зелёного (x=1300) и заводим к центру контактора (x=156)
+	s.flow(cBlu, map[bool]string{true: grnSt, false: "off"}[contOn], 2, exporting, 1300, 219, 1300, 252, 156, 252, 156, 300)
 	// Контактор -> Инвертор: цвет по активному вводу (зелёный=стабилизаторы, синий=Зелёный)
 	cSt := "on"
 	if !gridIn {
@@ -289,8 +291,8 @@ func Render(st State, cfg config.Config) string {
 	} else {
 		s.t(34, 210, 10, cRed, "start", "RS-485 ✕")
 	}
-	// Стабилизаторы
-	stabX := []float64{340, 560, 780}
+	// Стабилизаторы — по центру между вводами, с увеличенным интервалом
+	stabX := []float64{360, 625, 890}
 	for i := 0; i < 3; i++ {
 		ph := i + 1
 		x := stabX[i]
@@ -354,40 +356,40 @@ func Render(st State, cfg config.Config) string {
 			}
 		}
 	}
-	// Ввод2 Зелёный — карточка того же размера, что и Рыбхоз (240×175)
-	s.box(1020, 44, 240, 175)
-	s.head(1020, 44, 240, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
+	// Ввод2 Зелёный — карточка того же размера, что и Рыбхоз (240×175), у правого края
+	s.box(1180, 44, 240, 175)
+	s.head(1180, 44, 240, "regen", cfg.In2Name, map[string]string{"on": cGrn, "bad": cOrg, "off": cGry}[grnSt])
 	// состояние/направление — честно: когда ввод не запитан, не пишем «потребление»
 	if grnSt == "off" {
-		s.t(1140, 94, 12, cGry, "middle", "ввод отключён")
+		s.t(1300, 94, 12, cGry, "middle", "ввод отключён")
 	} else {
 		dt, dc := "потребление", cBlu
 		if st.State("sensor.sim_green_dir") == "export" {
 			dt, dc = "отдача ↑", cGrn
 		}
-		s.t(1140, 94, 12, dc, "middle", dt)
+		s.t(1300, 94, 12, dc, "middle", dt)
 	}
 	for ph := 1; ph <= 3; ph++ {
 		y := 120.0 + float64(ph-1)*32
 		onE := fmt.Sprintf("sensor.sim_green_l%d_on", ph)
 		vE := fmt.Sprintf("sensor.sim_green_l%d_v", ph)
 		aE := fmt.Sprintf("sensor.sim_green_l%d_a", ph)
-		s.dot(1040, y-5, 5, phCol(st, onE, vE, 200, 250))
-		s.t(1056, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.dot(1200, y-5, 5, phCol(st, onE, vE, 200, 250))
+		s.t(1216, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
 		if st.On(onE) {
 			v := st.Num(vE)
 			a := st.Num(aE)
-			s.t(1248, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
+			s.t(1408, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
 		} else {
-			s.t(1248, y, 12, cGry, "end", "— нет —")
+			s.t(1408, y, 12, cGry, "end", "— нет —")
 		}
 	}
 	// связь RS-485 со счётчиком ввода
 	grnRS := st.Available("sensor.sim_green_l1_on") || st.Available("sensor.sim_green_l2_on") || st.Available("sensor.sim_green_l3_on")
 	if grnRS {
-		s.t(1030, 210, 10, cSub, "start", "RS-485 ✓")
+		s.t(1190, 210, 10, cSub, "start", "RS-485 ✓")
 	} else {
-		s.t(1030, 210, 10, cRed, "start", "RS-485 ✕")
+		s.t(1190, 210, 10, cRed, "start", "RS-485 ✕")
 	}
 
 	// ===================== ROW 2 =====================
