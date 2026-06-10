@@ -66,15 +66,24 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 		dayLen = 14
 	}
 	pvTomorrow := tomorrowKWh / dayLen
-	pvTodayAvg := todayKWh / dayLen // прогнозная средняя мощность сегодняшнего дня
-	if pvTodayAvg <= 0 {
-		pvTodayAvg = pvNowKW
+	// сколько ещё дадут панели СЕГОДНЯ до заката: дневной потенциал (статистика ×
+	// текущая облачность) × доля энергии светового дня, оставшаяся до заката.
+	// Профиль мощности — полусинусоида: f = (1−cos(π·hSet/dayLen))/2 (≈1 утром,
+	// ~0.5 в солнечный полдень, →0 к закату). Не зависит от уже выработанного.
+	dayFrac := hSet / dayLen
+	if dayFrac > 1 {
+		dayFrac = 1
+	}
+	todayLeft := todayKWh * (1 - math.Cos(math.Pi*dayFrac)) / 2
+	pvTodayAvg := pvNowKW // для симуляции: та же энергия ровным потоком до заката
+	if hSet > 0.1 {
+		pvTodayAvg = todayLeft / hSet
 	}
 
 	// разбивка для подписи под цифрой: прогноз генерации на остаток сегодня и завтра
 	note := fmt.Sprintf("завтра ~%.0f кВт·ч (обл %.0f%%)", tomorrowKWh, cloud)
 	if dayNow {
-		note = fmt.Sprintf("сегодня ещё ~%.0f · ", pvTodayAvg*hSet) + note
+		note = fmt.Sprintf("сегодня ещё ~%.0f · ", todayLeft) + note
 	} else {
 		note = fmt.Sprintf("ночь, восход ~%.0fч · ", hRise) + note
 	}
