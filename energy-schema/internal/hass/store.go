@@ -38,11 +38,13 @@ type Store struct {
 	cur      map[string]Entity
 	lastGood map[string]Entity
 	forecast []ForecastDay
+	dayMax   map[string]float64
+	dayYMD   string
 }
 
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
-	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}}
+	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}}
 }
 
 // FromStates wraps a plain id->state map into entities (zero timestamps).
@@ -55,16 +57,33 @@ func FromStates(m map[string]string) map[string]Entity {
 	return out
 }
 
-// Replace atomically swaps the current snapshot and refreshes last-good values.
+// Replace atomically swaps the current snapshot, refreshes last-good values and
+// tracks each numeric entity's peak for the current calendar day (reset at midnight).
 func (s *Store) Replace(m map[string]Entity) {
 	s.mu.Lock()
+	ymd := time.Now().Format("2006-01-02")
+	if ymd != s.dayYMD {
+		s.dayMax = map[string]float64{}
+		s.dayYMD = ymd
+	}
 	for id, e := range m {
 		if real(e.State) {
 			s.lastGood[id] = e
+			if v := parseF(e.State); v > s.dayMax[id] {
+				s.dayMax[id] = v
+			}
 		}
 	}
 	s.cur = m
 	s.mu.Unlock()
+}
+
+// DayMax returns the entity's peak numeric value seen today (0 if none yet).
+func (s *Store) DayMax(entity string) float64 {
+	s.mu.RLock()
+	v := s.dayMax[entity]
+	s.mu.RUnlock()
+	return v
 }
 
 // ReplaceStates is a convenience wrapper for plain id->state maps (tests).

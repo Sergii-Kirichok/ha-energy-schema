@@ -38,6 +38,26 @@ func (s *Builder) marker(cx, cy, r, a, sz float64) {
 	s.p(` Z" fill="#ffffff" stroke="#0f1115" stroke-width="1"/>`)
 }
 
+// markerMax draws a colored teardrop on the OUTER edge of the band, pointing
+// INWARD — marks today's peak value on a gauge.
+func (s *Builder) markerMax(cx, cy, r, a, sz float64, col string) {
+	rr := r + markerInset // центр головы — на ВНЕШНЕЙ дуге
+	mx, my := pt(cx, cy, rr, a)
+	ux, uy := (cx-mx)/rr, (cy-my)/rr // единичный вектор к центру
+	hr := sz * markerHeadFactor
+	d := sz * markerTipFactor
+	alpha := math.Acos(hr / d)
+	pd := math.Atan2(uy, ux)   // направление острия — ВНУТРЬ (к центру)
+	tx, ty := mx+ux*d, my+uy*d // вершина (остриё) — внутрь
+	s.p(`<path d="M %.1f,%.1f`, tx, ty)
+	const n = 16
+	for i := 0; i <= n; i++ { // дуга головы со внешней стороны (минуя клин острия)
+		ang := pd + alpha + (2*math.Pi-2*alpha)*float64(i)/float64(n)
+		s.p(` L %.1f,%.1f`, mx+hr*math.Cos(ang), my+hr*math.Sin(ang))
+	}
+	s.p(` Z" fill="%s" stroke="#0f1115" stroke-width="1"/>`, col)
+}
+
 // gauge draws a 180° semicircular gauge with colored bands, a needle, a value
 // label and an optional caption.
 func (s *Builder) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label string) {

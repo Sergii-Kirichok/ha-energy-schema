@@ -15,6 +15,7 @@ type State interface {
 	Num(entity string) float64
 	Int(entity string) int
 	On(entity string) bool
+	Available(entity string) bool
 	// last-good snapshot + offline duration (for devices that dropped out)
 	LastState(entity string) string
 	LastNum(entity string) float64
@@ -26,6 +27,8 @@ type State interface {
 	HoursUntil(entity, key string) float64
 	// daily weather forecast (cloud % + condition, 0=today 1=tomorrow)
 	ForecastInfo(daysAhead int) (float64, string, bool)
+	// today's peak numeric value for an entity (for gauge max markers)
+	DayMax(entity string) float64
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -211,6 +214,13 @@ func Render(st State, cfg config.Config) string {
 			s.t(252, y, 12, cRed, "end", "обрыв")
 		}
 	}
+	// связь RS-485 со счётчиком ввода (живая, если хоть одна фаза отвечает)
+	rybRS := st.Available("sensor.sim_ryb_l1_on") || st.Available("sensor.sim_ryb_l2_on") || st.Available("sensor.sim_ryb_l3_on")
+	if rybRS {
+		s.t(34, 210, 10, cSub, "start", "RS-485 ✓")
+	} else {
+		s.t(34, 210, 10, cRed, "start", "RS-485 ✕")
+	}
 	// Стабилизаторы
 	stabX := []float64{340, 560, 780}
 	for i := 0; i < 3; i++ {
@@ -224,6 +234,12 @@ func Render(st State, cfg config.Config) string {
 		}
 		s.box(x, 44, 190, 175)
 		s.head(x, 44, 190, "sine", fmt.Sprintf("Стаб L%d", ph), linkCol)
+		// связь RS-485 (как у контактора) — внизу слева
+		if linkOk {
+			s.t(x+10, 213, 10, cSub, "start", "RS-485 ✓")
+		} else {
+			s.t(x+10, 213, 10, cRed, "start", "RS-485 ✕")
+		}
 		if !linkOk {
 			// Стабилизатор офлайн. Линия — ОТДЕЛЬНЫЙ источник: если она под
 			// напряжением (датчик линии / инвертор) — стабилизатор просто в обходе
@@ -244,7 +260,7 @@ func Render(st State, cfg config.Config) string {
 				s.t(x+95, 188, 10, cSub, "middle", fmt.Sprintf("посл. от стаб.: выход %dВ · ст %d", st.LastInt(p+"_vout"), st.LastInt(p+"_step")))
 			}
 			if info := st.LostInfo(p + "_vout"); info != "" {
-				s.t(x+95, 210, 10, cOrg, "middle", "стаб. молчит уже "+info)
+				s.t(x+180, 213, 10, cOrg, "end", "молчит "+info)
 			}
 			continue
 		}
@@ -264,9 +280,9 @@ func Render(st State, cfg config.Config) string {
 		row(3, "U мин/макс", fmt.Sprintf("%d / %dВ", st.Int(p+"_vmin"), st.Int(p+"_vmax")))
 		if !st.On(p + "_on") {
 			if rybPhase(st, ph, contRyb) == "lost" {
-				s.t(x+95, 210, 11, cOrg, "middle", "потеря связи (датчик)")
+				s.t(x+180, 213, 10, cOrg, "end", "потеря (датчик)")
 			} else {
-				s.t(x+95, 210, 11, cRed, "middle", "линия отключена")
+				s.t(x+180, 213, 10, cRed, "end", "линия отключена")
 			}
 		}
 	}
@@ -297,6 +313,13 @@ func Render(st State, cfg config.Config) string {
 		} else {
 			s.t(1248, y, 12, cGry, "end", "— нет —")
 		}
+	}
+	// связь RS-485 со счётчиком ввода
+	grnRS := st.Available("sensor.sim_green_l1_on") || st.Available("sensor.sim_green_l2_on") || st.Available("sensor.sim_green_l3_on")
+	if grnRS {
+		s.t(1030, 210, 10, cSub, "start", "RS-485 ✓")
+	} else {
+		s.t(1030, 210, 10, cRed, "start", "RS-485 ✕")
 	}
 
 	// ===================== ROW 2 =====================
@@ -383,11 +406,11 @@ func Render(st State, cfg config.Config) string {
 	}
 	// по фазам: ВХОД (сеть) и ВЫХОД (инвертор → дом) — это РАЗНЫЕ счётчики.
 	// При пропаже сети вход = 0В (красный), а выход инвертора держит ~230В.
-	s.t(414, 372, 11, cSub, "start", "фаза")
-	s.t(566, 372, 11, cSub, "end", "сеть · вход")
-	s.t(726, 372, 11, cSub, "end", "инвертор → дом")
+	s.t(414, 370, 12, cTxt, "start", "фаза")
+	s.t(519, 370, 12, cSub, "middle", "сеть · вход")
+	s.t(669, 370, 12, cSub, "middle", "инвертор → дом")
 	for ph := 1; ph <= 3; ph++ {
-		y := 392.0 + float64(ph-1)*19
+		y := 392.0 + float64(ph-1)*20
 		gv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_voltage", ph))
 		gw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_power", ph))
 		ov := st.Num(fmt.Sprintf("sensor.deye_sun_30k_output_l%d_voltage", ph))
@@ -398,20 +421,22 @@ func Render(st State, cfg config.Config) string {
 		} else if gv < 205 || gv > 250 {
 			gc = cOrg
 		}
-		s.t(414, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(566, y, 14, gc, "end", fmt.Sprintf("%.0fВ·%.0fВт", gv, gw))
-		s.t(726, y, 14, cTxt, "end", fmt.Sprintf("%.0fВ·%.0fВт", ov, lw))
+		s.t(414, y, 14, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.t(506, y, 14, gc, "end", fmt.Sprintf("%.0f В", gv))
+		s.t(572, y, 14, gc, "end", fmt.Sprintf("%.0f Вт", gw))
+		s.t(652, y, 14, cTxt, "end", fmt.Sprintf("%.0f В", ov))
+		s.t(726, y, 14, cTxt, "end", fmt.Sprintf("%.0f Вт", lw))
 	}
-	// частота сети + интервал реконнекта (после срабатывания защиты)
-	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
+	// частота сети + интервал реконнекта (после срабатывания защиты) — ниже фаз
+	s.t(414, 462, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
 	// значок генератора (правый нижний угол): подан ли управляющий сигнал на запуск
 	genSigCol := cGry
 	if st.State("sensor.sim_gen_start_signal") == "on" {
 		genSigCol = cOrg
 	}
-	s.t(706, 446, 10, genSigCol, "end", "пуск")
-	s.p(`<circle cx="722" cy="442" r="9" fill="none" stroke="%s" stroke-width="2"/>`, genSigCol)
-	s.t(722, 446, 11, genSigCol, "middle", "G")
+	s.t(702, 462, 10, genSigCol, "end", "пуск")
+	s.p(`<circle cx="720" cy="458" r="9" fill="none" stroke="%s" stroke-width="2"/>`, genSigCol)
+	s.t(720, 462, 11, genSigCol, "middle", "G")
 
 	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
 	s.box(800, 300, 200, 175)
@@ -459,9 +484,14 @@ func Render(st State, cfg config.Config) string {
 	}
 	avrRow(376, "Инвертор", "inverter", cGrn)
 	avrRow(404, "Резерв · "+cfg.In1Name, "reserve", cOrg)
-	// статистика переключений: всего и за сегодня — отдельно
-	s.t(900, 446, 11, cTxt, "middle", fmt.Sprintf("переключений всего: %.0f", st.Num("sensor.sim_avr_switches")))
-	s.t(900, 464, 10, cSub, "middle", fmt.Sprintf("из них сегодня: %.0f", st.Num("sensor.sim_avr_switches_today")))
+	// статистика переключений: всего / сегодня — одной строкой через слэш
+	s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("переключений: всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
+	// низ: связь RS-485 (как у контактора)
+	if avrLink {
+		s.t(812, 464, 10, cSub, "start", "RS-485 ✓")
+	} else {
+		s.t(812, 464, 10, cRed, "start", "RS-485 ✕")
+	}
 
 	// Дом — гейдж
 	s.box(1140, 290, 280, 190)
@@ -500,9 +530,11 @@ func Render(st State, cfg config.Config) string {
 	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
-	// ток батареи — слева от спидометра
+	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
 	s.t(54, 616, 15, cTxt, "middle", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
+	s.t(294, 596, 11, cSub, "middle", "SOH")
+	s.t(294, 616, 15, cTxt, "middle", fmt.Sprintf("%.0f%%", st.Num("sensor.deye_sun_30k_battery_soh")))
 
 	// заряд/разряд — визуально (пилюля со стрелкой); покой = без стрелки
 	if bAlarm {
@@ -510,11 +542,11 @@ func Render(st State, cfg config.Config) string {
 		s.t(174, 652, 14, cRed, "middle", "⚠ АВАРИЯ БАТАРЕИ")
 	} else if bp < -20 {
 		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cGrn, cGrn)
-		s.p(`<polygon points="70,653 78,640 86,653" fill="%s"/>`, cGrn)
+		s.p(`<polygon points="70,640 78,654 86,640" fill="%s"/>`, cGrn)
 		s.t(190, 652, 14, cGrn, "middle", "ЗАРЯД "+kw(-bp))
 	} else if bp > 20 {
 		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cOrg, cOrg)
-		s.p(`<polygon points="70,640 78,653 86,640" fill="%s"/>`, cOrg)
+		s.p(`<polygon points="70,654 78,640 86,654" fill="%s"/>`, cOrg)
 		s.t(190, 652, 14, cOrg, "middle", "РАЗРЯД "+kw(bp))
 	} else {
 		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
@@ -537,29 +569,36 @@ func Render(st State, cfg config.Config) string {
 	if usableKWh < 0 {
 		usableKWh = 0
 	}
-	// прогнозная автономия: симуляция 48ч (сегодняшняя PV до заката → ночь →
-	// завтрашняя генерация по прогнозу облачности) — «если ввод пропадёт сейчас»
 	loadKW := load
 	pvKW := pvtot / 1000
+	// две оценки: чисто АКБ (без солнца) и прогнозная (симуляция 48ч с погодой)
+	batH := 99.0
+	if loadKW > 0.05 {
+		batH = usableKWh / loadKW
+	}
 	autoH, aNote := simulateAutonomy(st, usableKWh, capKWh*(100-cutoff)/100, loadKW, pvKW, cfg.PVDayClearKWh)
-	htxt := fmt.Sprintf("≈ %dч %02dм", int(autoH), int((autoH-math.Floor(autoH))*60))
-	if loadKW < 0.05 {
-		htxt = "≈ —"
-	} else if autoH >= 48 {
-		htxt = "≈ 48ч+"
+	hfmt := func(h float64) string {
+		if loadKW < 0.05 {
+			return "≈ —"
+		}
+		if h >= 48 {
+			return "≈ 48ч+"
+		}
+		return fmt.Sprintf("≈ %dч %02dм", int(h), int((h-math.Floor(h))*60))
 	}
 	rcol := cGrn
 	if usableKWh < capKWh*0.12 {
 		rcol = cOrg
 	}
-	s.t(174, 684, 12, cSub, "middle", "доступно сейчас")
-	s.t(174, 712, 20, rcol, "middle", fmt.Sprintf("%.1f кВт·ч  %s", usableKWh, htxt))
-	s.t(174, 728, 10, cSub, "middle", aNote)
-
-	// низ: SOH, ёмкость, отключение
-	s.t(40, 744, 12, cSub, "start", "SOH")
-	s.t(308, 744, 13, cTxt, "end", fmt.Sprintf("%.1f %%", st.Num("sensor.deye_sun_30k_battery_soh")))
-	s.t(174, 772, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
+	s.t(174, 686, 12, cSub, "middle", "доступно сейчас")
+	s.t(174, 712, 22, rcol, "middle", fmt.Sprintf("%.1f кВт·ч", usableKWh))
+	// строка 1 — только батарея (без солнца); строка 2 — с прогнозом генерации
+	s.t(40, 738, 11, cSub, "start", "только АКБ:")
+	s.t(308, 738, 13, cTxt, "end", hfmt(batH))
+	s.t(40, 758, 11, cSub, "start", "с прогнозом погоды:")
+	s.t(308, 758, 13, cGrn, "end", hfmt(autoH))
+	s.t(174, 776, 9, cSub, "middle", aNote)
+	s.t(174, 792, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
 
 	// Солнышко
 	s.box(360, 520, 560, 280)
@@ -572,12 +611,18 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
 	gx := []float64{500, 650, 800}
+	pvFieldMax := 13.0 // макс на 1 MPPT по шильдику (39 кВт / 3 ≈ 13 кВт)
 	for i := 0; i < 3; i++ {
-		pw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1))
-		s.gauge(gx[i], 646, 66, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), cfg.PVLabels[i])
+		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
+		pw := st.Num(pe)
+		s.gauge(gx[i], 646, 66, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
+		// верхняя капля (зелёная, остриём внутрь) — пик генерации за сегодня
+		if pmax := st.DayMax(pe); pmax > 50 {
+			s.markerMax(gx[i], 646, 66, gAng(pmax/1000, pvFieldMax), 66*0.12, cGrn)
+		}
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
-		s.t(gx[i], 700, 13, cSub, "middle", fmt.Sprintf("%.0fВ · %.1fА", vv, aa))
+		s.t(gx[i], 684, 16, cTxt, "middle", fmt.Sprintf("%.0f В · %.1f А", vv, aa))
 	}
 	s.t(380, 716, 12, cSub, "start", "Всего")
 	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
