@@ -37,6 +37,7 @@ type Store struct {
 	mu       sync.RWMutex
 	cur      map[string]Entity
 	lastGood map[string]Entity
+	forecast []ForecastDay
 }
 
 // NewStore returns an empty Store ready for use.
@@ -142,6 +143,31 @@ func (s *Store) HoursUntil(entity, key string) float64 {
 		return h
 	}
 	return 0
+}
+
+// SetForecast stores the daily weather forecast (from Client.DailyForecast).
+func (s *Store) SetForecast(days []ForecastDay) {
+	s.mu.Lock()
+	s.forecast = days
+	s.mu.Unlock()
+}
+
+// ForecastCloud returns the forecast cloud coverage (%) daysAhead days from
+// now (0 = today, 1 = tomorrow). ok=false when no forecast covers that day.
+func (s *Store) ForecastCloud(daysAhead int) (float64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	wy, wm, wd := time.Now().AddDate(0, 0, daysAhead).Date()
+	for _, d := range s.forecast {
+		ly, lm, ld := d.Time.Local().Date()
+		if ly == wy && lm == wm && ld == wd {
+			return d.Cloud, true
+		}
+	}
+	if daysAhead >= 0 && daysAhead < len(s.forecast) { // запасной путь: список с сегодня по порядку
+		return s.forecast[daysAhead].Cloud, true
+	}
+	return 0, false
 }
 
 func humanDur(d time.Duration) string {

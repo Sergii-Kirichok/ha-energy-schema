@@ -65,6 +65,21 @@ func (s *Server) writeWrapper() {
 	}
 }
 
+// weatherEntity is the HA weather entity used for the autonomy forecast.
+const weatherEntity = "weather.forecast_home_assistant"
+
+// loopForecast refreshes the daily weather forecast every 30 minutes.
+func (s *Server) loopForecast() {
+	for {
+		if days, err := s.client.DailyForecast(weatherEntity); err != nil {
+			log.Println("forecast:", err)
+		} else {
+			s.store.SetForecast(days)
+		}
+		time.Sleep(30 * time.Minute)
+	}
+}
+
 // loop refreshes the state snapshot and the on-disk SVG on a fixed cadence.
 func (s *Server) loop() {
 	for {
@@ -83,6 +98,7 @@ func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
 	s.writeWrapper()
 	go s.loop()
+	go s.loopForecast()
 	http.HandleFunc("/schematic.svg", s.handleSVG)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)

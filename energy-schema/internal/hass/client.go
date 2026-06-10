@@ -1,6 +1,7 @@
 package hass
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,6 +64,53 @@ func (c *Client) FetchStates() (map[string]Entity, error) {
 		m[e.EntityID] = Entity{State: e.State, LastChanged: lc, Attrs: attrs}
 	}
 	return m, nil
+}
+
+// ForecastDay is one day of the HA daily weather forecast.
+type ForecastDay struct {
+	Time      time.Time
+	Condition string
+	Cloud     float64 // cloud coverage, %
+}
+
+// DailyForecast calls the weather.get_forecasts service and returns the daily
+// forecast for the entity (HA 2024.3+: forecasts are not state attributes).
+func (c *Client) DailyForecast(entity string) ([]ForecastDay, error) {
+	body, _ := json.Marshal(map[string]string{"entity_id": entity, "type": "daily"})
+	req, err := http.NewRequest(http.MethodPost, c.APIBase+"/services/weather/get_forecasts?return_response", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	var out struct {
+		ServiceResponse map[string]struct {
+			Forecast []struct {
+				Datetime      string  `json:"datetime"`
+				Condition     string  `json:"condition"`
+				CloudCoverage float64 `json:"cloud_coverage"`
+			} `json:"forecast"`
+		} `json:"service_response"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("decode forecast (status=%d): %w", resp.StatusCode, err)
+	}
+	fc, ok := out.ServiceResponse[entity]
+	if !ok {
+		return nil, fmt.Errorf("no forecast for %s (status=%d)", entity, resp.StatusCode)
+	}
+	days := make([]ForecastDay, 0, len(fc.Forecast))
+	for _, f := range fc.Forecast {
+		t, _ := time.Parse(time.RFC3339, f.Datetime)
+		days = append(days, ForecastDay{Time: t, Condition: f.Condition, Cloud: f.CloudCoverage})
+	}
+	return days, nil
 }
 
 // scalarStr stringifies a scalar JSON attribute (string/number/bool); it skips

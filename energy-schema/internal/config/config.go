@@ -22,6 +22,7 @@ type Config struct {
 	BattCap                         float64
 	HomeMax, HomeT1, HomeT2, HomeT3 float64
 	PVMax, PVT1, PVT2, PVT3         float64
+	PVDayClearKWh                   float64 // выработка за ЯСНЫЙ день (для прогноза автономии)
 }
 
 // Default returns the built-in defaults applied before options are loaded.
@@ -36,6 +37,7 @@ func Default() Config {
 		BattCap:  60.0,
 		HomeMax:  30.0, HomeT1: 3.0, HomeT2: 5.0, HomeT3: 25.0,
 		PVMax: 33.0, PVT1: 5.0, PVT2: 20.0, PVT3: 25.0,
+		PVDayClearKWh: 100.0,
 	}
 }
 
@@ -59,6 +61,7 @@ type options struct {
 	PvT1           float64 `json:"pv_t1"`
 	PvT2           float64 `json:"pv_t2"`
 	PvT3           float64 `json:"pv_t3"`
+	PvDayClear     float64 `json:"pv_day_clear_kwh"`
 }
 
 // Load returns Default() with the options file and supervisorToken applied.
@@ -120,6 +123,9 @@ func (c *Config) apply(o options) {
 	}
 	if o.PvT3 > 0 {
 		c.PVT3 = o.PvT3
+	}
+	if o.PvDayClear > 0 {
+		c.PVDayClearKWh = o.PvDayClear
 	}
 	// LLAT path: only switch APIBase off the Supervisor default when a token is given.
 	if o.HaToken != "" {

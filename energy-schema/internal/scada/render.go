@@ -24,6 +24,8 @@ type State interface {
 	Attr(entity, key string) string
 	AttrNum(entity, key string) float64
 	HoursUntil(entity, key string) float64
+	// daily weather forecast (cloud %, 0=today 1=tomorrow)
+	ForecastCloud(daysAhead int) (float64, bool)
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -535,34 +537,16 @@ func Render(st State, cfg config.Config) string {
 	if usableKWh < 0 {
 		usableKWh = 0
 	}
-	// на сколько хватит при текущей нагрузке: PV помогает до заката, дальше — по нагрузке
+	// прогнозная автономия: симуляция 48ч (сегодняшняя PV до заката → ночь →
+	// завтрашняя генерация по прогнозу облачности) — «если ввод пропадёт сейчас»
 	loadKW := load
 	pvKW := pvtot / 1000
-	hSun := 0.0
-	if pvKW > 0.1 || st.State("sun.sun") == "above_horizon" {
-		hSun = st.HoursUntil("sun.sun", "next_setting")
-	}
-	r1 := loadKW - pvKW
-	if r1 < 0 {
-		r1 = 0
-	}
-	autoH := 999.0
-	switch {
-	case loadKW < 0.05:
-	case r1 <= 0.001:
-		autoH = hSun + usableKWh/loadKW
-	default:
-		if e1 := r1 * hSun; e1 >= usableKWh {
-			autoH = usableKWh / r1
-		} else {
-			autoH = hSun + (usableKWh-e1)/loadKW
-		}
-	}
+	autoH, aNote := simulateAutonomy(st, usableKWh, capKWh*(100-cutoff)/100, loadKW, pvKW, cfg.PVDayClearKWh)
 	htxt := fmt.Sprintf("≈ %dч %02dм", int(autoH), int((autoH-math.Floor(autoH))*60))
 	if loadKW < 0.05 {
 		htxt = "≈ —"
 	} else if autoH >= 48 {
-		htxt = "≈ >2 сут"
+		htxt = "≈ 48ч+"
 	}
 	rcol := cGrn
 	if usableKWh < capKWh*0.12 {
@@ -570,6 +554,7 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.t(174, 684, 12, cSub, "middle", "доступно сейчас")
 	s.t(174, 712, 20, rcol, "middle", fmt.Sprintf("%.1f кВт·ч  %s", usableKWh, htxt))
+	s.t(174, 728, 10, cSub, "middle", aNote)
 
 	// низ: SOH, ёмкость, отключение
 	s.t(40, 744, 12, cSub, "start", "SOH")

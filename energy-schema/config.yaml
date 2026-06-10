@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.4.40"
+version: "0.4.41"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы BobRIXOS (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -32,6 +32,7 @@ options:
   pv_t1: 5
   pv_t2: 20
   pv_t3: 25
+  pv_day_clear_kwh: 100
 schema:
   refresh_seconds: int(1,60)
   ha_url: str
@@ -51,3 +52,4 @@ schema:
   pv_t1: float?
   pv_t2: float?
   pv_t3: float?
+  pv_day_clear_kwh: float?
