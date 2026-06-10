@@ -179,9 +179,8 @@ func Render(st State, cfg config.Config) string {
 	}
 	// PV -> Инвертор
 	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 460)
-	// Генератор -> Инвертор: 2 линии. Управляющий сигнал на запуск — серая статичная,
-	// когда сигнала нет; анимированная оранжевая, когда сигнал подан. Мощность — зелёная при работе.
-	s.flow(cOrg, map[bool]string{true: "on", false: "off"}[st.State("sensor.sim_gen_start_signal") == "on"], 1, false, 1010, 520, 1010, 496, 600, 496, 600, 470)
+	// Генератор -> Инвертор: одна силовая линия. Управляющий сигнал отдельной линией
+	// не рисуем — он показан значком «G» в правом нижнем углу карточки инвертора.
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 484, 588, 484, 588, 460)
 
 	// ===================== ROW 1 =====================
@@ -402,6 +401,14 @@ func Render(st State, cfg config.Config) string {
 	}
 	// частота сети + интервал реконнекта (после срабатывания защиты)
 	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
+	// значок генератора (правый нижний угол): подан ли управляющий сигнал на запуск
+	genSigCol := cGry
+	if st.State("sensor.sim_gen_start_signal") == "on" {
+		genSigCol = cOrg
+	}
+	s.t(706, 446, 10, genSigCol, "end", "пуск")
+	s.p(`<circle cx="722" cy="442" r="9" fill="none" stroke="%s" stroke-width="2"/>`, genSigCol)
+	s.t(722, 446, 11, genSigCol, "middle", "G")
 
 	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
 	s.box(800, 300, 200, 175)
