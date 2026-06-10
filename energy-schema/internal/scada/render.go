@@ -221,8 +221,9 @@ func Render(st State, cfg config.Config) string {
 	// шина -> контактор: активна только когда контактор на Ввод1 (стабилизаторы);
 	// заводим к центру карточки контактора (x≈132, рядом с Ввод2 на 156)
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[contRyb], 3, false, 455, 275, 132, 275, 132, 300)
-	// шина -> АВР(резерв): активна только когда АВР в резерве
-	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 985, 275, 905, 275, 905, 300)
+	// шина -> АВР(резерв): активна только когда АВР в резерве. Падаем вертикально
+	// прямо с шины в точке x=905 (раньше шёл 985->905 по самой шине — наложение).
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 905, 275, 905, 300)
 	// Ввод2 -> Контактор: активна только когда контактор на Ввод2; выходим снизу
 	// карточки Зелёного (x=1300) и заводим к центру контактора (x=156)
 	s.flow(cBlu, map[bool]string{true: grnSt, false: "off"}[contOn], 2, exporting, 1300, 219, 1300, 252, 156, 252, 156, 300)
@@ -474,11 +475,14 @@ func Render(st State, cfg config.Config) string {
 	} else {
 		s.t(414, 351, 12, cOrg, "start", "сеть: откл. защитой ✕")
 	}
-	// статус инвертора — СПРАВА
+	// СПРАВА: при ошибке — её текст; в норме — импорт/отдача энергии по сети за
+	// сегодня (↓ из сети · ↑ в сеть). «Норма» и так видна зелёной точкой в шапке.
 	if invProb {
 		s.t(726, 351, 12, cRed, "end", "Ошибка: "+invState)
 	} else {
-		s.t(726, 351, 12, cGrn, "end", "Статус: норма")
+		imp := st.Num("sensor.deye_sun_30k_today_energy_import")
+		exp := st.Num("sensor.deye_sun_30k_today_energy_export")
+		s.p(`<text x="726" y="351" font-size="12" text-anchor="end" fill="%s">сегодня <tspan fill="%s">↓ %.0f</tspan> <tspan fill="%s">↑ %.0f</tspan> кВт·ч</text>`, cSub, cAmb, imp, cGrn, exp)
 	}
 	// по фазам: ВХОД (сеть) и ВЫХОД (инвертор → дом) — это РАЗНЫЕ счётчики.
 	// При пропаже сети вход = 0В (красный), а выход инвертора держит ~230В.
@@ -807,7 +811,19 @@ func Render(st State, cfg config.Config) string {
 		}
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
-		s.t(gx[i], 684, 16, cTxt, "middle", fmt.Sprintf("%.0f В · %.1f А", vv, aa))
+		// цвет индикатора напряжения стринга по зонам входа MPPT:
+		// <150 В — серый (нет солнца/тёмный стринг); 150–800 — норма; 800–1000 —
+		// очень опасная зона (красный); >1000 — превышен предел входа («горит инвертор», ⚠)
+		vCol, vMark := cTxt, ""
+		switch {
+		case vv < 150:
+			vCol = cGry
+		case vv > 1000:
+			vCol, vMark = cRed, "⚠ "
+		case vv > 800:
+			vCol = cRed
+		}
+		s.p(`<text x="%g" y="684" font-size="16" text-anchor="middle" fill="%s"><tspan fill="%s">%s%.0f В</tspan> · %.1f А</text>`, gx[i], cTxt, vCol, vMark, vv, aa)
 	}
 	s.t(380, 710, 13, cSub, "start", "Всего")
 	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
@@ -829,7 +845,7 @@ func Render(st State, cfg config.Config) string {
 	if genRun {
 		gk, gtc, gtxt = "genrun", cGrn, "РАБОТАЕТ"
 	}
-	s.head(956, 520, 464, gk, "Генератор", "")
+	s.head(956, 520, 464, gk, "Генератор", gtc)
 	genMode := st.State("sensor.sim_gen_mode")
 	genAuto := genMode == "auto"
 	sig := st.State("sensor.sim_gen_start_signal") == "on"
@@ -861,7 +877,7 @@ func Render(st State, cfg config.Config) string {
 	s.p(`<rect x="1200" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
 	s.p(`<rect x="1220" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
 	s.t(1226, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
-	s.t(1404, 547, 14, gtc, "end", gtxt)
+	s.t(1382, 547, 14, gtc, "end", gtxt)
 
 	// --- управление: подогрев + старт/стоп — компактно, одной строкой справа ---
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
