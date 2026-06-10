@@ -938,11 +938,11 @@ func Render(st State, cfg config.Config) string {
 		s.t(1052, y, 13, cTxt, "middle", fmt.Sprintf("%.0f В", v))
 		s.t(1180, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
 	}
-	// связь управления генератором (RS-485 через наш блок) — внизу слева
+	// связь управления генератором (RS-485 через наш блок) — в левом нижнем углу
 	if st.Available("sensor.sim_gen_state") {
-		s.t(972, 748, 10, cSub, "start", "RS-485 ✓")
+		s.t(972, 790, 10, cSub, "start", "RS-485 ✓")
 	} else {
-		s.t(972, 748, 10, cRed, "start", "RS-485 ✕")
+		s.t(972, 790, 10, cRed, "start", "RS-485 ✕")
 	}
 
 	// ПРАВО: обслуживание — кольца обратного отсчёта (масло, ТО) в моточасах
@@ -979,17 +979,17 @@ func Render(st State, cfg config.Config) string {
 	runtime := firstNum("input_number.gen_runtime_h", "sensor.sim_gen_runtime_h")
 	oilFr := frac(oilRem, oilInt)
 	svcFr := frac(svcRem, svcInt)
-	// кольцо: в центре — остаток, под кольцом — общий интервал
-	s.ringTimer(1262, 692, 32, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
-	s.t(1262, 738, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", oilInt))
-	s.ringTimer(1352, 692, 32, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
-	s.t(1352, 738, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
+	// кольцо: в центре — остаток, под кольцом — общий интервал (подняты выше на 18)
+	s.ringTimer(1262, 674, 32, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
+	s.t(1262, 720, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", oilInt))
+	s.ringTimer(1352, 674, 32, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
+	s.t(1352, 720, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
 
 	// ПРАВО (под кольцами масло/ТО): наработка + последний запуск
 	lastAgo := firstNum("input_number.gen_last_run_h", "sensor.sim_gen_last_run_h")
 	lastMin := firstNum("input_number.gen_last_run_min", "sensor.sim_gen_last_run_min")
-	s.t(1306, 758, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
-	s.t(1306, 774, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
+	s.t(1306, 740, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
+	s.t(1306, 756, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
 
 	s.p(`</svg>`)
 	return s.String()
