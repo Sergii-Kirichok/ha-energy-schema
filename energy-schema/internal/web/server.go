@@ -23,7 +23,7 @@ const (
 
 // indexHTML auto-reloads the given SVG file every refresh seconds.
 // %s = svg filename, %d = refresh seconds.
-const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#0f1115;height:100%%}#c{width:100%%}svg{width:100%%;height:auto;display:block}</style></head><body><div id="c"></div><script>
+const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%%;overflow:hidden;background:#0f1115}#c{position:fixed;inset:0}#c svg{width:100%%;height:100%%;display:block}</style></head><body><div id="c"></div><script>
 function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t})}
 load();setInterval(load,%d000);</script></body></html>`
 
