@@ -131,7 +131,7 @@ func stabOut(st State, ph int, contRyb bool) string {
 // Render builds the full SVG single-line diagram from the current state snapshot.
 func Render(st State, cfg config.Config) string {
 	s := &Builder{}
-	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 830" font-family="Arial,Helvetica,sans-serif">`)
+	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 808" font-family="Arial,Helvetica,sans-serif">`)
 	s.p(`<rect x="0" y="0" width="1440" height="830" fill="#0f1115"/>`)
 	s.t(1428, 28, 18, cTxt, "end", cfg.Title)
 
