@@ -577,10 +577,12 @@ func Render(st State, cfg config.Config) string {
 		s.markerMax(1280, 410, 78, a, 78*0.12, cRed)
 		s.markerLabel(1280, 410, 78, a, fmt.Sprintf("%.1f", pl/1000), cRed)
 	}
-	// синяя капля — СРЕДНЕЕ за 24 ч (минимум почти всегда ~0 и неинформативен)
+	// синяя капля + выноска со значением — СРЕДНЕЕ за 24 ч
 	av, okAv := st.Avg24h(lpe)
 	if okAv {
-		s.markerMax(1280, 410, 78, gAng(av/1000, hMax), 78*0.12, cBlu)
+		aa := gAng(av/1000, hMax)
+		s.markerMax(1280, 410, 78, aa, 78*0.12, cBlu)
+		s.markerLabel(1280, 410, 78, aa, fmt.Sprintf("%.1f", av/1000), cBlu)
 	}
 	// итог за 24 ч одной строкой — крупнее, среднее/макс через слэш
 	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
