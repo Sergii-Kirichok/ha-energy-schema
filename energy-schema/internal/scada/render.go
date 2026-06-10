@@ -37,6 +37,8 @@ type State interface {
 	ForecastInfo(daysAhead int) (float64, string, bool)
 	// today's peak numeric value for an entity (for gauge max markers)
 	DayMax(entity string) float64
+	// energy (kWh) integrated for a *_power entity since local midnight
+	DayEnergy(entity string) float64
 	// rolling 24h peak/trough (for battery/home markers — independent of midnight)
 	Max24h(entity string) float64
 	Min24h(entity string) (float64, bool)
@@ -684,6 +686,8 @@ func Render(st State, cfg config.Config) string {
 		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
 		pw := st.Num(pe)
 		s.gauge(gx[i], 646, pvR, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
+		// суточная выработка стринга — мелким серым над текущей мощностью
+		s.t(gx[i], 626, 10, cSub, "middle", fmt.Sprintf("%.1f кВт·ч", st.DayEnergy(pe)))
 		// шкала тиками радиально (как у Дома): концы 0/13 по бокам + переходы зон 5/10
 		for _, tk := range []float64{0, 5, 10, pvFieldMax} {
 			s.gaugeTick(gx[i], 646, pvR, tk, pvFieldMax, fmt.Sprintf("%.0f", tk))

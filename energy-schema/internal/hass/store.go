@@ -88,13 +88,15 @@ func (r *rollMax) min(now time.Time) (float64, bool) {
 // so a device that went "unavailable" can still show its last known state and
 // how long ago it dropped out (a stabilizer falling back to bypass/transit).
 type Store struct {
-	mu       sync.RWMutex
-	cur      map[string]Entity
-	lastGood map[string]Entity
-	forecast []ForecastDay
-	dayMax   map[string]float64
-	dayYMD   string
-	roll     map[string]*rollMax // rolling 24h peak per numeric entity
+	mu        sync.RWMutex
+	cur       map[string]Entity
+	lastGood  map[string]Entity
+	forecast  []ForecastDay
+	dayMax    map[string]float64
+	dayYMD    string
+	roll      map[string]*rollMax // rolling 24h peak per numeric entity
+	dayEnergy map[string]float64  // накопленная за сегодня энергия (кВт·ч) для *_power
+	lastTick  time.Time           // время прошлого Replace — для интегрирования энергии
 	// эмпирическая база генерации из долгосрочной статистики (последние ~10 дней)
 	pvClearKWh float64 // лучший суточный день — оценка «ясного дня» сезона
 	pvAvgKWh   float64 // средняя суточная генерация
@@ -103,7 +105,7 @@ type Store struct {
 
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
-	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}}
+	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}, dayEnergy: map[string]float64{}}
 }
 
 // FromStates wraps a plain id->state map into entities (zero timestamps).
@@ -124,8 +126,18 @@ func (s *Store) Replace(m map[string]Entity) {
 	ymd := now.Format("2006-01-02")
 	if ymd != s.dayYMD {
 		s.dayMax = map[string]float64{}
+		s.dayEnergy = map[string]float64{}
 		s.dayYMD = ymd
 	}
+	// интервал с прошлого опроса (для интегрирования энергии); большой разрыв
+	// (рестарт/пропажа связи) не учитываем, чтобы не накрутить.
+	dt := 0.0
+	if !s.lastTick.IsZero() {
+		if d := now.Sub(s.lastTick).Hours(); d > 0 && d < 120.0/3600 {
+			dt = d
+		}
+	}
+	s.lastTick = now
 	for id, e := range m {
 		if real(e.State) {
 			s.lastGood[id] = e
@@ -139,10 +151,29 @@ func (s *Store) Replace(m map[string]Entity) {
 					s.roll[id] = r
 				}
 				r.add(now, v)
+				if dt > 0 && strings.HasSuffix(id, "_power") {
+					s.dayEnergy[id] += v / 1000 * dt // Вт→кВт × ч = кВт·ч
+				}
 			}
 		}
 	}
 	s.cur = m
+	s.mu.Unlock()
+}
+
+// DayEnergy returns the energy (kWh) integrated for a *_power entity since the
+// start of the current local day (0 for others / before midnight rollover).
+func (s *Store) DayEnergy(entity string) float64 {
+	s.mu.RLock()
+	v := s.dayEnergy[entity]
+	s.mu.RUnlock()
+	return v
+}
+
+// SetDayEnergy seeds today's accumulated energy (kWh) from history at startup.
+func (s *Store) SetDayEnergy(entity string, kwh float64) {
+	s.mu.Lock()
+	s.dayEnergy[entity] = kwh
 	s.mu.Unlock()
 }
 

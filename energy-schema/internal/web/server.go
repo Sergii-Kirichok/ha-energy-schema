@@ -148,10 +148,17 @@ func (s *Server) seedRolls() {
 			log.Println("seed daymax:", e, err)
 			continue
 		}
-		for _, p := range pts {
+		kwh := 0.0 // интеграл мощности по трапециям — энергия с начала дня
+		for i, p := range pts {
 			s.store.SeedDayMax(e, p.Time, p.Value)
+			if i > 0 {
+				if d := p.Time.Sub(pts[i-1].Time).Hours(); d > 0 && d < 0.5 {
+					kwh += (pts[i-1].Value + p.Value) / 2 / 1000 * d
+				}
+			}
 		}
-		log.Printf("seed daymax %s: %d points (today)", e, len(pts))
+		s.store.SetDayEnergy(e, kwh)
+		log.Printf("seed %s: %d points, %.1f kWh today", e, len(pts), kwh)
 	}
 }
 
