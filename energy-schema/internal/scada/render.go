@@ -41,7 +41,7 @@ type State interface {
 	DayEnergy(entity string) float64
 	// rolling 24h peak/trough (for battery/home markers — independent of midnight)
 	Max24h(entity string) float64
-	Min24h(entity string) (float64, bool)
+	Avg24h(entity string) (float64, bool)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
 	PVRecent() (float64, int)
@@ -526,12 +526,13 @@ func Render(st State, cfg config.Config) string {
 		s.markerMax(1280, 410, 78, a, 78*0.12, cRed)
 		s.markerLabel(1280, 410, 78, a, fmt.Sprintf("%.1f", pl/1000), cRed)
 	}
-	lo, okLo := st.Min24h(lpe)
-	if okLo {
-		s.markerMax(1280, 410, 78, gAng(lo/1000, hMax), 78*0.12, cBlu)
+	// синяя капля — СРЕДНЕЕ за 24 ч (минимум почти всегда ~0 и неинформативен)
+	av, okAv := st.Avg24h(lpe)
+	if okAv {
+		s.markerMax(1280, 410, 78, gAng(av/1000, hMax), 78*0.12, cBlu)
 	}
-	// итог за 24 ч одной строкой — крупнее, мин/макс через слэш
-	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · мин/макс: %.1f / %.1f кВт", lo/1000, st.Max24h(lpe)/1000))
+	// итог за 24 ч одной строкой — крупнее, среднее/макс через слэш
+	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
 
 	// ===================== ROW 3 =====================
 	// Батарея

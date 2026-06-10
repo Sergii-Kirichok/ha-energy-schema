@@ -41,6 +41,8 @@ func parseFloatOK(s string) (float64, bool) {
 type rollMax struct {
 	hi    [288]float64
 	lo    [288]float64
+	sum   [288]float64 // сумма значений в корзине — для среднего
+	cnt   [288]float64 // число замеров в корзине
 	stamp [288]int64
 }
 
@@ -50,6 +52,7 @@ func (r *rollMax) add(now time.Time, v float64) {
 	if r.stamp[i] != p { // slot belongs to an older period — reset it
 		r.stamp[i] = p
 		r.hi[i], r.lo[i] = v, v
+		r.sum[i], r.cnt[i] = v, 1
 	} else {
 		if v > r.hi[i] {
 			r.hi[i] = v
@@ -57,7 +60,27 @@ func (r *rollMax) add(now time.Time, v float64) {
 		if v < r.lo[i] {
 			r.lo[i] = v
 		}
+		r.sum[i] += v
+		r.cnt[i]++
 	}
+}
+
+// avg returns the time-weighted mean over the window (each active 5-min bucket
+// counts equally). ok=false if the window has no data.
+func (r *rollMax) avg(now time.Time) (float64, bool) {
+	cutoff := now.Unix()/300 - 288
+	total := 0.0
+	n := 0
+	for i := 0; i < 288; i++ {
+		if r.stamp[i] > cutoff && r.cnt[i] > 0 {
+			total += r.sum[i] / r.cnt[i] // среднее корзины
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, false
+	}
+	return total / float64(n), true
 }
 
 func (r *rollMax) max(now time.Time) float64 {
@@ -226,6 +249,20 @@ func (s *Store) Min24h(entity string) (float64, bool) {
 	ok := false
 	if r != nil {
 		v, ok = r.min(time.Now())
+	}
+	s.mu.RUnlock()
+	return v, ok
+}
+
+// Avg24h returns the entity's time-weighted average over the last 24 hours.
+// ok=false if the entity has no data in the window yet.
+func (s *Store) Avg24h(entity string) (float64, bool) {
+	s.mu.RLock()
+	r := s.roll[entity]
+	var v float64
+	ok := false
+	if r != nil {
+		v, ok = r.avg(time.Now())
 	}
 	s.mu.RUnlock()
 	return v, ok

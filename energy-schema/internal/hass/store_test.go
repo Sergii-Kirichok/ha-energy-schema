@@ -139,6 +139,21 @@ func TestRollMin24h(t *testing.T) {
 	}
 }
 
+// rollMax averages time-weighted over the window (each 5-min bucket equal).
+func TestRollAvg24h(t *testing.T) {
+	r := &rollMax{}
+	base := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	r.add(base.Add(-30*time.Hour), 100) // 30h ago — must drop out of the average
+	r.add(base.Add(-2*time.Hour), 2)    // bucket A
+	r.add(base.Add(-1*time.Hour), 4)    // bucket B
+	if a, ok := r.avg(base); !ok || a < 2.9 || a > 3.1 {
+		t.Errorf("avg over 24h = %.2f ok=%v, want ~3 (mean of 2 and 4)", a, ok)
+	}
+	if _, ok := (&rollMax{}).avg(base); ok {
+		t.Error("avg on empty window should report ok=false")
+	}
+}
+
 // Within one 5-minute bucket the peak is kept, not the latest value.
 func TestRollMaxBucketPeak(t *testing.T) {
 	r := &rollMax{}
