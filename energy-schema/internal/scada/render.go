@@ -8,9 +8,13 @@ import (
 	"energy-schema/internal/config"
 )
 
-// invPeakKW — пиковая мощность инвертора (10 с) сверх длительных 33 кВт; зона
-// 33–45 кВт показывается как «перегруз» на шкалах генерации и потребления.
+// invPeakKW — пиковая мощность инвертора по выходу (10 с) сверх длительных
+// 33 кВт; зона 33–45 кВт — «перегруз» на гейдже потребления (Дом).
 const invPeakKW = 45.0
+
+// pvInputMaxKW — максимальная мощность PV-входа по шильдику инвертора (39 кВт).
+// Это потолок шкалы суммарной генерации в карточке Солнце.
+const pvInputMaxKW = 39.0
 
 // State is the read-only view of HA entity states the renderer needs.
 // *hass.Store satisfies it.
@@ -514,9 +518,11 @@ func Render(st State, cfg config.Config) string {
 		s.gaugeTick(1280, 410, 78, tk, hMax, fmt.Sprintf("%.0f", tk))
 	}
 	lpe := "sensor.deye_sun_30k_load_power"
-	// красная капля — пик потребления за 24 ч; синяя — минимум за 24 ч
+	// красная капля + выноска — пик потребления за 24 ч; синяя — минимум за 24 ч
 	if pl := st.Max24h(lpe); pl > 50 {
-		s.markerMax(1280, 410, 78, gAng(pl/1000, hMax), 78*0.12, cRed)
+		a := gAng(pl/1000, hMax)
+		s.markerMax(1280, 410, 78, a, 78*0.12, cRed)
+		s.markerLabel(1280, 410, 78, a, fmt.Sprintf("%.1f", pl/1000), cRed)
 	}
 	lo, okLo := st.Min24h(lpe)
 	if okLo {
@@ -555,15 +561,13 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
-	// красная капля по внешнему радиусу — пик заряда (SOC) за последние 24 ч
+	// красная капля + выноска со значением пика заряда (SOC) за последние 24 ч
 	if ps := st.Max24h("sensor.deye_sun_30k_battery"); ps > 1 {
-		s.markerMax(bcx, bcy, 68, gAng(ps, 100), 68*0.12, cRed)
+		a := gAng(ps, 100)
+		s.markerMax(bcx, bcy, 68, a, 68*0.12, cRed)
+		s.markerLabel(bcx, bcy, 68, a, fmt.Sprintf("%.0f%%", ps), cRed)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
-	// пик заряда за 24 ч — цифрами (в тон красной капле)
-	if ps := st.Max24h("sensor.deye_sun_30k_battery"); ps > 1 {
-		s.t(bcx, bcy+18, 11, cRed, "middle", fmt.Sprintf("↑ пик 24ч %.0f%%", ps))
-	}
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
@@ -596,15 +600,15 @@ func Render(st State, cfg config.Config) string {
 	if cutoff <= 0 {
 		cutoff = 15
 	}
-	// ёмкость: берём ПРЯМОЙ сенсор Deye (kWh). Расчёт Ah×напряжение завышает,
-	// т.к. напряжение «живое» (во время заряда выше номинала).
-	capKWh := st.Num("sensor.deye_sun_30k_battery_capacity")
-	if capKWh < 1 {
-		capKWh = st.Num("number.deye_sun_30k_battery_capacity") * st.Num("sensor.deye_sun_30k_battery_voltage") / 1000
+	// ёмкость: паспортный номинал пакета × деградацию (SOH). Прямой сенсор Deye
+	// занижает (≈50), Ah×«живое» напряжение завышает (≈64) — поэтому берём
+	// номинал из конфига (реальные 60 кВт·ч) и корректируем на здоровье батареи.
+	capNom := cfg.BattCap
+	soh := st.Num("sensor.deye_sun_30k_battery_soh")
+	if soh <= 0 || soh > 100 {
+		soh = 100
 	}
-	if capKWh < 1 {
-		capKWh = cfg.BattCap
-	}
+	capKWh := capNom * soh / 100 // эффективная ёмкость с учётом износа
 	usableKWh := capKWh * (soc - cutoff) / 100
 	if usableKWh < 0 {
 		usableKWh = 0
@@ -648,7 +652,7 @@ func Render(st State, cfg config.Config) string {
 	if avg, n := st.PVRecent(); n > 0 {
 		s.t(174, 776, 9, cSub, "middle", fmt.Sprintf("прогноз по факту: %d дн · ясный ~%.0f · средн %.0f кВт·ч/сут", n, clearDay, avg))
 	}
-	s.t(174, 790, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
+	s.t(174, 790, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f · SOH %.0f%% → %.0f кВт·ч · отключ. %.0f%%", capNom, soh, capKWh, cutoff))
 
 	// Солнышко
 	s.box(360, 520, 560, 280)
@@ -659,13 +663,13 @@ func Render(st State, cfg config.Config) string {
 		s.t(566, 548, 14, cTxt, "start", fmt.Sprintf("%.0f°C · обл %.0f%% · %.1f м/с",
 			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
-	// сегодня: факт + прогноз на день (ясный день × облачность сегодня)
-	todayKWhTxt := fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production"))
+	// сегодня: факт / прогноз на день (ясный день × облачность сегодня) — кратко
+	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production"))
 	if cloud0, cond0, ok0 := st.ForecastInfo(0); ok0 {
 		if cloud0 <= 0 {
 			cloud0 = condCloud(cond0)
 		}
-		todayKWhTxt = fmt.Sprintf("сегодня: %.0f / прогноз ~%.0f кВт·ч",
+		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч",
 			st.Num("sensor.deye_sun_30k_today_production"), clearDay*(1-0.7*cloud0/100))
 	}
 	s.t(906, 547, 14, cAmb, "end", todayKWhTxt)
@@ -680,9 +684,11 @@ func Render(st State, cfg config.Config) string {
 		for _, tk := range []float64{0, 5, 10, pvFieldMax} {
 			s.gaugeTick(gx[i], 646, pvR, tk, pvFieldMax, fmt.Sprintf("%.0f", tk))
 		}
-		// верхняя капля (красная, остриём внутрь) — пик генерации за сегодня
+		// капля + выноска со значением — пик генерации поля за сегодня
 		if pmax := st.DayMax(pe); pmax > 50 {
-			s.markerMax(gx[i], 646, pvR, gAng(pmax/1000, pvFieldMax), pvR*0.12, cRed)
+			a := gAng(pmax/1000, pvFieldMax)
+			s.markerMax(gx[i], 646, pvR, a, pvR*0.12, cRed)
+			s.markerLabel(gx[i], 646, pvR, a, fmt.Sprintf("%.1f", pmax/1000), cRed)
 		}
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
@@ -692,14 +698,14 @@ func Render(st State, cfg config.Config) string {
 	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
 	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
 		s.t(900, 710, 14, cRed, "end", "Max: "+kw(pmax))
-		s.barMax(380, 722, 520, pmax/1000, invPeakKW, cRed)
+		s.barMax(380, 722, 520, pmax/1000, pvInputMaxKW, cRed)
 	}
-	// шкала до 45 кВт: 33 кВт — длительный максимум, 33–45 — перегруз (пик 10 с)
-	s.bar(380, 722, 520, 44, pvtot/1000, invPeakKW, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}, {invPeakKW, cRed2}}, kw(pvtot))
+	// шкала PV-входа до 39 кВт (шильдик); 33–39 — верхняя зона
+	s.bar(380, 722, 520, 44, pvtot/1000, pvInputMaxKW, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}, {pvInputMaxKW, cRed2}}, kw(pvtot))
 	// границы шкалы + значения переходов зон
 	s.t(382, 779, 10, cSub, "start", "0")
-	s.barTicks(380, 779, 520, invPeakKW, []float64{cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 20 · 25 · 33
-	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", invPeakKW))
+	s.barTicks(380, 779, 520, pvInputMaxKW, []float64{cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 20 · 25 · 33
+	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", pvInputMaxKW))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
 	s.box(956, 520, 464, 280)

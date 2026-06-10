@@ -107,6 +107,16 @@ func (s *Builder) ringTimer(cx, cy, r, frac float64, col, label, center string) 
 	s.t(cx, cy-r-8, 11, cSub, "middle", label)
 }
 
+// markerLabel draws a short leader outward from a gauge's outer max-droplet to a
+// value label at angle a — annotates the coloured peak marker with its number.
+func (s *Builder) markerLabel(cx, cy, r, a float64, txt, col string) {
+	x1, y1 := pt(cx, cy, r+12, a)
+	x2, y2 := pt(cx, cy, r+19, a)
+	s.poly(col, 1.5, "", x1, y1, x2, y2)
+	lx, ly := pt(cx, cy, r+29, a)
+	s.t(lx, ly+3, 11, col, "middle", txt)
+}
+
 // barTicks places small value labels (no unit) at the given scale values under
 // a horizontal bar, so colour-zone boundaries are readable.
 func (s *Builder) barTicks(x, y, w, max float64, vals []float64) {
