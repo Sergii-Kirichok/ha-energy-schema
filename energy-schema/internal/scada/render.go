@@ -547,6 +547,10 @@ func Render(st State, cfg config.Config) string {
 		s.t(822, y+16, 12, tc, "start", name)
 		if avrPos == key {
 			s.t(980, y+16, 12, col, "end", "→ Дом")
+		} else if avrMode == "manual" {
+			// в ручном режиме неактивный источник кликабелен: тап → переключить
+			s.t(980, y+16, 11, cSub, "end", "тап →")
+			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="transparent" style="cursor:pointer" data-act="avr_src" data-val="%s"/>`, y, key)
 		}
 	}
 	avrRow(376, "Инвертор", "inverter", cGrn)

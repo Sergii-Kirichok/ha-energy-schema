@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -25,7 +26,16 @@ const (
 // indexHTML auto-reloads the given SVG file every refresh seconds.
 // %s = svg filename, %d = refresh seconds.
 const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%%;overflow:hidden;background:#0f1115}#c{position:fixed;inset:0}#c svg{width:100%%;height:100%%;display:block}</style></head><body><div id="c"></div><script>
-function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t})}
+function ask(act,val){
+ var m='Выполнить действие?';
+ if(act==='avr_src'){m='Переключить питание Дома на: '+(val==='reserve'?'Резерв (стабилизаторы)':'Инвертор')+'?';}
+ if(!confirm(m))return;
+ fetch('control?act='+act+'&val='+val).then(function(r){
+  if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,400);}
+ }).catch(function(e){alert('Ошибка связи: '+e);});
+}
+function wire(){var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}}
+function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t;wire();})}
 load();setInterval(load,%d000);</script></body></html>`
 
 // Server renders and serves the schematic.
@@ -63,6 +73,50 @@ func (s *Server) writeWrapper() {
 	page := fmt.Sprintf(indexHTML, "energy_schema.svg", s.cfg.Refresh)
 	if err := os.WriteFile(wwwDir+"/energy_schema.html", []byte(page), 0644); err != nil {
 		log.Println("write wrapper:", err)
+	}
+}
+
+// simURL — базовый адрес эмулятора. Пока действия управления (переключение
+// источника АВР) роутятся в него; на реальной системе это станут вызовы сервиса
+// HA / запись по Modbus. Эмулятор отдаёт GET /set?id=&v= и тут же пушит в HA.
+const simURL = "http://192.168.0.16:8088"
+
+// simSet pushes a value to the emulator, which immediately publishes it to HA.
+func (s *Server) simSet(id, v string) error {
+	resp, err := http.Get(simURL + "/set?id=" + url.QueryEscape(id) + "&v=" + url.QueryEscape(v))
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
+}
+
+// handleControl performs a control action requested by a tap on the schematic.
+// Safety (e.g. AVR manual-only) is enforced here server-side — never trust the
+// client. Dangerous actions still require a confirm dialog in the UI.
+func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
+	act, val := r.URL.Query().Get("act"), r.URL.Query().Get("val")
+	switch act {
+	case "avr_src": // переключение источника АВР Инвертор↔Резерв — только в РУЧНОМ
+		if s.store.State("sensor.sim_avr_mode") != "manual" {
+			http.Error(w, "АВР в авто — переключение недоступно", http.StatusConflict)
+			return
+		}
+		if val != "inverter" && val != "reserve" {
+			http.Error(w, "недопустимый источник", http.StatusBadRequest)
+			return
+		}
+		if err := s.simSet("sim_avr_pos", val); err != nil {
+			http.Error(w, "нет связи с устройством: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		// учёт переключений (всего / сегодня)
+		_ = s.simSet("sim_avr_switches", fmt.Sprintf("%.0f", s.store.Num("sensor.sim_avr_switches")+1))
+		_ = s.simSet("sim_avr_switches_today", fmt.Sprintf("%.0f", s.store.Num("sensor.sim_avr_switches_today")+1))
+		log.Printf("control: avr_src -> %s", val)
+		w.Write([]byte("ok"))
+	default:
+		http.Error(w, "неизвестное действие", http.StatusBadRequest)
 	}
 }
 
@@ -225,6 +279,7 @@ func (s *Server) Run() error {
 	go s.loopPVHistory()
 	go s.loopPersist()
 	http.HandleFunc("/schematic.svg", s.handleSVG)
+	http.HandleFunc("/control", s.handleControl)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)
 	return http.ListenAndServe(listen, nil)
