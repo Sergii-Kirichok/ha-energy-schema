@@ -68,6 +68,11 @@ func (s *Server) writeWrapper() {
 // weatherEntity is the HA weather entity used for the autonomy forecast.
 const weatherEntity = "weather.forecast_home_assistant"
 
+// productionEntity is the cumulative lifetime PV energy sensor; its long-term
+// statistics give us real daily generation (the recorder keeps only ~2 days of
+// raw history, but statistics persist for a year).
+const productionEntity = "sensor.deye_sun_30k_total_production"
+
 // loopForecast refreshes the daily weather forecast every 30 minutes.
 func (s *Server) loopForecast() {
 	for {
@@ -77,6 +82,29 @@ func (s *Server) loopForecast() {
 			s.store.SetForecast(days)
 		}
 		time.Sleep(30 * time.Minute)
+	}
+}
+
+// loopPVHistory refreshes the empirical generation baseline from long-term
+// statistics every 3 hours: best recent day (clear-day proxy) and the average.
+// Forecasting tomorrow's yield off real recent days beats a fixed nameplate
+// guess — in winter the "clear day" is far below a summer one.
+func (s *Server) loopPVHistory() {
+	for {
+		if daily, err := s.client.DailyProduction(productionEntity, 10); err != nil {
+			log.Println("pv history:", err)
+		} else if len(daily) > 0 {
+			best, sum := 0.0, 0.0
+			for _, v := range daily {
+				if v > best {
+					best = v
+				}
+				sum += v
+			}
+			s.store.SetPVStats(best, sum/float64(len(daily)), len(daily))
+			log.Printf("pv history: %d days, best %.0f kWh, avg %.0f kWh", len(daily), best, sum/float64(len(daily)))
+		}
+		time.Sleep(3 * time.Hour)
 	}
 }
 
@@ -99,6 +127,7 @@ func (s *Server) Run() error {
 	s.writeWrapper()
 	go s.loop()
 	go s.loopForecast()
+	go s.loopPVHistory()
 	http.HandleFunc("/schematic.svg", s.handleSVG)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)

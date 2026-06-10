@@ -29,6 +29,42 @@ func parseF(s string) float64 {
 	return f
 }
 
+// parseFloatOK reports whether s is a real numeric value (and returns it).
+func parseFloatOK(s string) (float64, bool) {
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return f, err == nil
+}
+
+// rollMax keeps a rolling peak over the last 24h in 5-minute buckets (288 slots).
+// Each slot stores the max value seen during one 5-min period and the period
+// index it currently represents, so stale slots are ignored on read.
+type rollMax struct {
+	val   [288]float64
+	stamp [288]int64
+}
+
+func (r *rollMax) add(now time.Time, v float64) {
+	p := now.Unix() / 300 // current 5-min period index
+	i := p % 288
+	if r.stamp[i] != p { // slot belongs to an older period — reset it
+		r.stamp[i] = p
+		r.val[i] = v
+	} else if v > r.val[i] {
+		r.val[i] = v
+	}
+}
+
+func (r *rollMax) max(now time.Time) float64 {
+	cutoff := now.Unix()/300 - 288 // anything older than 24h is excluded
+	m := 0.0
+	for i := 0; i < 288; i++ {
+		if r.stamp[i] > cutoff && r.val[i] > m {
+			m = r.val[i]
+		}
+	}
+	return m
+}
+
 // Store is a concurrency-safe snapshot of HA entities. Alongside the current
 // values it remembers, per entity, the last value that was actually present —
 // so a device that went "unavailable" can still show its last known state and
@@ -40,11 +76,16 @@ type Store struct {
 	forecast []ForecastDay
 	dayMax   map[string]float64
 	dayYMD   string
+	roll     map[string]*rollMax // rolling 24h peak per numeric entity
+	// эмпирическая база генерации из долгосрочной статистики (последние ~10 дней)
+	pvClearKWh float64 // лучший суточный день — оценка «ясного дня» сезона
+	pvAvgKWh   float64 // средняя суточная генерация
+	pvDaysN    int     // сколько суток в выборке
 }
 
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
-	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}}
+	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}}
 }
 
 // FromStates wraps a plain id->state map into entities (zero timestamps).
@@ -61,7 +102,8 @@ func FromStates(m map[string]string) map[string]Entity {
 // tracks each numeric entity's peak for the current calendar day (reset at midnight).
 func (s *Store) Replace(m map[string]Entity) {
 	s.mu.Lock()
-	ymd := time.Now().Format("2006-01-02")
+	now := time.Now()
+	ymd := now.Format("2006-01-02")
 	if ymd != s.dayYMD {
 		s.dayMax = map[string]float64{}
 		s.dayYMD = ymd
@@ -69,13 +111,59 @@ func (s *Store) Replace(m map[string]Entity) {
 	for id, e := range m {
 		if real(e.State) {
 			s.lastGood[id] = e
-			if v := parseF(e.State); v > s.dayMax[id] {
-				s.dayMax[id] = v
+			if v, ok := parseFloatOK(e.State); ok {
+				if v > s.dayMax[id] {
+					s.dayMax[id] = v
+				}
+				r := s.roll[id]
+				if r == nil {
+					r = &rollMax{}
+					s.roll[id] = r
+				}
+				r.add(now, v)
 			}
 		}
 	}
 	s.cur = m
 	s.mu.Unlock()
+}
+
+// Max24h returns the entity's peak numeric value over the last 24 hours
+// (rolling window, not the calendar day). 0 if never seen.
+func (s *Store) Max24h(entity string) float64 {
+	s.mu.RLock()
+	r := s.roll[entity]
+	var v float64
+	if r != nil {
+		v = r.max(time.Now())
+	}
+	s.mu.RUnlock()
+	return v
+}
+
+// SetPVStats stores the empirical generation baseline derived from long-term
+// statistics: best day (clear-day proxy), average day, and sample size.
+func (s *Store) SetPVStats(clearKWh, avgKWh float64, n int) {
+	s.mu.Lock()
+	s.pvClearKWh, s.pvAvgKWh, s.pvDaysN = clearKWh, avgKWh, n
+	s.mu.Unlock()
+}
+
+// PVClearDayKWh returns the empirical clear-day generation (best recent day),
+// or 0 if no statistics have been loaded yet.
+func (s *Store) PVClearDayKWh() float64 {
+	s.mu.RLock()
+	v := s.pvClearKWh
+	s.mu.RUnlock()
+	return v
+}
+
+// PVRecent returns the average recent daily generation and the sample size.
+func (s *Store) PVRecent() (float64, int) {
+	s.mu.RLock()
+	a, n := s.pvAvgKWh, s.pvDaysN
+	s.mu.RUnlock()
+	return a, n
 }
 
 // DayMax returns the entity's peak numeric value seen today (0 if none yet).

@@ -106,3 +106,52 @@ func TestStoreReplaceIsAtomicSwap(t *testing.T) {
 		t.Error("new key missing after replace")
 	}
 }
+
+// rollMax must report the peak within the trailing 24h and forget older values.
+func TestRollMax24h(t *testing.T) {
+	r := &rollMax{}
+	base := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	r.add(base.Add(-30*time.Hour), 95) // 30h ago — must fall out of the window
+	r.add(base.Add(-10*time.Hour), 60)
+	r.add(base.Add(-2*time.Hour), 72)
+	if got := r.max(base); got != 72 {
+		t.Errorf("max over last 24h = %.0f, want 72 (the 95 is 30h old)", got)
+	}
+	r.add(base, 80) // a fresh higher value dominates
+	if got := r.max(base); got != 80 {
+		t.Errorf("max = %.0f, want 80", got)
+	}
+}
+
+// Within one 5-minute bucket the peak is kept, not the latest value.
+func TestRollMaxBucketPeak(t *testing.T) {
+	r := &rollMax{}
+	base := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	r.add(base, 50)
+	r.add(base.Add(1*time.Minute), 70)
+	r.add(base.Add(2*time.Minute), 40)
+	if got := r.max(base.Add(2 * time.Minute)); got != 70 {
+		t.Errorf("bucket peak = %.0f, want 70", got)
+	}
+}
+
+// Store.Max24h tracks numeric entities fed through Replace; PV stats round-trip.
+func TestStoreMax24hAndPVStats(t *testing.T) {
+	s := NewStore()
+	s.ReplaceStates(map[string]string{"sensor.x": "40"})
+	s.ReplaceStates(map[string]string{"sensor.x": "65"})
+	s.ReplaceStates(map[string]string{"sensor.x": "55"})
+	if got := s.Max24h("sensor.x"); got != 65 {
+		t.Errorf("Max24h = %.0f, want 65", got)
+	}
+	if got := s.Max24h("sensor.unknown"); got != 0 {
+		t.Errorf("unknown Max24h = %.0f, want 0", got)
+	}
+	s.SetPVStats(49, 41, 2)
+	if s.PVClearDayKWh() != 49 {
+		t.Errorf("PVClearDayKWh = %.0f, want 49", s.PVClearDayKWh())
+	}
+	if avg, n := s.PVRecent(); avg != 41 || n != 2 {
+		t.Errorf("PVRecent = %.0f,%d want 41,2", avg, n)
+	}
+}

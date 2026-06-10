@@ -29,6 +29,11 @@ type State interface {
 	ForecastInfo(daysAhead int) (float64, string, bool)
 	// today's peak numeric value for an entity (for gauge max markers)
 	DayMax(entity string) float64
+	// rolling 24h peak (for battery/home markers — independent of midnight)
+	Max24h(entity string) float64
+	// empirical generation baseline from long-term statistics
+	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
+	PVRecent() (float64, int)
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -497,8 +502,8 @@ func Render(st State, cfg config.Config) string {
 	s.box(1140, 290, 280, 190)
 	s.head(1140, 290, 280, "home", "Дом", "")
 	s.gauge(1280, 410, 78, load, cfg.HomeMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.HomeMax, cRed}}, kw(load*1000), "потребление")
-	// красная капля по внешнему радиусу — пик потребления за сегодня
-	if pl := st.DayMax("sensor.deye_sun_30k_load_power"); pl > 50 {
+	// красная капля по внешнему радиусу — пик потребления за последние 24 ч
+	if pl := st.Max24h("sensor.deye_sun_30k_load_power"); pl > 50 {
 		s.markerMax(1280, 410, 78, gAng(pl/1000, cfg.HomeMax), 78*0.12, cRed)
 	}
 
@@ -532,8 +537,8 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
-	// красная капля по внешнему радиусу — пик заряда (SOC) за сегодня
-	if ps := st.DayMax("sensor.deye_sun_30k_battery"); ps > 1 {
+	// красная капля по внешнему радиусу — пик заряда (SOC) за последние 24 ч
+	if ps := st.Max24h("sensor.deye_sun_30k_battery"); ps > 1 {
 		s.markerMax(bcx, bcy, 68, gAng(ps, 100), 68*0.12, cRed)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
@@ -579,34 +584,44 @@ func Render(st State, cfg config.Config) string {
 	}
 	loadKW := load
 	pvKW := pvtot / 1000
+	// «ясный день» сезона — из реальной статистики (лучший суточный день за ~10
+	// дней), а не из шильдика; если статистики ещё нет — запасной коэффициент.
+	clearDay := st.PVClearDayKWh()
+	if clearDay < 1 {
+		clearDay = cfg.PVDayClearKWh
+	}
 	// две оценки: чисто АКБ (без солнца) и прогнозная (симуляция 48ч с погодой)
 	batH := 99.0
 	if loadKW > 0.05 {
 		batH = usableKWh / loadKW
 	}
-	autoH, aNote := simulateAutonomy(st, usableKWh, capKWh*(100-cutoff)/100, loadKW, pvKW, cfg.PVDayClearKWh)
+	autoH, aNote := simulateAutonomy(st, usableKWh, capKWh*(100-cutoff)/100, loadKW, pvKW, clearDay)
 	hfmt := func(h float64) string {
 		if loadKW < 0.05 {
 			return "≈ —"
 		}
 		if h >= 48 {
-			return "≈ 48ч+"
+			return "≈ 48 ч+"
 		}
-		return fmt.Sprintf("≈ %dч %02dм", int(h), int((h-math.Floor(h))*60))
+		return fmt.Sprintf("≈ %d ч %02d м", int(h), int((h-math.Floor(h))*60))
 	}
 	rcol := cGrn
 	if usableKWh < capKWh*0.12 {
 		rcol = cOrg
 	}
-	s.t(174, 686, 12, cSub, "middle", "доступно сейчас")
-	s.t(174, 712, 22, rcol, "middle", fmt.Sprintf("%.1f кВт·ч", usableKWh))
-	// строка 1 — только батарея (без солнца); строка 2 — с прогнозом генерации
-	s.t(40, 738, 11, cSub, "start", "только АКБ:")
-	s.t(308, 738, 13, cTxt, "end", hfmt(batH))
-	s.t(40, 758, 11, cSub, "start", "с прогнозом погоды:")
-	s.t(308, 758, 13, cGrn, "end", hfmt(autoH))
-	s.t(174, 776, 9, cSub, "middle", aNote)
-	s.t(174, 792, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
+	// нижние строки: слева — метка, справа — значение крупным шрифтом
+	s.t(40, 690, 13, cSub, "start", "Доступно")
+	s.t(308, 690, 20, rcol, "end", fmt.Sprintf("%.1f кВт·ч", usableKWh))
+	s.t(40, 716, 13, cSub, "start", "Только от АКБ")
+	s.t(308, 716, 20, cTxt, "end", hfmt(batH))
+	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
+	s.t(308, 742, 20, cGrn, "end", hfmt(autoH))
+	// откуда берётся прогноз генерации + детали симуляции
+	s.t(174, 762, 9, cSub, "middle", aNote)
+	if avg, n := st.PVRecent(); n > 0 {
+		s.t(174, 776, 9, cSub, "middle", fmt.Sprintf("прогноз по факту: %d дн · ясный ~%.0f · средн %.0f кВт·ч/сут", n, clearDay, avg))
+	}
+	s.t(174, 790, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
 
 	// Солнышко
 	s.box(360, 520, 560, 280)
