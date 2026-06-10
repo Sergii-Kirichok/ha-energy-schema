@@ -29,8 +29,9 @@ type State interface {
 	ForecastInfo(daysAhead int) (float64, string, bool)
 	// today's peak numeric value for an entity (for gauge max markers)
 	DayMax(entity string) float64
-	// rolling 24h peak (for battery/home markers — independent of midnight)
+	// rolling 24h peak/trough (for battery/home markers — independent of midnight)
 	Max24h(entity string) float64
+	Min24h(entity string) (float64, bool)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
 	PVRecent() (float64, int)
@@ -502,10 +503,22 @@ func Render(st State, cfg config.Config) string {
 	s.box(1140, 290, 280, 190)
 	s.head(1140, 290, 280, "home", "Дом", "")
 	s.gauge(1280, 410, 78, load, cfg.HomeMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.HomeMax, cRed}}, kw(load*1000), "потребление")
-	// красная капля по внешнему радиусу — пик потребления за последние 24 ч
-	if pl := st.Max24h("sensor.deye_sun_30k_load_power"); pl > 50 {
+	s.gaugeEnds(1280, 410, 78, "0", fmt.Sprintf("%.0f", cfg.HomeMax)) // концы шкалы
+	// значения у переходов цветовых зон — чтобы читать градацию
+	s.gaugeTick(1280, 410, 78, cfg.HomeT1, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT1))
+	s.gaugeTick(1280, 410, 78, cfg.HomeT2, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT2))
+	s.gaugeTick(1280, 410, 78, cfg.HomeT3, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT3))
+	lpe := "sensor.deye_sun_30k_load_power"
+	// красная капля — пик потребления за 24 ч; синяя — минимум за 24 ч
+	if pl := st.Max24h(lpe); pl > 50 {
 		s.markerMax(1280, 410, 78, gAng(pl/1000, cfg.HomeMax), 78*0.12, cRed)
 	}
+	lo, okLo := st.Min24h(lpe)
+	if okLo {
+		s.markerMax(1280, 410, 78, gAng(lo/1000, cfg.HomeMax), 78*0.12, cBlu)
+	}
+	// итог за 24 ч одной строкой — цифрами
+	s.t(1280, 464, 11, cSub, "middle", fmt.Sprintf("за 24ч: мин %.1f · макс %.1f кВт", lo/1000, st.Max24h(lpe)/1000))
 
 	// ===================== ROW 3 =====================
 	// Батарея
@@ -574,7 +587,12 @@ func Render(st State, cfg config.Config) string {
 	if cutoff <= 0 {
 		cutoff = 15
 	}
-	capKWh := st.Num("number.deye_sun_30k_battery_capacity") * st.Num("sensor.deye_sun_30k_battery_voltage") / 1000
+	// ёмкость: берём ПРЯМОЙ сенсор Deye (kWh). Расчёт Ah×напряжение завышает,
+	// т.к. напряжение «живое» (во время заряда выше номинала).
+	capKWh := st.Num("sensor.deye_sun_30k_battery_capacity")
+	if capKWh < 1 {
+		capKWh = st.Num("number.deye_sun_30k_battery_capacity") * st.Num("sensor.deye_sun_30k_battery_voltage") / 1000
+	}
 	if capKWh < 1 {
 		capKWh = cfg.BattCap
 	}
@@ -633,12 +651,13 @@ func Render(st State, cfg config.Config) string {
 			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
-	gx := []float64{500, 650, 800}
-	pvFieldMax := 13.0 // макс на 1 MPPT по шильдику (39 кВт / 3 ≈ 13 кВт)
+	gx := []float64{480, 650, 820} // больше воздуха между гейджами
+	pvFieldMax := 13.0             // макс на 1 MPPT по шильдику (39 кВт / 3 ≈ 13 кВт)
 	for i := 0; i < 3; i++ {
 		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
 		pw := st.Num(pe)
 		s.gauge(gx[i], 646, 66, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
+		s.gaugeEnds(gx[i], 646, 66, "0", "13") // градация шкалы по концам
 		// верхняя капля (красная, остриём внутрь) — пик генерации за сегодня
 		if pmax := st.DayMax(pe); pmax > 50 {
 			s.markerMax(gx[i], 646, 66, gAng(pmax/1000, pvFieldMax), 66*0.12, cRed)
@@ -647,12 +666,16 @@ func Render(st State, cfg config.Config) string {
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
 		s.t(gx[i], 684, 16, cTxt, "middle", fmt.Sprintf("%.0f В · %.1f А", vv, aa))
 	}
-	s.t(380, 716, 12, cSub, "start", "Всего")
-	// пик суммарной генерации за сегодня — текстом (красным, в тон каплям-маркерам)
+	s.t(380, 710, 13, cSub, "start", "Всего")
+	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
 	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
-		s.t(900, 716, 12, cRed, "end", "макс сегодня: "+kw(pmax))
+		s.t(900, 710, 14, cRed, "end", "макс сегодня: "+kw(pmax))
+		s.barMax(380, 722, 520, pmax/1000, cfg.PVMax, cRed)
 	}
 	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
+	// границы шкалы — чтобы на глаз читать положение стрелки
+	s.t(382, 779, 10, cSub, "start", "0")
+	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", cfg.PVMax))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
 	s.box(956, 520, 464, 280)

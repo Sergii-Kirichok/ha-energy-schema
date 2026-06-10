@@ -123,6 +123,22 @@ func TestRollMax24h(t *testing.T) {
 	}
 }
 
+// rollMax also tracks the trough; values older than 24h drop out of min too.
+func TestRollMin24h(t *testing.T) {
+	r := &rollMax{}
+	base := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	r.add(base.Add(-30*time.Hour), 5) // 30h ago — must fall out
+	r.add(base.Add(-3*time.Hour), 40)
+	r.add(base.Add(-1*time.Hour), 25)
+	if m, ok := r.min(base); !ok || m != 25 {
+		t.Errorf("min over 24h = %.0f ok=%v, want 25 (the 5 is 30h old)", m, ok)
+	}
+	empty := &rollMax{}
+	if _, ok := empty.min(base); ok {
+		t.Error("min on empty window should report ok=false")
+	}
+}
+
 // Within one 5-minute bucket the peak is kept, not the latest value.
 func TestRollMaxBucketPeak(t *testing.T) {
 	r := &rollMax{}

@@ -35,11 +35,12 @@ func parseFloatOK(s string) (float64, bool) {
 	return f, err == nil
 }
 
-// rollMax keeps a rolling peak over the last 24h in 5-minute buckets (288 slots).
-// Each slot stores the max value seen during one 5-min period and the period
-// index it currently represents, so stale slots are ignored on read.
+// rollMax keeps a rolling peak AND trough over the last 24h in 5-minute buckets
+// (288 slots). Each slot stores the max/min seen during one 5-min period and the
+// period index it currently represents, so stale slots are ignored on read.
 type rollMax struct {
-	val   [288]float64
+	hi    [288]float64
+	lo    [288]float64
 	stamp [288]int64
 }
 
@@ -48,9 +49,14 @@ func (r *rollMax) add(now time.Time, v float64) {
 	i := p % 288
 	if r.stamp[i] != p { // slot belongs to an older period — reset it
 		r.stamp[i] = p
-		r.val[i] = v
-	} else if v > r.val[i] {
-		r.val[i] = v
+		r.hi[i], r.lo[i] = v, v
+	} else {
+		if v > r.hi[i] {
+			r.hi[i] = v
+		}
+		if v < r.lo[i] {
+			r.lo[i] = v
+		}
 	}
 }
 
@@ -58,11 +64,23 @@ func (r *rollMax) max(now time.Time) float64 {
 	cutoff := now.Unix()/300 - 288 // anything older than 24h is excluded
 	m := 0.0
 	for i := 0; i < 288; i++ {
-		if r.stamp[i] > cutoff && r.val[i] > m {
-			m = r.val[i]
+		if r.stamp[i] > cutoff && r.hi[i] > m {
+			m = r.hi[i]
 		}
 	}
 	return m
+}
+
+// min returns the trough over the window; ok=false if the window has no data.
+func (r *rollMax) min(now time.Time) (float64, bool) {
+	cutoff := now.Unix()/300 - 288
+	m, ok := 0.0, false
+	for i := 0; i < 288; i++ {
+		if r.stamp[i] > cutoff && (!ok || r.lo[i] < m) {
+			m, ok = r.lo[i], true
+		}
+	}
+	return m, ok
 }
 
 // Store is a concurrency-safe snapshot of HA entities. Alongside the current
@@ -139,6 +157,20 @@ func (s *Store) Max24h(entity string) float64 {
 	}
 	s.mu.RUnlock()
 	return v
+}
+
+// Min24h returns the entity's lowest numeric value over the last 24 hours.
+// ok=false if the entity has no data in the window yet.
+func (s *Store) Min24h(entity string) (float64, bool) {
+	s.mu.RLock()
+	r := s.roll[entity]
+	var v float64
+	ok := false
+	if r != nil {
+		v, ok = r.min(time.Now())
+	}
+	s.mu.RUnlock()
+	return v, ok
 }
 
 // SetPVStats stores the empirical generation baseline derived from long-term

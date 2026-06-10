@@ -78,6 +78,35 @@ func (s *Builder) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label
 	}
 }
 
+// gaugeEnds labels the two ends of a 180° gauge — min at the left tip, max at
+// the right tip — so the scale range is readable at a glance.
+func (s *Builder) gaugeEnds(cx, cy, r float64, minTxt, maxTxt string) {
+	s.t(cx-r, cy+13, 10, cSub, "middle", minTxt)
+	s.t(cx+r, cy+13, 10, cSub, "middle", maxTxt)
+}
+
+// gaugeTick places a small scale label just outside the band at value v's angle
+// — used to mark colour-zone boundaries so the gradation is legible.
+func (s *Builder) gaugeTick(cx, cy, r, v, max float64, txt string) {
+	x, y := pt(cx, cy, r+13, gAng(v, max))
+	s.t(x, y+3, 9, cSub, "middle", txt)
+}
+
+// barMax draws a colored teardrop ABOVE a horizontal bar at value v's position,
+// tip pointing down onto the scale — marks a peak (mirror of the value needle).
+func (s *Builder) barMax(x, y, w, v, max float64, col string) {
+	mv := v
+	if mv > max {
+		mv = max
+	}
+	if mv < 0 {
+		mv = 0
+	}
+	mx := x + w*mv/max
+	s.p(`<path d="M %.1f,%g C %.1f,%g %.1f,%g %.1f,%g C %.1f,%g %.1f,%g %.1f,%g Z" fill="%s" stroke="#0f1115" stroke-width="1"/>`,
+		mx, y, mx+7, y-9, mx+7, y-18, mx, y-18, mx-7, y-18, mx-7, y-9, mx, y, col)
+}
+
 // bar draws a horizontal scale bar with color zones, a teardrop marker and a
 // centered value text.
 func (s *Builder) bar(x, y, w, h, val, max float64, bands []band, valTxt string) {
