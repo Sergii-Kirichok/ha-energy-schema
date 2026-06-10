@@ -78,18 +78,26 @@ func (s *Builder) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label
 	}
 }
 
-// gaugeEnds labels the two ends of a 180° gauge — min at the left tip, max at
-// the right tip — so the scale range is readable at a glance.
+// gaugeEnds labels the two ends of a 180° gauge with a short downward tick from
+// each bottom tip and the value just below it — kept under the rim so adjacent
+// gauges in a row don't collide.
 func (s *Builder) gaugeEnds(cx, cy, r float64, minTxt, maxTxt string) {
-	s.t(cx-r, cy+13, 10, cSub, "middle", minTxt)
-	s.t(cx+r, cy+13, 10, cSub, "middle", maxTxt)
+	s.poly(cSub, 1.5, "", cx-r, cy, cx-r, cy+6)
+	s.poly(cSub, 1.5, "", cx+r, cy, cx+r, cy+6)
+	s.t(cx-r, cy+17, 10, cSub, "middle", minTxt)
+	s.t(cx+r, cy+17, 10, cSub, "middle", maxTxt)
 }
 
-// gaugeTick places a small scale label just outside the band at value v's angle
-// — used to mark colour-zone boundaries so the gradation is legible.
+// gaugeTick draws a short radial tick just outside the band at value v's angle
+// and the label further out along the same radius — marks colour-zone
+// boundaries clearly separated from the arc.
 func (s *Builder) gaugeTick(cx, cy, r, v, max float64, txt string) {
-	x, y := pt(cx, cy, r+13, gAng(v, max))
-	s.t(x, y+3, 9, cSub, "middle", txt)
+	a := gAng(v, max)
+	x1, y1 := pt(cx, cy, r+7, a)
+	x2, y2 := pt(cx, cy, r+13, a)
+	s.poly(cSub, 1.5, "", x1, y1, x2, y2)
+	lx, ly := pt(cx, cy, r+23, a)
+	s.t(lx, ly+3, 10, cSub, "middle", txt)
 }
 
 // barMax draws a colored teardrop ABOVE a horizontal bar at value v's position,

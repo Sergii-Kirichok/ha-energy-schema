@@ -503,11 +503,12 @@ func Render(st State, cfg config.Config) string {
 	s.box(1140, 290, 280, 190)
 	s.head(1140, 290, 280, "home", "Дом", "")
 	s.gauge(1280, 410, 78, load, cfg.HomeMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.HomeMax, cRed}}, kw(load*1000), "потребление")
-	s.gaugeEnds(1280, 410, 78, "0", fmt.Sprintf("%.0f", cfg.HomeMax)) // концы шкалы
-	// значения у переходов цветовых зон — чтобы читать градацию
+	// шкала с тиками: концы 0/макс и значения у переходов цветовых зон
+	s.gaugeTick(1280, 410, 78, 0, cfg.HomeMax, "0")
 	s.gaugeTick(1280, 410, 78, cfg.HomeT1, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT1))
 	s.gaugeTick(1280, 410, 78, cfg.HomeT2, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT2))
 	s.gaugeTick(1280, 410, 78, cfg.HomeT3, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT3))
+	s.gaugeTick(1280, 410, 78, cfg.HomeMax, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeMax))
 	lpe := "sensor.deye_sun_30k_load_power"
 	// красная капля — пик потребления за 24 ч; синяя — минимум за 24 ч
 	if pl := st.Max24h(lpe); pl > 50 {
