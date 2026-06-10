@@ -831,6 +831,18 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.head(956, 520, 464, gk, "Генератор", gtc)
 	s.t(1388, 547, 15, gtc, "end", gtxt)
+	// АКБ запуска — значок батареи + значение в шапке (после названия)
+	bv := st.Num("sensor.sim_gen_batt_v")
+	bvc := cGrn
+	if bv > 0 && bv < 12.0 {
+		bvc = cOrg
+	}
+	if bv > 0 && bv < 11.5 {
+		bvc = cRed
+	}
+	s.p(`<rect x="1150" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
+	s.p(`<rect x="1170" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
+	s.t(1180, 550, 13, bvc, "start", fmt.Sprintf("%.1f В", bv))
 
 	// режим (читаем с устройства): авто = HA управляет; ручной у генератора = только монитор
 	genMode := st.State("sensor.sim_gen_mode")
@@ -877,12 +889,6 @@ func Render(st State, cfg config.Config) string {
 		sCol, sTxt = cGrn, "сигнал инв.: есть"
 	}
 	s.t(1108, 598, 11, sCol, "start", sTxt)
-	bv := st.Num("sensor.sim_gen_batt_v")
-	bvc := cTxt
-	if bv > 0 && bv < 12.0 {
-		bvc = cOrg // низкий стартерный АКБ
-	}
-	s.t(1404, 598, 12, bvc, "end", fmt.Sprintf("АКБ %.1fВ", bv))
 
 	// низ карточки делим на два сегмента
 	s.p(`<line x1="1192" y1="612" x2="1192" y2="786" stroke="%s" stroke-width="1"/>`, cBrd)
@@ -942,6 +948,12 @@ func Render(st State, cfg config.Config) string {
 	lastAgo := firstNum("input_number.gen_last_run_h", "sensor.sim_gen_last_run_h")
 	lastMin := firstNum("input_number.gen_last_run_min", "sensor.sim_gen_last_run_min")
 	s.t(1304, 770, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
+	// связь управления генератором (RS-485 через наш блок) — внизу слева
+	if st.Available("sensor.sim_gen_state") {
+		s.t(972, 786, 10, cSub, "start", "RS-485 ✓")
+	} else {
+		s.t(972, 786, 10, cRed, "start", "RS-485 ✕")
+	}
 
 	s.p(`</svg>`)
 	return s.String()
