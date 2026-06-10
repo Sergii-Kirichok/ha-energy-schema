@@ -465,7 +465,13 @@ func Render(st State, cfg config.Config) string {
 	} else if temp >= 50 {
 		tc = cOrg
 	}
-	s.t(580, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
+	s.t(555, 327, 13, tc, "middle", fmt.Sprintf("%.1f °C", temp))
+	// полученные/отданные кВт·ч по сети за сегодня — в первой строке, после температуры
+	if !invProb {
+		imp := st.Num("sensor.deye_sun_30k_today_energy_import")
+		exp := st.Num("sensor.deye_sun_30k_today_energy_export")
+		s.p(`<text x="595" y="327" font-size="11" text-anchor="start" fill="%s"><tspan fill="%s">↓ %.0f</tspan> <tspan fill="%s">↑ %.0f</tspan> кВт·ч</text>`, cSub, cAmb, imp, cGrn, exp)
+	}
 	// наличие/использование сети — СЛЕВА: КРАСНЫМ когда сети нет (проблема входа)
 	gridP := st.Num("sensor.deye_sun_30k_grid_power")
 	if !gridAvail {
@@ -475,14 +481,11 @@ func Render(st State, cfg config.Config) string {
 	} else {
 		s.t(414, 351, 12, cOrg, "start", "сеть: откл. защитой ✕")
 	}
-	// СПРАВА: при ошибке — её текст; в норме — импорт/отдача энергии по сети за
-	// сегодня (↓ из сети · ↑ в сеть). «Норма» и так видна зелёной точкой в шапке.
+	// статус инвертора — СПРАВА (норма видна и зелёной точкой в шапке)
 	if invProb {
 		s.t(726, 351, 12, cRed, "end", "Ошибка: "+invState)
 	} else {
-		imp := st.Num("sensor.deye_sun_30k_today_energy_import")
-		exp := st.Num("sensor.deye_sun_30k_today_energy_export")
-		s.p(`<text x="726" y="351" font-size="12" text-anchor="end" fill="%s">сегодня <tspan fill="%s">↓ %.0f</tspan> <tspan fill="%s">↑ %.0f</tspan> кВт·ч</text>`, cSub, cAmb, imp, cGrn, exp)
+		s.t(726, 351, 12, cGrn, "end", "Статус: норма")
 	}
 	// по фазам: ВХОД (сеть) и ВЫХОД (инвертор → дом) — это РАЗНЫЕ счётчики.
 	// При пропаже сети вход = 0В (красный), а выход инвертора держит ~230В.
@@ -845,26 +848,27 @@ func Render(st State, cfg config.Config) string {
 	if genRun {
 		gk, gtc, gtxt = "genrun", cGrn, "РАБОТАЕТ"
 	}
-	s.head(956, 520, 464, gk, "Генератор", gtc)
+	s.head(956, 520, 464, gk, "Генератор", "")
 	genMode := st.State("sensor.sim_gen_mode")
 	genAuto := genMode == "auto"
 	sig := st.State("sensor.sim_gen_start_signal") == "on"
-	// шапка: режим (индикатор в рамке) · значок инвертора (сигнал) · АКБ · статус
+	// шапка — все объекты на одном уровне (центр y=543, базовая линия текста 547),
+	// равные интервалы 16px: [режим] · [значок инвертора-сигнал] · [АКБ] … статус · точка
 	mCol, mTxt := cGrn, "АВТО"
 	if !genAuto {
 		mCol, mTxt = cGry, "РУЧНОЙ"
 	}
-	s.p(`<rect x="1085" y="538" width="62" height="18" rx="6" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.2"/>`, mCol, mCol)
-	s.t(1116, 551, 12, mCol, "middle", mTxt)
+	s.p(`<rect x="1090" y="534" width="62" height="18" rx="6" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.2"/>`, mCol, mCol)
+	s.t(1121, 547, 12, mCol, "middle", mTxt)
 	// пусковой сигнал от инвертора — значок инвертора (DC→AC): серый нет / зелёный есть
 	sigCol := cGry
 	if sig {
 		sigCol = cGrn
 	}
-	s.p(`<rect x="1156" y="536" width="24" height="16" rx="2" fill="none" stroke="%s" stroke-width="1.6"/>`, sigCol)
-	s.p(`<line x1="1168" y1="538" x2="1168" y2="550" stroke="%s" stroke-width="1.3"/>`, sigCol)
-	s.p(`<line x1="1160" y1="542" x2="1165" y2="542" stroke="%s" stroke-width="1.3"/><line x1="1160" y1="546" x2="1165" y2="546" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
-	s.p(`<path d="M 1170 544 c 1.2,-3.5 3.3,-3.5 4.5,0 c 1.2,3.5 3.3,3.5 4.5,0" fill="none" stroke="%s" stroke-width="1.3"/>`, sigCol)
+	s.p(`<rect x="1168" y="535" width="24" height="16" rx="2" fill="none" stroke="%s" stroke-width="1.6"/>`, sigCol)
+	s.p(`<line x1="1180" y1="537" x2="1180" y2="549" stroke="%s" stroke-width="1.3"/>`, sigCol)
+	s.p(`<line x1="1172" y1="540" x2="1177" y2="540" stroke="%s" stroke-width="1.3"/><line x1="1172" y1="546" x2="1177" y2="546" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<path d="M 1182 543 c 1.2,-3.5 3.3,-3.5 4.5,0 c 1.2,3.5 3.3,3.5 4.5,0" fill="none" stroke="%s" stroke-width="1.3"/>`, sigCol)
 	// АКБ запуска — значок батареи + значение
 	bv := st.Num("sensor.sim_gen_batt_v")
 	bvc := cGrn
@@ -874,10 +878,11 @@ func Render(st State, cfg config.Config) string {
 	if bv > 0 && bv < 11.5 {
 		bvc = cRed
 	}
-	s.p(`<rect x="1200" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
-	s.p(`<rect x="1220" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
-	s.t(1226, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
-	s.t(1382, 547, 14, gtc, "end", gtxt)
+	s.p(`<rect x="1208" y="537" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
+	s.p(`<rect x="1228" y="540" width="3" height="6" rx="1" fill="%s"/>`, bvc)
+	s.t(1234, 547, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
+	s.t(1378, 547, 14, gtc, "end", gtxt)
+	s.dot(1404, 543, 6, gtc)
 
 	// --- управление: подогрев + старт/стоп — компактно, одной строкой справа ---
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
