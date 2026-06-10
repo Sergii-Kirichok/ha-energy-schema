@@ -162,6 +162,10 @@ func Render(st State, cfg config.Config) string {
 	gridBonded := strings.Contains(st.State("sensor.deye_sun_30k_device_relay"), "Grid")
 	gridIn := gridBonded
 	avrPos := st.State("sensor.sim_avr_pos")
+	// АВР «залип»: переключён на Резерв, но инвертор всё ещё несёт нагрузку Дома —
+	// значит реле не перекинулось (питание не ушло на резерв).
+	avrLoad := st.Num("sensor.deye_sun_30k_load_l1_power") + st.Num("sensor.deye_sun_30k_load_l2_power") + st.Num("sensor.deye_sun_30k_load_l3_power")
+	avrStuck := avrPos == "reserve" && avrLoad > 200
 	genRun := st.State("sensor.sim_gen_state") == "running"
 	rybSt := rybLineState(st)
 	grnSt := greenLineState(st)
@@ -230,8 +234,13 @@ func Render(st State, cfg config.Config) string {
 		inCol = cBlu
 	}
 	s.flow(inCol, cSt, 2, false, 264, 380, 400, 380)
-	// Инвертор -> АВР (осн.)
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 740, 380, 800, 380)
+	// Инвертор -> АВР (осн.). Если АВР залип на резерве, а инвертор всё ещё кормит —
+	// рисуем оранжевым (поток есть там, где его быть не должно).
+	if avrStuck {
+		s.flow(cOrg, "on", 4, false, 740, 380, 800, 380)
+	} else {
+		s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 740, 380, 800, 380)
+	}
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
@@ -536,6 +545,9 @@ func Render(st State, cfg config.Config) string {
 	s.box(800, 300, 200, 175)
 	avrLink := st.State("sensor.sim_avr_link") == "ok"
 	avrLinkCol := cGrn
+	if avrStuck {
+		avrLinkCol = cOrg // залип — оранжевая тревога
+	}
 	if !avrLink {
 		avrLinkCol = cRed
 	}
@@ -582,8 +594,12 @@ func Render(st State, cfg config.Config) string {
 	}
 	avrRow(376, "Инвертор", "inverter", cGrn)
 	avrRow(404, "Резерв · "+cfg.In1Name, "reserve", cOrg)
-	// статистика переключений: всего / сегодня — одной строкой через слэш
-	s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("переключений: всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
+	// статистика переключений / тревога залипания (когда питание не ушло на резерв)
+	if avrStuck {
+		s.t(900, 444, 11, cOrg, "middle", "⚠ залип — инвертор кормит")
+	} else {
+		s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("переключений: всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
+	}
 	// низ: связь RS-485 (как у контактора)
 	if avrLink {
 		s.t(812, 464, 10, cSub, "start", "RS-485 ✓")
