@@ -116,6 +116,27 @@ var rollSeedEntities = []string{
 	"sensor.deye_sun_30k_battery",
 }
 
+// rollFile persists the rolling 24h buffers across restarts (the HA recorder
+// drops peaks our 5s poll catches). /data is the add-on's persistent volume.
+const rollFile = "/data/roll.json"
+
+// rollPersistEntities are the entities whose 24h min/avg/max must survive a
+// restart (battery SOC peak, home load min/avg/max).
+var rollPersistEntities = []string{
+	"sensor.deye_sun_30k_battery",
+	"sensor.deye_sun_30k_load_power",
+}
+
+// loopPersist saves the rolling buffers to disk every minute.
+func (s *Server) loopPersist() {
+	for {
+		time.Sleep(60 * time.Second)
+		if err := s.store.SaveRoll(rollFile, rollPersistEntities); err != nil {
+			log.Println("save roll:", err)
+		}
+	}
+}
+
 // pvDayMaxEntities have today's peak seeded from history (sun "Max today").
 var pvDayMaxEntities = []string{
 	"sensor.deye_sun_30k_pv_power",
@@ -192,10 +213,17 @@ func (s *Server) loop() {
 func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
 	s.writeWrapper()
+	// restore persisted 24h buffers BEFORE polling starts (peaks the recorder lost)
+	if err := s.store.LoadRoll(rollFile); err != nil {
+		log.Println("roll: no persisted file yet (ok on first run):", err)
+	} else {
+		log.Println("roll: restored 24h buffers from", rollFile)
+	}
 	go s.seedRolls()
 	go s.loop()
 	go s.loopForecast()
 	go s.loopPVHistory()
+	go s.loopPersist()
 	http.HandleFunc("/schematic.svg", s.handleSVG)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)

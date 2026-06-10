@@ -3,8 +3,10 @@
 package hass
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -104,6 +106,84 @@ func (r *rollMax) min(now time.Time) (float64, bool) {
 		}
 	}
 	return m, ok
+}
+
+// rollDTO is the JSON-serialisable form of a rollMax for persistence. The HA
+// recorder often misses the real peaks our 5s poll catches, so we save the
+// rolling buffers to disk ourselves — the 24h min/avg/max then survive restarts.
+type rollDTO struct {
+	Hi    []float64 `json:"hi"`
+	Lo    []float64 `json:"lo"`
+	Sum   []float64 `json:"sum"`
+	Cnt   []float64 `json:"cnt"`
+	Stamp []int64   `json:"st"`
+}
+
+func (r *rollMax) toDTO() rollDTO {
+	d := rollDTO{Hi: make([]float64, 288), Lo: make([]float64, 288), Sum: make([]float64, 288), Cnt: make([]float64, 288), Stamp: make([]int64, 288)}
+	for i := 0; i < 288; i++ {
+		d.Hi[i], d.Lo[i], d.Sum[i], d.Cnt[i], d.Stamp[i] = r.hi[i], r.lo[i], r.sum[i], r.cnt[i], r.stamp[i]
+	}
+	return d
+}
+
+func (d rollDTO) into(r *rollMax) {
+	for i := 0; i < 288 && i < len(d.Stamp); i++ {
+		r.stamp[i] = d.Stamp[i]
+		if i < len(d.Hi) {
+			r.hi[i] = d.Hi[i]
+		}
+		if i < len(d.Lo) {
+			r.lo[i] = d.Lo[i]
+		}
+		if i < len(d.Sum) {
+			r.sum[i] = d.Sum[i]
+		}
+		if i < len(d.Cnt) {
+			r.cnt[i] = d.Cnt[i]
+		}
+	}
+}
+
+// SaveRoll atomically writes the rolling 24h buffers of the given entities to a
+// JSON file so their min/avg/max survive add-on restarts.
+func (s *Store) SaveRoll(path string, entities []string) error {
+	s.mu.RLock()
+	m := make(map[string]rollDTO, len(entities))
+	for _, e := range entities {
+		if r := s.roll[e]; r != nil {
+			m[e] = r.toDTO()
+		}
+	}
+	s.mu.RUnlock()
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path+".tmp", b, 0644); err != nil {
+		return err
+	}
+	return os.Rename(path+".tmp", path)
+}
+
+// LoadRoll restores rolling buffers persisted by SaveRoll (no-op if file absent).
+func (s *Store) LoadRoll(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var m map[string]rollDTO
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	for e, d := range m {
+		r := &rollMax{}
+		d.into(r)
+		s.roll[e] = r
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 // Store is a concurrency-safe snapshot of HA entities. Alongside the current
