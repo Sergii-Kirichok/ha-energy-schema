@@ -497,6 +497,10 @@ func Render(st State, cfg config.Config) string {
 	s.box(1140, 290, 280, 190)
 	s.head(1140, 290, 280, "home", "Дом", "")
 	s.gauge(1280, 410, 78, load, cfg.HomeMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.HomeMax, cRed}}, kw(load*1000), "потребление")
+	// красная капля по внешнему радиусу — пик потребления за сегодня
+	if pl := st.DayMax("sensor.deye_sun_30k_load_power"); pl > 50 {
+		s.markerMax(1280, 410, 78, gAng(pl/1000, cfg.HomeMax), 78*0.12, cRed)
+	}
 
 	// ===================== ROW 3 =====================
 	// Батарея
@@ -528,6 +532,10 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
+	// красная капля по внешнему радиусу — пик заряда (SOC) за сегодня
+	if ps := st.DayMax("sensor.deye_sun_30k_battery"); ps > 1 {
+		s.markerMax(bcx, bcy, 68, gAng(ps, 100), 68*0.12, cRed)
+	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
@@ -616,9 +624,9 @@ func Render(st State, cfg config.Config) string {
 		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
 		pw := st.Num(pe)
 		s.gauge(gx[i], 646, 66, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
-		// верхняя капля (зелёная, остриём внутрь) — пик генерации за сегодня
+		// верхняя капля (красная, остриём внутрь) — пик генерации за сегодня
 		if pmax := st.DayMax(pe); pmax > 50 {
-			s.markerMax(gx[i], 646, 66, gAng(pmax/1000, pvFieldMax), 66*0.12, cGrn)
+			s.markerMax(gx[i], 646, 66, gAng(pmax/1000, pvFieldMax), 66*0.12, cRed)
 		}
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
