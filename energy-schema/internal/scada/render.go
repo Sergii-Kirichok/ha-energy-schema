@@ -926,7 +926,7 @@ func Render(st State, cfg config.Config) string {
 	}
 
 	// низ карточки делим на два столбца
-	s.p(`<line x1="1192" y1="558" x2="1192" y2="760" stroke="%s" stroke-width="1"/>`, cBrd)
+	s.p(`<line x1="1192" y1="558" x2="1192" y2="786" stroke="%s" stroke-width="1"/>`, cBrd)
 
 	// ЛЕВО: нагрузка по фазам — ток и напряжение по каждой линии
 	s.t(972, 578, 11, cSub, "start", "Нагрузка по фазам")
@@ -985,11 +985,11 @@ func Render(st State, cfg config.Config) string {
 	s.ringTimer(1352, 692, 32, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
 	s.t(1352, 738, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
 
-	// низ во всю ширину карточки: наработка + последний запуск
+	// ПРАВО (под кольцами масло/ТО): наработка + последний запуск
 	lastAgo := firstNum("input_number.gen_last_run_h", "sensor.sim_gen_last_run_h")
 	lastMin := firstNum("input_number.gen_last_run_min", "sensor.sim_gen_last_run_min")
-	s.t(1188, 778, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
-	s.t(1188, 794, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
+	s.t(1306, 758, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
+	s.t(1306, 774, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
 
 	s.p(`</svg>`)
 	return s.String()
