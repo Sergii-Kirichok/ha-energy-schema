@@ -829,22 +829,25 @@ func Render(st State, cfg config.Config) string {
 	if genRun {
 		gk, gtc, gtxt = "genrun", cGrn, "РАБОТАЕТ"
 	}
-	s.head(956, 520, 464, gk, "Генератор", gtc)
+	s.head(956, 520, 464, gk, "Генератор", "")
 	genMode := st.State("sensor.sim_gen_mode")
 	genAuto := genMode == "auto"
 	sig := st.State("sensor.sim_gen_start_signal") == "on"
-	// шапка: режим (индикатор) · эмблема сигнала инвертора · АКБ · статус
+	// шапка: режим (индикатор) · значок инвертора (пусковой сигнал) · АКБ · статус
 	if genAuto {
-		s.t(1095, 550, 12, cGrn, "start", "АВТО")
+		s.t(1090, 550, 12, cGrn, "start", "АВТО")
 	} else {
-		s.t(1095, 550, 12, cGry, "start", "РУЧНОЙ")
+		s.t(1090, 550, 12, cGry, "start", "РУЧНОЙ")
 	}
-	// эмблема пускового сигнала от инвертора (ключ): серый — нет, зелёный — есть
+	// пусковой сигнал от инвертора — значок инвертора (DC→AC): серый нет / зелёный есть
 	sigCol := cGry
 	if sig {
 		sigCol = cGrn
 	}
-	s.p(`<circle cx="1172" cy="544" r="4.5" fill="none" stroke="%s" stroke-width="1.8"/><line x1="1176.5" y1="544" x2="1190" y2="544" stroke="%s" stroke-width="1.8"/><line x1="1190" y1="544" x2="1190" y2="549" stroke="%s" stroke-width="1.8"/><line x1="1186" y1="544" x2="1186" y2="548" stroke="%s" stroke-width="1.8"/>`, sigCol, sigCol, sigCol, sigCol)
+	s.p(`<rect x="1150" y="536" width="24" height="16" rx="2" fill="none" stroke="%s" stroke-width="1.6"/>`, sigCol)
+	s.p(`<line x1="1162" y1="538" x2="1162" y2="550" stroke="%s" stroke-width="1.3"/>`, sigCol)
+	s.p(`<line x1="1154" y1="542" x2="1159" y2="542" stroke="%s" stroke-width="1.3"/><line x1="1154" y1="546" x2="1159" y2="546" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<path d="M 1164 544 c 1.2,-3.5 3.3,-3.5 4.5,0 c 1.2,3.5 3.3,3.5 4.5,0" fill="none" stroke="%s" stroke-width="1.3"/>`, sigCol)
 	// АКБ запуска — значок батареи + значение
 	bv := st.Num("sensor.sim_gen_batt_v")
 	bvc := cGrn
@@ -854,9 +857,9 @@ func Render(st State, cfg config.Config) string {
 	if bv > 0 && bv < 11.5 {
 		bvc = cRed
 	}
-	s.p(`<rect x="1210" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
-	s.p(`<rect x="1230" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
-	s.t(1238, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
+	s.p(`<rect x="1196" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
+	s.p(`<rect x="1216" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
+	s.t(1222, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
 	s.t(1404, 547, 14, gtc, "end", gtxt)
 
 	// Ряд A: подогрев (в авто кликабельно — предпрогрев) + температура
