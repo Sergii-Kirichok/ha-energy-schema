@@ -652,16 +652,20 @@ func Render(st State, cfg config.Config) string {
 			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
 	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
-	gx := []float64{480, 650, 820} // больше воздуха между гейджами
+	gx := []float64{470, 650, 830} // меньше гейджи → больше места под боковые подписи
 	pvFieldMax := 13.0             // макс на 1 MPPT по шильдику (39 кВт / 3 ≈ 13 кВт)
+	pvR := 52.0
 	for i := 0; i < 3; i++ {
 		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
 		pw := st.Num(pe)
-		s.gauge(gx[i], 646, 66, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
-		s.gaugeEnds(gx[i], 646, 66, "0", "13") // градация шкалы по концам
+		s.gauge(gx[i], 646, pvR, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
+		// шкала тиками радиально (как у Дома): концы 0/13 по бокам + переходы зон 5/10
+		for _, tk := range []float64{0, 5, 10, pvFieldMax} {
+			s.gaugeTick(gx[i], 646, pvR, tk, pvFieldMax, fmt.Sprintf("%.0f", tk))
+		}
 		// верхняя капля (красная, остриём внутрь) — пик генерации за сегодня
 		if pmax := st.DayMax(pe); pmax > 50 {
-			s.markerMax(gx[i], 646, 66, gAng(pmax/1000, pvFieldMax), 66*0.12, cRed)
+			s.markerMax(gx[i], 646, pvR, gAng(pmax/1000, pvFieldMax), pvR*0.12, cRed)
 		}
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))

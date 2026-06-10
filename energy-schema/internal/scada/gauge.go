@@ -78,16 +78,6 @@ func (s *Builder) gauge(cx, cy, r, val, max float64, bands []band, valTxt, label
 	}
 }
 
-// gaugeEnds labels the two ends of a 180° gauge with a short downward tick from
-// each bottom tip and the value just below it — kept under the rim so adjacent
-// gauges in a row don't collide.
-func (s *Builder) gaugeEnds(cx, cy, r float64, minTxt, maxTxt string) {
-	s.poly(cSub, 1.5, "", cx-r, cy, cx-r, cy+6)
-	s.poly(cSub, 1.5, "", cx+r, cy, cx+r, cy+6)
-	s.t(cx-r, cy+17, 10, cSub, "middle", minTxt)
-	s.t(cx+r, cy+17, 10, cSub, "middle", maxTxt)
-}
-
 // gaugeTick draws a short radial tick just outside the band at value v's angle
 // and the label further out along the same radius — marks colour-zone
 // boundaries clearly separated from the arc.
