@@ -833,21 +833,22 @@ func Render(st State, cfg config.Config) string {
 	genMode := st.State("sensor.sim_gen_mode")
 	genAuto := genMode == "auto"
 	sig := st.State("sensor.sim_gen_start_signal") == "on"
-	// шапка: режим (индикатор) · значок инвертора (пусковой сигнал) · АКБ · статус
-	if genAuto {
-		s.t(1090, 550, 12, cGrn, "start", "АВТО")
-	} else {
-		s.t(1090, 550, 12, cGry, "start", "РУЧНОЙ")
+	// шапка: режим (индикатор в рамке) · значок инвертора (сигнал) · АКБ · статус
+	mCol, mTxt := cGrn, "АВТО"
+	if !genAuto {
+		mCol, mTxt = cGry, "РУЧНОЙ"
 	}
+	s.p(`<rect x="1085" y="538" width="62" height="18" rx="6" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.2"/>`, mCol, mCol)
+	s.t(1116, 551, 12, mCol, "middle", mTxt)
 	// пусковой сигнал от инвертора — значок инвертора (DC→AC): серый нет / зелёный есть
 	sigCol := cGry
 	if sig {
 		sigCol = cGrn
 	}
-	s.p(`<rect x="1150" y="536" width="24" height="16" rx="2" fill="none" stroke="%s" stroke-width="1.6"/>`, sigCol)
-	s.p(`<line x1="1162" y1="538" x2="1162" y2="550" stroke="%s" stroke-width="1.3"/>`, sigCol)
-	s.p(`<line x1="1154" y1="542" x2="1159" y2="542" stroke="%s" stroke-width="1.3"/><line x1="1154" y1="546" x2="1159" y2="546" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
-	s.p(`<path d="M 1164 544 c 1.2,-3.5 3.3,-3.5 4.5,0 c 1.2,3.5 3.3,3.5 4.5,0" fill="none" stroke="%s" stroke-width="1.3"/>`, sigCol)
+	s.p(`<rect x="1156" y="536" width="24" height="16" rx="2" fill="none" stroke="%s" stroke-width="1.6"/>`, sigCol)
+	s.p(`<line x1="1168" y1="538" x2="1168" y2="550" stroke="%s" stroke-width="1.3"/>`, sigCol)
+	s.p(`<line x1="1160" y1="542" x2="1165" y2="542" stroke="%s" stroke-width="1.3"/><line x1="1160" y1="546" x2="1165" y2="546" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<path d="M 1170 544 c 1.2,-3.5 3.3,-3.5 4.5,0 c 1.2,3.5 3.3,3.5 4.5,0" fill="none" stroke="%s" stroke-width="1.3"/>`, sigCol)
 	// АКБ запуска — значок батареи + значение
 	bv := st.Num("sensor.sim_gen_batt_v")
 	bvc := cGrn
@@ -857,53 +858,65 @@ func Render(st State, cfg config.Config) string {
 	if bv > 0 && bv < 11.5 {
 		bvc = cRed
 	}
-	s.p(`<rect x="1196" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
-	s.p(`<rect x="1216" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
-	s.t(1222, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
+	s.p(`<rect x="1200" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
+	s.p(`<rect x="1220" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
+	s.t(1226, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
 	s.t(1404, 547, 14, gtc, "end", gtxt)
 
-	// Ряд A: подогрев (в авто кликабельно — предпрогрев) + температура
+	// --- управление: подогрев + старт/стоп — компактно, одной строкой справа ---
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
-	htCol, htTxt := cSub, "подогрев выкл"
+	htCur := st.Int("sensor.sim_gen_coolant_temp")
+	htTgt := st.Num("sensor.sim_gen_coolant_target")
+	if st.Available("input_number.gen_coolant_target") {
+		htTgt = st.Num("input_number.gen_coolant_target")
+	}
+	htCol, htFill := cSub, "0"
 	if htOn {
-		htCol, htTxt = cOrg, "подогрев вкл"
+		htCol, htFill = cOrg, "0.16"
 	}
-	s.p(`<rect x="972" y="556" width="156" height="24" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
+	// кнопка подогрева: иконка пламени + текущая→целевая темп. ОЖ внутри
+	s.p(`<rect x="1200" y="562" width="132" height="26" rx="8" fill="%s" fill-opacity="%s" stroke="%s" stroke-width="1.4"/>`, htCol, htFill, htCol)
 	for i := 0; i < 3; i++ {
-		x := 984.0 + float64(i)*5
-		s.p(`<path d="M %.1f 577 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
+		x := 1212.0 + float64(i)*5
+		s.p(`<path d="M %.1f 581 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
 	}
-	s.t(1006, 572, 11, htCol, "start", htTxt)
+	s.t(1232, 580, 12, cTxt, "start", fmt.Sprintf("%d→%.0f°C", htCur, htTgt))
 	if genAuto {
-		s.p(`<rect x="972" y="556" width="156" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="gen_heater" data-val="%s"/>`, map[bool]string{true: "off", false: "on"}[htOn])
+		s.p(`<rect x="1200" y="562" width="132" height="26" rx="8" fill="transparent" style="cursor:pointer" data-act="gen_heater" data-val="%s"/>`, map[bool]string{true: "off", false: "on"}[htOn])
 	}
-	s.t(1404, 573, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
-
-	// Ряд B: Старт/Стоп (только в авто)
+	// кнопка старт/стоп (в авто кликабельна; в ручном — серая, только монитор)
 	if genAuto {
 		bCol, bTxt, bAct := cGrn, "СТАРТ", "gen_start"
 		if genRun {
 			bCol, bTxt, bAct = cRed, "СТОП", "gen_stop"
 		}
-		s.p(`<rect x="972" y="582" width="130" height="24" rx="8" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, bCol, bCol)
-		s.t(1037, 598, 13, bCol, "middle", bTxt)
-		s.p(`<rect x="972" y="582" width="130" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="%s" data-val="1"/>`, bAct)
+		s.p(`<rect x="1338" y="562" width="72" height="26" rx="8" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, bCol, bCol)
+		s.t(1374, 580, 13, bCol, "middle", bTxt)
+		s.p(`<rect x="1338" y="562" width="72" height="26" rx="8" fill="transparent" style="cursor:pointer" data-act="%s" data-val="1"/>`, bAct)
 	} else {
-		s.t(972, 598, 11, cGry, "start", "управление недоступно (ручной у генератора)")
+		s.p(`<rect x="1338" y="562" width="72" height="26" rx="8" fill="none" stroke="%s" stroke-width="1.3"/>`, cGry)
+		s.t(1374, 580, 13, cGry, "middle", "СТАРТ")
+		s.t(1410, 604, 10, cGry, "end", "ручной — только монитор")
 	}
 
-	// низ карточки делим на два сегмента
-	s.p(`<line x1="1192" y1="612" x2="1192" y2="786" stroke="%s" stroke-width="1"/>`, cBrd)
+	// низ карточки делим на два столбца
+	s.p(`<line x1="1192" y1="558" x2="1192" y2="760" stroke="%s" stroke-width="1"/>`, cBrd)
 
 	// ЛЕВО: нагрузка по фазам — ток и напряжение по каждой линии
-	s.t(972, 626, 11, cSub, "start", "Нагрузка по фазам")
+	s.t(972, 578, 11, cSub, "start", "Нагрузка по фазам")
 	for ph := 1; ph <= 3; ph++ {
-		y := 654.0 + float64(ph-1)*26
+		y := 608.0 + float64(ph-1)*28
 		p := fmt.Sprintf("sensor.sim_gen_l%d", ph)
 		a, v := st.Num(p+"_load"), st.Num(p+"_v")
 		s.t(972, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
 		s.t(1052, y, 13, cTxt, "middle", fmt.Sprintf("%.0f В", v))
 		s.t(1180, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
+	}
+	// связь управления генератором (RS-485 через наш блок) — внизу слева
+	if st.Available("sensor.sim_gen_state") {
+		s.t(972, 748, 10, cSub, "start", "RS-485 ✓")
+	} else {
+		s.t(972, 748, 10, cRed, "start", "RS-485 ✕")
 	}
 
 	// ПРАВО: обслуживание — кольца обратного отсчёта (масло, ТО) в моточасах
@@ -941,21 +954,16 @@ func Render(st State, cfg config.Config) string {
 	oilFr := frac(oilRem, oilInt)
 	svcFr := frac(svcRem, svcInt)
 	// кольцо: в центре — остаток, под кольцом — общий интервал
-	s.ringTimer(1258, 672, 33, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
-	s.t(1258, 722, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", oilInt))
-	s.ringTimer(1352, 672, 33, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
-	s.t(1352, 722, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
-	// наработка + последний запуск
-	s.t(1304, 752, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
+	s.ringTimer(1262, 692, 32, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
+	s.t(1262, 738, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", oilInt))
+	s.ringTimer(1352, 692, 32, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
+	s.t(1352, 738, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
+
+	// низ во всю ширину карточки: наработка + последний запуск
 	lastAgo := firstNum("input_number.gen_last_run_h", "sensor.sim_gen_last_run_h")
 	lastMin := firstNum("input_number.gen_last_run_min", "sensor.sim_gen_last_run_min")
-	s.t(1304, 770, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
-	// связь управления генератором (RS-485 через наш блок) — внизу слева
-	if st.Available("sensor.sim_gen_state") {
-		s.t(972, 786, 10, cSub, "start", "RS-485 ✓")
-	} else {
-		s.t(972, 786, 10, cRed, "start", "RS-485 ✕")
-	}
+	s.t(1188, 778, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
+	s.t(1188, 794, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
 
 	s.p(`</svg>`)
 	return s.String()
