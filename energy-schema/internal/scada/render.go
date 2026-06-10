@@ -663,14 +663,18 @@ func Render(st State, cfg config.Config) string {
 		s.t(566, 548, 14, cTxt, "start", fmt.Sprintf("%.0f°C · обл %.0f%% · %.1f м/с",
 			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
-	// сегодня: факт / прогноз на день (ясный день × облачность сегодня) — кратко
-	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production"))
-	if cloud0, cond0, ok0 := st.ForecastInfo(0); ok0 {
-		if cloud0 <= 0 {
-			cloud0 = condCloud(cond0)
+	// сегодня: факт / прогноз на день — кратко. Облачность берём «живую» (как ниже
+	// в шапке), чтобы прогноз сегодня и завтра (в карточке батареи) различались.
+	todayProd := st.Num("sensor.deye_sun_30k_today_production")
+	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", todayProd)
+	if st.Available("weather.forecast_home_assistant") {
+		cloudT := st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+		if cloudT <= 0 {
+			if _, c0, ok0 := st.ForecastInfo(0); ok0 {
+				cloudT = condCloud(c0)
+			}
 		}
-		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч",
-			st.Num("sensor.deye_sun_30k_today_production"), clearDay*(1-0.7*cloud0/100))
+		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч", todayProd, clearDay*(1-0.7*cloudT/100))
 	}
 	s.t(906, 547, 14, cAmb, "end", todayKWhTxt)
 	gx := []float64{470, 650, 830} // меньше гейджи → больше места под боковые подписи

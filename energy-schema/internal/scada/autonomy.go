@@ -51,17 +51,30 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 		cloud = st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
 	}
 	tomorrowKWh := clearDayKWh * (1 - 0.7*cloud/100)
+	// облачность на сегодня — «живая» (как в шапке солнца), а не дневной condition;
+	// иначе сегодня и завтра выходят одинаковыми, хотя погода разная.
+	cloudToday := st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+	if cloudToday <= 0 {
+		if _, c0, ok0 := st.ForecastInfo(0); ok0 {
+			cloudToday = condCloud(c0)
+		}
+	}
+	todayKWh := clearDayKWh * (1 - 0.7*cloudToday/100)
 	// длина светлого дня из пары восход/закат (работает и днём, и ночью)
 	dayLen := math.Mod(hSet-hRise+24, 24)
 	if dayLen < 2 || dayLen > 20 {
 		dayLen = 14
 	}
 	pvTomorrow := tomorrowKWh / dayLen
+	pvTodayAvg := todayKWh / dayLen // прогнозная средняя мощность сегодняшнего дня
+	if pvTodayAvg <= 0 {
+		pvTodayAvg = pvNowKW
+	}
 
-	// разбивка для подписи под цифрой
+	// разбивка для подписи под цифрой: прогноз генерации на остаток сегодня и завтра
 	note := fmt.Sprintf("завтра ~%.0f кВт·ч (обл %.0f%%)", tomorrowKWh, cloud)
 	if dayNow {
-		note = fmt.Sprintf("PV %.1fкВт · закат ~%.0fч · ", pvNowKW, hSet) + note
+		note = fmt.Sprintf("сегодня ещё ~%.0f · ", pvTodayAvg*hSet) + note
 	} else {
 		note = fmt.Sprintf("ночь, восход ~%.0fч · ", hRise) + note
 	}
@@ -71,8 +84,8 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	for t := 0.0; t < 48; t += dt {
 		pv := 0.0
 		switch {
-		case dayNow && t < hSet: // остаток сегодняшнего дня — текущая генерация
-			pv = pvNowKW
+		case dayNow && t < hSet: // остаток сегодня — по прогнозу, не мгновенная мощность
+			pv = pvTodayAvg
 		case t >= hRise && t < hRise+dayLen: // завтрашний световой день
 			pv = pvTomorrow
 		case t >= hRise+24 && t < hRise+24+dayLen: // послезавтра — так же
