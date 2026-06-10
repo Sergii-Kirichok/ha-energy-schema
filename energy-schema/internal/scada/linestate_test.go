@@ -124,7 +124,7 @@ func TestPhCol(t *testing.T) {
 	if got := phCol(s, "on.low", "v.low", 200, 250); got != cOrg {
 		t.Errorf("under range -> %q, want orange", got)
 	}
-	if got := phCol(s, "on.high", "v.high", 200, 250); got != cRed {
-		t.Errorf("over range (260 > 240) -> %q, want red (повышенное)", got)
+	if got := phCol(s, "on.high", "v.high", 200, 250); got != cOrg {
+		t.Errorf("over range -> %q, want orange", got)
 	}
 }

@@ -56,22 +56,20 @@ func phCol(st State, onE, vE string, lo, hi float64) string {
 		return cRed
 	}
 	v := st.Num(vE)
-	if v > vHighRed { // повышенное — красным (инвертор ловит как нестабильное и отваливается)
-		return cRed
-	}
-	if v < lo || v > hi {
+	if v < lo || v > hi { // выход за допустимые границы — оранжевым (не красным)
 		return cOrg
 	}
 	return cGrn
 }
 
-// vHighRed — порог повышенного напряжения: выше него подсвечиваем красным.
+// vHighRed — порог повышенного напряжения на ВХОДЕ ИНВЕРТОРА: выше него красным
+// (инвертор ловит это как нестабильное и отваливается). Только для инвертора.
 const vHighRed = 240.0
 
-// vCol returns the colour for a voltage reading: red if absent (<1) or elevated
-// (>240 — что и сбивает инвертор при переключении ступени стабилизатора),
-// orange if low (<205), normal otherwise.
-func vCol(v float64) string {
+// invVCol colours the inverter's incoming grid voltage: red if absent (<1) or
+// elevated (>240), orange if low (<205), normal otherwise. Применяется ТОЛЬКО к
+// сети·вход инвертора — на входах/стабилизаторах напряжение красным не красим.
+func invVCol(v float64) string {
 	switch {
 	case v < 1:
 		return cRed
@@ -247,7 +245,7 @@ func Render(st State, cfg config.Config) string {
 		if st.On(onE) {
 			v := st.Num(vE)
 			a := st.Num(aE)
-			s.t(252, y, 13, vCol(v), "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
+			s.t(252, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
 		} else if ps == "lost" {
 			s.t(252, y, 12, cOrg, "end", "потеря связи")
 		} else {
@@ -314,10 +312,10 @@ func Render(st State, cfg config.Config) string {
 			s.t(x+14, 124+float64(n)*22, 11, cSub, "start", label)
 			s.t(x+176, 124+float64(n)*22, 12, col, "end", val)
 		}
-		row(0, "вход → выход", fmt.Sprintf("%d → %dВ", st.Int(p+"_vin"), st.Int(p+"_vout")), vCol(st.Num(p+"_vout")))
+		row(0, "вход → выход", fmt.Sprintf("%d → %dВ", st.Int(p+"_vin"), st.Int(p+"_vout")), cTxt)
 		row(1, "ступень", fmt.Sprintf("%d", st.Int(p+"_step")), cTxt)
 		row(2, "нагрузка", fmt.Sprintf("%.0fА · %.2fкВт", loadA, loadA*st.Num(p+"_vout")/1000), cTxt)
-		row(3, "U мин/макс", fmt.Sprintf("%d / %dВ", st.Int(p+"_vmin"), st.Int(p+"_vmax")), vCol(st.Num(p+"_vmax")))
+		row(3, "U мин/макс", fmt.Sprintf("%d / %dВ", st.Int(p+"_vmin"), st.Int(p+"_vmax")), cTxt)
 		if !st.On(p + "_on") {
 			if rybPhase(st, ph, contRyb) == "lost" {
 				s.t(x+180, 213, 10, cOrg, "end", "потеря (датчик)")
@@ -349,7 +347,7 @@ func Render(st State, cfg config.Config) string {
 		if st.On(onE) {
 			v := st.Num(vE)
 			a := st.Num(aE)
-			s.t(1248, y, 13, vCol(v), "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
+			s.t(1248, y, 13, cTxt, "end", fmt.Sprintf("%dВ / %.0fА / %.2fкВт", int(v), a, v*a/1000))
 		} else {
 			s.t(1248, y, 12, cGry, "end", "— нет —")
 		}
@@ -456,9 +454,9 @@ func Render(st State, cfg config.Config) string {
 		ov := st.Num(fmt.Sprintf("sensor.deye_sun_30k_output_l%d_voltage", ph))
 		lw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_load_l%d_power", ph))
 		s.t(414, y, 14, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(506, y, 14, vCol(gv), "end", fmt.Sprintf("%.0f В", gv))
+		s.t(506, y, 14, invVCol(gv), "end", fmt.Sprintf("%.0f В", gv))
 		s.t(572, y, 14, cTxt, "end", fmt.Sprintf("%.0f Вт", gw))
-		s.t(652, y, 14, vCol(ov), "end", fmt.Sprintf("%.0f В", ov))
+		s.t(652, y, 14, cTxt, "end", fmt.Sprintf("%.0f В", ov))
 		s.t(726, y, 14, cTxt, "end", fmt.Sprintf("%.0f Вт", lw))
 	}
 	// нижняя строка: либо обратный отсчёт реконнекта (кольцо), либо состояние сети
