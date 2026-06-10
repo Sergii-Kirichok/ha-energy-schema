@@ -830,8 +830,22 @@ func Render(st State, cfg config.Config) string {
 		gk, gtc, gtxt = "genrun", cGrn, "РАБОТАЕТ"
 	}
 	s.head(956, 520, 464, gk, "Генератор", gtc)
-	s.t(1388, 547, 15, gtc, "end", gtxt)
-	// АКБ запуска — значок батареи + значение в шапке (после названия)
+	genMode := st.State("sensor.sim_gen_mode")
+	genAuto := genMode == "auto"
+	sig := st.State("sensor.sim_gen_start_signal") == "on"
+	// шапка: режим (индикатор) · эмблема сигнала инвертора · АКБ · статус
+	if genAuto {
+		s.t(1095, 550, 12, cGrn, "start", "АВТО")
+	} else {
+		s.t(1095, 550, 12, cGry, "start", "РУЧНОЙ")
+	}
+	// эмблема пускового сигнала от инвертора (ключ): серый — нет, зелёный — есть
+	sigCol := cGry
+	if sig {
+		sigCol = cGrn
+	}
+	s.p(`<circle cx="1172" cy="544" r="4.5" fill="none" stroke="%s" stroke-width="1.8"/><line x1="1176.5" y1="544" x2="1190" y2="544" stroke="%s" stroke-width="1.8"/><line x1="1190" y1="544" x2="1190" y2="549" stroke="%s" stroke-width="1.8"/><line x1="1186" y1="544" x2="1186" y2="548" stroke="%s" stroke-width="1.8"/>`, sigCol, sigCol, sigCol, sigCol)
+	// АКБ запуска — значок батареи + значение
 	bv := st.Num("sensor.sim_gen_batt_v")
 	bvc := cGrn
 	if bv > 0 && bv < 12.0 {
@@ -840,55 +854,40 @@ func Render(st State, cfg config.Config) string {
 	if bv > 0 && bv < 11.5 {
 		bvc = cRed
 	}
-	s.p(`<rect x="1150" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
-	s.p(`<rect x="1170" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
-	s.t(1180, 550, 13, bvc, "start", fmt.Sprintf("%.1f В", bv))
+	s.p(`<rect x="1210" y="540" width="20" height="12" rx="2" fill="none" stroke="%s" stroke-width="1.5"/>`, bvc)
+	s.p(`<rect x="1230" y="543" width="3" height="6" rx="1" fill="%s"/>`, bvc)
+	s.t(1238, 550, 12, bvc, "start", fmt.Sprintf("%.1fВ", bv))
+	s.t(1404, 547, 14, gtc, "end", gtxt)
 
-	// режим (читаем с устройства): авто = HA управляет; ручной у генератора = только монитор
-	genMode := st.State("sensor.sim_gen_mode")
-	genAuto := genMode == "auto"
-	// Ряд A: режим + подогрев + температура
-	mCol, mTxt := cGrn, "АВТО — управляем"
-	if !genAuto {
-		mCol, mTxt = cGry, "РУЧНОЙ (у ген.) — монитор"
-	}
-	s.p(`<rect x="972" y="556" width="218" height="24" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, mCol, mCol)
-	s.t(1081, 572, 11, mCol, "middle", mTxt)
-	// подогрев ОЖ + температура (в авто подогрев кликабелен — предпрогрев)
+	// Ряд A: подогрев (в авто кликабельно — предпрогрев) + температура
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
 	htCol, htTxt := cSub, "подогрев выкл"
 	if htOn {
 		htCol, htTxt = cOrg, "подогрев вкл"
 	}
-	s.p(`<rect x="1200" y="556" width="150" height="24" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
+	s.p(`<rect x="972" y="556" width="156" height="24" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
 	for i := 0; i < 3; i++ {
-		x := 1212.0 + float64(i)*5
+		x := 984.0 + float64(i)*5
 		s.p(`<path d="M %.1f 577 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
 	}
-	s.t(1234, 572, 11, htCol, "start", htTxt)
+	s.t(1006, 572, 11, htCol, "start", htTxt)
 	if genAuto {
-		s.p(`<rect x="1200" y="556" width="150" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="gen_heater" data-val="%s"/>`, map[bool]string{true: "off", false: "on"}[htOn])
+		s.p(`<rect x="972" y="556" width="156" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="gen_heater" data-val="%s"/>`, map[bool]string{true: "off", false: "on"}[htOn])
 	}
 	s.t(1404, 573, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
 
-	// Ряд B: Старт/Стоп (только в авто) + сигнал инвертора + АКБ запуска
-	sig := st.State("sensor.sim_gen_start_signal") == "on"
+	// Ряд B: Старт/Стоп (только в авто)
 	if genAuto {
 		bCol, bTxt, bAct := cGrn, "СТАРТ", "gen_start"
 		if genRun {
 			bCol, bTxt, bAct = cRed, "СТОП", "gen_stop"
 		}
-		s.p(`<rect x="972" y="582" width="118" height="24" rx="8" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, bCol, bCol)
-		s.t(1031, 598, 13, bCol, "middle", bTxt)
-		s.p(`<rect x="972" y="582" width="118" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="%s" data-val="1"/>`, bAct)
+		s.p(`<rect x="972" y="582" width="130" height="24" rx="8" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, bCol, bCol)
+		s.t(1037, 598, 13, bCol, "middle", bTxt)
+		s.p(`<rect x="972" y="582" width="130" height="24" rx="8" fill="transparent" style="cursor:pointer" data-act="%s" data-val="1"/>`, bAct)
 	} else {
-		s.t(972, 598, 11, cGry, "start", "управление недоступно (ручной)")
+		s.t(972, 598, 11, cGry, "start", "управление недоступно (ручной у генератора)")
 	}
-	sCol, sTxt := cGry, "сигнал инв.: нет"
-	if sig {
-		sCol, sTxt = cGrn, "сигнал инв.: есть"
-	}
-	s.t(1108, 598, 11, sCol, "start", sTxt)
 
 	// низ карточки делим на два сегмента
 	s.p(`<line x1="1192" y1="612" x2="1192" y2="786" stroke="%s" stroke-width="1"/>`, cBrd)
