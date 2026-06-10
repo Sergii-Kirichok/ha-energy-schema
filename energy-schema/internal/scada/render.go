@@ -45,6 +45,8 @@ type State interface {
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
 	PVRecent() (float64, int)
+	// inverter→grid reconnection countdown: remaining s, total s, active, attempt #
+	ReconnectInfo() (float64, float64, bool, int)
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],
@@ -443,8 +445,43 @@ func Render(st State, cfg config.Config) string {
 		s.t(652, y, 14, cTxt, "end", fmt.Sprintf("%.0f В", ov))
 		s.t(726, y, 14, cTxt, "end", fmt.Sprintf("%.0f Вт", lw))
 	}
-	// частота сети + интервал реконнекта (после срабатывания защиты) — ниже фаз
-	s.t(414, 462, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
+	// нижняя строка: либо обратный отсчёт реконнекта (кольцо), либо состояние сети
+	rcRem, rcTotal, rcActive, rcAtt := st.ReconnectInfo()
+	if rcActive {
+		// инвертор увидел сеть, но ещё не подключился — кольцо с убывающими секундами
+		cx, cy, rr := 432.0, 454.0, 15.0
+		frac := 0.0
+		if rcTotal > 0 {
+			frac = rcRem / rcTotal
+		}
+		col := cOrg
+		if rcRem <= 10 {
+			col = cGrn // вот-вот подключится
+		}
+		s.p(`<circle cx="%g" cy="%g" r="%g" fill="none" stroke="#23272f" stroke-width="4"/>`, cx, cy, rr)
+		if frac >= 0.999 {
+			s.p(`<circle cx="%g" cy="%g" r="%g" fill="none" stroke="%s" stroke-width="4"/>`, cx, cy, rr, col)
+		} else if frac > 0.001 {
+			x0, y0 := pt(cx, cy, rr, 90)
+			x1, y1 := pt(cx, cy, rr, 90-frac*360)
+			large := 0
+			if frac > 0.5 {
+				large = 1
+			}
+			s.p(`<path fill="none" stroke="%s" stroke-width="4" stroke-linecap="round" d="M %.1f %.1f A %g %g 0 %d 1 %.1f %.1f"/>`, col, x0, y0, rr, rr, large, x1, y1)
+		}
+		s.t(cx, cy+4, 13, col, "middle", fmt.Sprintf("%.0f", rcRem))
+		s.t(cx+rr+8, cy-2, 11, cTxt, "start", "подключение к сети")
+		if rcAtt > 1 {
+			s.t(cx+rr+8, cy+12, 9, cOrg, "start", fmt.Sprintf("попытка %d", rcAtt))
+		} else {
+			s.t(cx+rr+8, cy+12, 9, cSub, "start", fmt.Sprintf("реконнект %.0f с", rcTotal))
+		}
+	} else if !st.On("binary_sensor.deye_sun_30k_grid") {
+		s.t(414, 462, 10, cOrg, "start", "сеть отключена · островной режим")
+	} else {
+		s.t(414, 462, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), rcTotal))
+	}
 	// значок генератора (правый нижний угол): подан ли управляющий сигнал на запуск
 	genSigCol := cGry
 	if st.State("sensor.sim_gen_start_signal") == "on" {

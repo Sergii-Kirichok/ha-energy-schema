@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"energy-schema/internal/config"
@@ -162,6 +163,17 @@ func (s *Server) seedRolls() {
 	}
 }
 
+// trackReconnect derives the inverter→grid reconnection state from the device:
+// grid present (qualified) but the inverter relay not yet bonded to it = waiting.
+// The device exposes only the delay setpoint, not a live countdown, so the Store
+// times it — restarting on each re-entry (a failed attempt drops the relay again).
+func (s *Server) trackReconnect() {
+	gridPresent := s.store.On("binary_sensor.deye_sun_30k_grid")
+	bonded := strings.Contains(s.store.State("sensor.deye_sun_30k_device_relay"), "Grid")
+	total := s.store.Num("number.deye_sun_30k_grid_reconnection_time")
+	s.store.UpdateReconnect(gridPresent && !bonded, gridPresent, total)
+}
+
 // loop refreshes the state snapshot and the on-disk SVG on a fixed cadence.
 func (s *Server) loop() {
 	for {
@@ -169,6 +181,7 @@ func (s *Server) loop() {
 			log.Println("fetch:", err)
 		} else {
 			s.store.Replace(m)
+			s.trackReconnect()
 		}
 		s.writeFiles()
 		time.Sleep(pollInterval)

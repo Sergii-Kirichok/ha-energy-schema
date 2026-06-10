@@ -166,6 +166,36 @@ func TestRollMaxBucketPeak(t *testing.T) {
 	}
 }
 
+// Reconnect countdown: ticks down, restarts on a failed attempt, resets on outage.
+func TestReconnectCountdownAndRetry(t *testing.T) {
+	s := NewStore()
+	t0 := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+	// сеть вернулась, инвертор ещё не подключён → отсчёт пошёл с 70, попытка 1
+	s.updateReconnectAt(t0, true, true, 70)
+	rem, total, active, att := s.reconnectInfoAt(t0)
+	if !active || total != 70 || rem < 69.9 || att != 1 {
+		t.Fatalf("start: rem=%.1f total=%.0f active=%v att=%d", rem, total, active, att)
+	}
+	if rem, _, _, _ = s.reconnectInfoAt(t0.Add(30 * time.Second)); rem < 39.5 || rem > 40.5 {
+		t.Errorf("after 30s rem=%.1f, want ~40", rem)
+	}
+	// подключился (bonded) → не активен
+	s.updateReconnectAt(t0.Add(40*time.Second), false, true, 70)
+	if _, _, a, _ := s.reconnectInfoAt(t0.Add(41 * time.Second)); a {
+		t.Error("should be inactive once bonded")
+	}
+	// сорвался через 2 c → снова ожидание → отсчёт сначала, попытка 2
+	s.updateReconnectAt(t0.Add(42*time.Second), true, true, 70)
+	if rem, _, active, att = s.reconnectInfoAt(t0.Add(42 * time.Second)); !active || rem < 69.9 || att != 2 {
+		t.Errorf("retry: rem=%.1f active=%v att=%d, want ~70/true/2", rem, active, att)
+	}
+	// сеть пропала полностью → не активен, счётчик попыток сброшен
+	s.updateReconnectAt(t0.Add(50*time.Second), false, false, 70)
+	if _, _, a, att := s.reconnectInfoAt(t0.Add(50 * time.Second)); a || att != 0 {
+		t.Errorf("grid gone: active=%v att=%d, want false/0", a, att)
+	}
+}
+
 // Store.Max24h tracks numeric entities fed through Replace; PV stats round-trip.
 func TestStoreMax24hAndPVStats(t *testing.T) {
 	s := NewStore()
