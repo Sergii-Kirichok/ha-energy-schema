@@ -30,6 +30,9 @@ function ask(act,val){
  var m='Выполнить действие?';
  if(act==='avr_src'){m='Переключить питание Дома на: '+(val==='reserve'?'Резерв (стабилизаторы)':'Инвертор')+'?';}
  if(act==='contactor'){m='Переключить контактор на: '+(val==='in2'?'Ввод 2 (Зелёный)':'Ввод 1 (Рыбхоз)')+'?';}
+ if(act==='gen_start'){m='Запустить генератор?';}
+ if(act==='gen_stop'){m='Остановить генератор?';}
+ if(act==='gen_heater'){m=(val==='on'?'Включить':'Выключить')+' подогрев генератора?';}
  if(!confirm(m))return;
  fetch('control?act='+act+'&val='+val).then(function(r){
   if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,400);}
@@ -136,6 +139,30 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("control: contactor -> %s", val)
+		w.Write([]byte("ok"))
+	case "gen_start", "gen_stop", "gen_heater": // управление генератором — только в АВТО
+		if s.store.State("sensor.sim_gen_mode") != "auto" {
+			http.Error(w, "генератор в ручном режиме — управление недоступно", http.StatusConflict)
+			return
+		}
+		var id, v string
+		switch act {
+		case "gen_start":
+			id, v = "sim_gen_state", "running"
+		case "gen_stop":
+			id, v = "sim_gen_state", "off"
+		case "gen_heater":
+			if val != "on" && val != "off" {
+				http.Error(w, "bad val", http.StatusBadRequest)
+				return
+			}
+			id, v = "sim_gen_coolant_heater", val
+		}
+		if err := s.simSet(id, v); err != nil {
+			http.Error(w, "нет связи с устройством: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		log.Printf("control: %s -> %s", act, v)
 		w.Write([]byte("ok"))
 	default:
 		http.Error(w, "неизвестное действие", http.StatusBadRequest)
