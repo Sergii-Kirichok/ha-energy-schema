@@ -29,6 +29,7 @@ const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="
 function ask(act,val){
  var m='Выполнить действие?';
  if(act==='avr_src'){m='Переключить питание Дома на: '+(val==='reserve'?'Резерв (стабилизаторы)':'Инвертор')+'?';}
+ if(act==='contactor'){m='Переключить контактор на: '+(val==='in2'?'Ввод 2 (Зелёный)':'Ввод 1 (Рыбхоз)')+'?';}
  if(!confirm(m))return;
  fetch('control?act='+act+'&val='+val).then(function(r){
   if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,400);}
@@ -114,6 +115,27 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 		_ = s.simSet("sim_avr_switches", fmt.Sprintf("%.0f", s.store.Num("sensor.sim_avr_switches")+1))
 		_ = s.simSet("sim_avr_switches_today", fmt.Sprintf("%.0f", s.store.Num("sensor.sim_avr_switches_today")+1))
 		log.Printf("control: avr_src -> %s", val)
+		w.Write([]byte("ok"))
+	case "contactor": // переключение ввода контактора Ввод1↔Ввод2 (sim_contactor off/on)
+		if s.store.State("sensor.sim_contactor_link") == "lost" {
+			http.Error(w, "нет связи с контактором (RS-485)", http.StatusConflict)
+			return
+		}
+		v := ""
+		switch val {
+		case "in1":
+			v = "off"
+		case "in2":
+			v = "on"
+		default:
+			http.Error(w, "недопустимый ввод", http.StatusBadRequest)
+			return
+		}
+		if err := s.simSet("sim_contactor", v); err != nil {
+			http.Error(w, "нет связи с устройством: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		log.Printf("control: contactor -> %s", val)
 		w.Write([]byte("ok"))
 	default:
 		http.Error(w, "неизвестное действие", http.StatusBadRequest)

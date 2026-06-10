@@ -378,7 +378,7 @@ func Render(st State, cfg config.Config) string {
 		s.t(144, 348, 16, cGrn, "middle", "ВЫКЛ → Ввод 1")
 	}
 	// какой ввод сейчас активен (подсветка) + индикатор «живости» линии + при каком реле
-	selRow := func(y float64, name, note, col, liveCol string, active bool) {
+	selRow := func(y float64, name, note, col, liveCol, key string, active bool) {
 		if active {
 			s.p(`<rect x="34" y="%g" width="210" height="26" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
 		} else {
@@ -390,10 +390,16 @@ func Render(st State, cfg config.Config) string {
 			tc, nc = col, col
 		}
 		s.t(68, y+17, 13, tc, "start", name)
-		s.t(236, y+17, 10, nc, "end", note)
+		if !active && ctLink {
+			// клик по неактивному вводу → переключить контактор (с подтверждением)
+			s.t(236, y+17, 10, cSub, "end", "тап →")
+			s.p(`<rect x="34" y="%g" width="210" height="26" rx="6" fill="transparent" style="cursor:pointer" data-act="contactor" data-val="%s"/>`, y, key)
+		} else {
+			s.t(236, y+17, 10, nc, "end", note)
+		}
 	}
-	selRow(364, cfg.In1Name, "по умолч.", cGrn, stOn[rybSt], !contOn)
-	selRow(394, cfg.In2Name, "реле вкл", cBlu, stOn[grnSt], contOn)
+	selRow(364, cfg.In1Name, "по умолч.", cGrn, stOn[rybSt], "in1", !contOn)
+	selRow(394, cfg.In2Name, "реле вкл", cBlu, stOn[grnSt], "in2", contOn)
 	// пояснение защиты: без управляющего питания контактор остаётся на Вводе 1
 	s.t(144, 442, 10, cSub, "middle", "перекидной · без питания → Ввод 1 (защита)")
 	// низ: связь RS-485 + отдача
