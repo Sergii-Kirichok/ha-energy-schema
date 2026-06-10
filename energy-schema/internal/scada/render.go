@@ -780,14 +780,30 @@ func Render(st State, cfg config.Config) string {
 		}
 		return rem / interval
 	}
-	oilRem := st.Num("sensor.sim_gen_oil_remaining_h")
-	oilFr := frac(oilRem, st.Num("sensor.sim_gen_oil_interval_h"))
-	svcRem := st.Num("sensor.sim_gen_service_remaining_h")
-	svcFr := frac(svcRem, st.Num("sensor.sim_gen_service_interval_h"))
+	// значения задаются в HA через input_number (их можно менять и сбрасывать в
+	// интерфейсе HA); если хелпер не создан — берём из эмулятора.
+	firstNum := func(ents ...string) float64 {
+		for _, e := range ents {
+			if st.Available(e) {
+				return st.Num(e)
+			}
+		}
+		return 0
+	}
+	oilRem := firstNum("input_number.gen_oil_remaining_h", "sensor.sim_gen_oil_remaining_h")
+	oilInt := firstNum("input_number.gen_oil_interval_h", "sensor.sim_gen_oil_interval_h")
+	svcRem := firstNum("input_number.gen_service_remaining_h", "sensor.sim_gen_service_remaining_h")
+	svcInt := firstNum("input_number.gen_service_interval_h", "sensor.sim_gen_service_interval_h")
+	runtime := firstNum("input_number.gen_runtime_h", "sensor.sim_gen_runtime_h")
+	oilFr := frac(oilRem, oilInt)
+	svcFr := frac(svcRem, svcInt)
+	// кольцо: в центре — остаток, под кольцом — общий интервал
 	s.ringTimer(1258, 672, 33, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
+	s.t(1258, 722, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", oilInt))
 	s.ringTimer(1352, 672, 33, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
+	s.t(1352, 722, 9, cSub, "middle", fmt.Sprintf("из %.0f ч", svcInt))
 	// наработка — одной строкой
-	s.t(1304, 768, 13, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", st.Num("sensor.sim_gen_runtime_h")))
+	s.t(1304, 768, 13, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
 
 	s.p(`</svg>`)
 	return s.String()
