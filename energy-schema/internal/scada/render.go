@@ -589,7 +589,7 @@ func Render(st State, cfg config.Config) string {
 		s.markerLabel(1280, 410, 78, aa, fmt.Sprintf("%.1f", av/1000), cBlu)
 	}
 	// итог за 24 ч одной строкой — крупнее, среднее/макс через слэш
-	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
+	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
 
 	// ===================== ROW 3 =====================
 	// Батарея
@@ -770,7 +770,7 @@ func Render(st State, cfg config.Config) string {
 	s.bar(380, 722, 520, 44, pvtot/1000, pvInputMaxKW, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}, {pvInputMaxKW, cRed2}}, kw(pvtot))
 	// границы шкалы + значения переходов зон
 	s.t(382, 779, 10, cSub, "start", "0")
-	s.barTicks(380, 779, 520, pvInputMaxKW, []float64{cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 20 · 25 · 33
+	s.barTicks(380, 779, 520, pvInputMaxKW, []float64{cfg.PVT1, cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 5 · 20 · 25 · 33
 	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", pvInputMaxKW))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
