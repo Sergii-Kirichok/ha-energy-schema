@@ -633,6 +633,10 @@ func Render(st State, cfg config.Config) string {
 		s.t(gx[i], 684, 16, cTxt, "middle", fmt.Sprintf("%.0f В · %.1f А", vv, aa))
 	}
 	s.t(380, 716, 12, cSub, "start", "Всего")
+	// пик суммарной генерации за сегодня — текстом (красным, в тон каплям-маркерам)
+	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
+		s.t(900, 716, 12, cRed, "end", "макс сегодня: "+kw(pmax))
+	}
 	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
