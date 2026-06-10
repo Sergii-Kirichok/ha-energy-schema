@@ -518,8 +518,8 @@ func Render(st State, cfg config.Config) string {
 	if okLo {
 		s.markerMax(1280, 410, 78, gAng(lo/1000, cfg.HomeMax), 78*0.12, cBlu)
 	}
-	// итог за 24 ч одной строкой — цифрами
-	s.t(1280, 464, 11, cSub, "middle", fmt.Sprintf("за 24ч: мин %.1f · макс %.1f кВт", lo/1000, st.Max24h(lpe)/1000))
+	// итог за 24 ч одной строкой — крупнее, мин/макс через слэш
+	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · мин/макс: %.1f / %.1f кВт", lo/1000, st.Max24h(lpe)/1000))
 
 	// ===================== ROW 3 =====================
 	// Батарея
@@ -670,7 +670,7 @@ func Render(st State, cfg config.Config) string {
 	s.t(380, 710, 13, cSub, "start", "Всего")
 	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
 	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
-		s.t(900, 710, 14, cRed, "end", "макс сегодня: "+kw(pmax))
+		s.t(900, 710, 14, cRed, "end", "Max: "+kw(pmax))
 		s.barMax(380, 722, 520, pmax/1000, cfg.PVMax, cRed)
 	}
 	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))

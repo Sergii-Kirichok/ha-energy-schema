@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -111,6 +113,61 @@ func (c *Client) DailyForecast(entity string) ([]ForecastDay, error) {
 		days = append(days, ForecastDay{Time: t, Condition: f.Condition, Cloud: f.CloudCoverage})
 	}
 	return days, nil
+}
+
+// HistPoint is one historical numeric sample of an entity.
+type HistPoint struct {
+	Time  time.Time
+	Value float64
+}
+
+// History returns numeric samples for an entity from `since` to now, read from
+// the recorder via the REST history API. Used to seed the rolling 24h windows
+// at startup so the min/max survive add-on restarts.
+func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
+	start := since.UTC().Format("2006-01-02T15:04:05")
+	u := c.APIBase + "/history/period/" + url.QueryEscape(start) +
+		"?filter_entity_id=" + url.QueryEscape(entity) + "&minimal_response"
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	// response: [[{state,last_changed,...}, {state,last_changed}, ...]]
+	var arr [][]struct {
+		State       string `json:"state"`
+		LastChanged string `json:"last_changed"`
+		LastUpdated string `json:"last_updated"`
+	}
+	if err := json.Unmarshal(body, &arr); err != nil {
+		return nil, fmt.Errorf("decode history (status=%d): %w", resp.StatusCode, err)
+	}
+	if len(arr) == 0 {
+		return nil, nil
+	}
+	out := make([]HistPoint, 0, len(arr[0]))
+	for _, p := range arr[0] {
+		f, err := strconv.ParseFloat(strings.TrimSpace(p.State), 64)
+		if err != nil {
+			continue
+		}
+		ts := p.LastChanged
+		if ts == "" {
+			ts = p.LastUpdated
+		}
+		t, err := time.Parse(time.RFC3339Nano, ts)
+		if err != nil {
+			continue
+		}
+		out = append(out, HistPoint{Time: t, Value: f})
+	}
+	return out, nil
 }
 
 // scalarStr stringifies a scalar JSON attribute (string/number/bool); it skips

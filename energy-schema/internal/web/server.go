@@ -108,6 +108,31 @@ func (s *Server) loopPVHistory() {
 	}
 }
 
+// rollSeedEntities have their rolling 24h min/max seeded from history at
+// startup so the home/battery markers don't reset to "now" on every restart.
+var rollSeedEntities = []string{
+	"sensor.deye_sun_30k_load_power",
+	"sensor.deye_sun_30k_battery",
+}
+
+// seedRolls pre-fills the rolling 24h windows from recorder history so a freshly
+// restarted add-on already reflects the true last-24h min/max, not just values
+// seen since boot.
+func (s *Server) seedRolls() {
+	since := time.Now().Add(-24 * time.Hour)
+	for _, e := range rollSeedEntities {
+		pts, err := s.client.History(e, since)
+		if err != nil {
+			log.Println("seed history:", e, err)
+			continue
+		}
+		for _, p := range pts {
+			s.store.SeedRoll(e, p.Time, p.Value)
+		}
+		log.Printf("seed %s: %d points (24h)", e, len(pts))
+	}
+}
+
 // loop refreshes the state snapshot and the on-disk SVG on a fixed cadence.
 func (s *Server) loop() {
 	for {
@@ -125,6 +150,7 @@ func (s *Server) loop() {
 func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
 	s.writeWrapper()
+	go s.seedRolls()
 	go s.loop()
 	go s.loopForecast()
 	go s.loopPVHistory()

@@ -159,6 +159,19 @@ func (s *Store) Max24h(entity string) float64 {
 	return v
 }
 
+// SeedRoll injects a historical sample (with its real timestamp) into an
+// entity's rolling 24h window, so the min/max survive an add-on restart.
+func (s *Store) SeedRoll(entity string, t time.Time, v float64) {
+	s.mu.Lock()
+	r := s.roll[entity]
+	if r == nil {
+		r = &rollMax{}
+		s.roll[entity] = r
+	}
+	r.add(t, v)
+	s.mu.Unlock()
+}
+
 // Min24h returns the entity's lowest numeric value over the last 24 hours.
 // ok=false if the entity has no data in the window yet.
 func (s *Store) Min24h(entity string) (float64, bool) {
