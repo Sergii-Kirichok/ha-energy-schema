@@ -40,7 +40,8 @@ function ask(act,val){
  }).catch(function(e){alert('Ошибка связи: '+e);});
 }
 function wire(){if(!CANCTL)return;var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}}
-function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t;wire();})}
+var T0=Date.now();
+function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){var c=document.getElementById('c');c.innerHTML=t;var s=c.querySelector('svg');if(s&&s.setCurrentTime){try{s.setCurrentTime((Date.now()-T0)/1000);}catch(e){}}wire();})}
 if(!CANCTL){document.getElementById('vo').style.display='block';}
 load();setInterval(load,%d000);</script></body></html>`
 
