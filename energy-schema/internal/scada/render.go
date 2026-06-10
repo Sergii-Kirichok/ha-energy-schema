@@ -24,8 +24,8 @@ type State interface {
 	Attr(entity, key string) string
 	AttrNum(entity, key string) float64
 	HoursUntil(entity, key string) float64
-	// daily weather forecast (cloud %, 0=today 1=tomorrow)
-	ForecastCloud(daysAhead int) (float64, bool)
+	// daily weather forecast (cloud % + condition, 0=today 1=tomorrow)
+	ForecastInfo(daysAhead int) (float64, string, bool)
 }
 
 // phCol returns a phase color: red if off, orange if voltage out of [lo,hi],

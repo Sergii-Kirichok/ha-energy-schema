@@ -19,8 +19,8 @@ func nightStore(t *testing.T, tomorrowCloud float64) *hass.Store {
 		}},
 	})
 	s.SetForecast([]hass.ForecastDay{
-		{Time: now, Cloud: 50},
-		{Time: now.AddDate(0, 0, 1), Cloud: tomorrowCloud},
+		{Time: now, Condition: "partlycloudy", Cloud: 50},
+		{Time: now.AddDate(0, 0, 1), Condition: "sunny", Cloud: tomorrowCloud},
 	})
 	return s
 }
