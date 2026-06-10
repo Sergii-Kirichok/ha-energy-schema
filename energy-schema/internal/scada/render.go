@@ -702,9 +702,9 @@ func Render(st State, cfg config.Config) string {
 	default:
 		sigCol, sigTxt = cRed, "сигнал · НЕ ЗАВЁЛСЯ"
 	}
-	s.p(`<rect x="972" y="560" width="220" height="28" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
-	s.p(`<circle cx="990" cy="574" r="4" fill="none" stroke="%s" stroke-width="2"/><line x1="994" y1="574" x2="1006" y2="574" stroke="%s" stroke-width="2"/><line x1="1006" y1="574" x2="1006" y2="579" stroke="%s" stroke-width="2"/><line x1="1002" y1="574" x2="1002" y2="578" stroke="%s" stroke-width="2"/>`, sigCol, sigCol, sigCol, sigCol)
-	s.t(1014, 578, 12, sigCol, "start", sigTxt)
+	s.p(`<rect x="972" y="566" width="220" height="28" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<circle cx="990" cy="580" r="4" fill="none" stroke="%s" stroke-width="2"/><line x1="994" y1="580" x2="1006" y2="580" stroke="%s" stroke-width="2"/><line x1="1006" y1="580" x2="1006" y2="585" stroke="%s" stroke-width="2"/><line x1="1002" y1="580" x2="1002" y2="584" stroke="%s" stroke-width="2"/>`, sigCol, sigCol, sigCol, sigCol)
+	s.t(1014, 584, 12, sigCol, "start", sigTxt)
 
 	// подогрев ОЖ + температура
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
@@ -712,17 +712,29 @@ func Render(st State, cfg config.Config) string {
 	if htOn {
 		htCol, htTxt = cOrg, "подогрев вкл"
 	}
-	s.p(`<rect x="1204" y="560" width="200" height="28" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
+	s.p(`<rect x="1204" y="566" width="200" height="28" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
 	for i := 0; i < 3; i++ {
 		x := 1220.0 + float64(i)*5
-		s.p(`<path d="M %.1f 581 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
+		s.p(`<path d="M %.1f 587 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
 	}
-	s.t(1242, 578, 12, htCol, "start", htTxt)
-	s.t(1396, 578, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
+	s.t(1242, 584, 12, htCol, "start", htTxt)
+	s.t(1396, 584, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
 
-	// наработка + замена масла — крупно
-	s.t(972, 618, 11, cSub, "start", "Наработка")
-	s.t(972, 642, 19, cTxt, "start", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
+	// низ карточки делим на два сегмента
+	s.p(`<line x1="1192" y1="612" x2="1192" y2="786" stroke="%s" stroke-width="1"/>`, cBrd)
+
+	// ЛЕВО: нагрузка по фазам — ток и напряжение по каждой линии
+	s.t(972, 626, 11, cSub, "start", "Нагрузка по фазам")
+	for ph := 1; ph <= 3; ph++ {
+		y := 654.0 + float64(ph-1)*26
+		p := fmt.Sprintf("sensor.sim_gen_l%d", ph)
+		a, v := st.Num(p+"_load"), st.Num(p+"_v")
+		s.t(972, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.t(1052, y, 13, cTxt, "middle", fmt.Sprintf("%.0f В", v))
+		s.t(1180, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
+	}
+
+	// ПРАВО: обслуживание — остаток до замены масла + общая наработка
 	oil := st.Num("sensor.sim_gen_oil_remaining_h")
 	oilCol := cTxt
 	if oil < 10 {
@@ -730,19 +742,10 @@ func Render(st State, cfg config.Config) string {
 	} else if oil < 30 {
 		oilCol = cOrg
 	}
-	s.t(1404, 618, 11, cSub, "end", "До замены масла")
-	s.t(1404, 642, 19, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
-
-	// нагрузка по фазам
-	s.t(972, 678, 11, cSub, "start", "Нагрузка по фазам")
-	for ph := 1; ph <= 3; ph++ {
-		y := 704.0 + float64(ph-1)*24
-		p := fmt.Sprintf("sensor.sim_gen_l%d", ph)
-		a, v := st.Num(p+"_load"), st.Num(p+"_v")
-		s.t(972, y, 14, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(1090, y, 14, cTxt, "start", fmt.Sprintf("%.0f В", v))
-		s.t(1404, y, 14, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
-	}
+	s.t(1212, 626, 11, cSub, "start", "До замены масла")
+	s.t(1404, 660, 22, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
+	s.t(1212, 710, 11, cSub, "start", "Наработка, всего")
+	s.t(1404, 744, 22, cTxt, "end", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
 
 	s.p(`</svg>`)
 	return s.String()
