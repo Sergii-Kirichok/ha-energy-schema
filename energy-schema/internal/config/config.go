@@ -23,6 +23,11 @@ type Config struct {
 	HomeMax, HomeT1, HomeT2, HomeT3 float64
 	PVMax, PVT1, PVT2, PVT3         float64
 	PVDayClearKWh                   float64 // выработка за ЯСНЫЙ день (для прогноза автономии)
+
+	// ControlUsers — отображаемые имена пользователей HA, которым РАЗРЕШЕНО
+	// управление (АВР, контактор, генератор). Пусто = управляют все (как раньше).
+	// Любой пользователь не из списка получает режим «только просмотр».
+	ControlUsers []string
 }
 
 // Default returns the built-in defaults applied before options are loaded.
@@ -43,25 +48,26 @@ func Default() Config {
 
 // options mirrors the add-on options schema in config.yaml.
 type options struct {
-	RefreshSeconds int     `json:"refresh_seconds"`
-	HaURL          string  `json:"ha_url"`
-	HaToken        string  `json:"ha_token"`
-	Title          string  `json:"title"`
-	In1Name        string  `json:"in1_name"`
-	In2Name        string  `json:"in2_name"`
-	Pv1            string  `json:"pv1_label"`
-	Pv2            string  `json:"pv2_label"`
-	Pv3            string  `json:"pv3_label"`
-	BattCap        float64 `json:"batt_capacity_kwh"`
-	HomeMax        float64 `json:"home_max"`
-	HomeT1         float64 `json:"home_t1"`
-	HomeT2         float64 `json:"home_t2"`
-	HomeT3         float64 `json:"home_t3"`
-	PvMax          float64 `json:"pv_max"`
-	PvT1           float64 `json:"pv_t1"`
-	PvT2           float64 `json:"pv_t2"`
-	PvT3           float64 `json:"pv_t3"`
-	PvDayClear     float64 `json:"pv_day_clear_kwh"`
+	RefreshSeconds int      `json:"refresh_seconds"`
+	HaURL          string   `json:"ha_url"`
+	HaToken        string   `json:"ha_token"`
+	Title          string   `json:"title"`
+	In1Name        string   `json:"in1_name"`
+	In2Name        string   `json:"in2_name"`
+	Pv1            string   `json:"pv1_label"`
+	Pv2            string   `json:"pv2_label"`
+	Pv3            string   `json:"pv3_label"`
+	BattCap        float64  `json:"batt_capacity_kwh"`
+	HomeMax        float64  `json:"home_max"`
+	HomeT1         float64  `json:"home_t1"`
+	HomeT2         float64  `json:"home_t2"`
+	HomeT3         float64  `json:"home_t3"`
+	PvMax          float64  `json:"pv_max"`
+	PvT1           float64  `json:"pv_t1"`
+	PvT2           float64  `json:"pv_t2"`
+	PvT3           float64  `json:"pv_t3"`
+	PvDayClear     float64  `json:"pv_day_clear_kwh"`
+	ControlUsers   []string `json:"control_users"`
 }
 
 // Load returns Default() with the options file and supervisorToken applied.
@@ -127,6 +133,7 @@ func (c *Config) apply(o options) {
 	if o.PvDayClear > 0 {
 		c.PVDayClearKWh = o.PvDayClear
 	}
+	c.ControlUsers = o.ControlUsers
 	// LLAT path: only switch APIBase off the Supervisor default when a token is given.
 	if o.HaToken != "" {
 		c.Token = o.HaToken

@@ -25,7 +25,8 @@ const (
 
 // indexHTML auto-reloads the given SVG file every refresh seconds.
 // %s = svg filename, %d = refresh seconds.
-const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%%;overflow:hidden;background:#0f1115}#c{position:fixed;inset:0}#c svg{width:100%%;height:100%%;display:block}</style></head><body><div id="c"></div><script>
+const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%%;overflow:hidden;background:#0f1115}#c{position:fixed;inset:0}#c svg{width:100%%;height:100%%;display:block}#vo{position:fixed;top:8px;right:12px;background:#1f2937;color:#9ca3af;font:12px sans-serif;padding:4px 10px;border-radius:8px;opacity:.85;z-index:9}</style></head><body><div id="c"></div><div id="vo" style="display:none">только просмотр</div><script>
+var CANCTL=%s;
 function ask(act,val){
  var m='Выполнить действие?';
  if(act==='avr_src'){m='Переключить питание Дома на: '+(val==='reserve'?'Резерв (стабилизаторы)':'Инвертор')+'?';}
@@ -38,8 +39,9 @@ function ask(act,val){
   if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,400);}
  }).catch(function(e){alert('Ошибка связи: '+e);});
 }
-function wire(){var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}}
+function wire(){if(!CANCTL)return;var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}}
 function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){document.getElementById('c').innerHTML=t;wire();})}
+if(!CANCTL){document.getElementById('vo').style.display='block';}
 load();setInterval(load,%d000);</script></body></html>`
 
 // Server renders and serves the schematic.
@@ -62,9 +64,40 @@ func (s *Server) handleSVG(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(s.render()))
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, indexHTML, "schematic.svg", s.cfg.Refresh)
+	canCtl := "false"
+	if s.userAllowed(r) {
+		canCtl = "true"
+	}
+	// разово помогает узнать точное имя пользователя HA для control_users
+	log.Printf("index: user=%q id=%q control=%s",
+		r.Header.Get("X-Remote-User-Display-Name"), r.Header.Get("X-Remote-User-Id"), canCtl)
+	fmt.Fprintf(w, indexHTML, canCtl, "schematic.svg", s.cfg.Refresh)
+}
+
+// userAllowed reports whether the HA user making this ingress request may control
+// (АВР/контактор/генератор). Empty ControlUsers = everyone may (backward compat).
+// HA Supervisor ingress forwards the user via X-Remote-User-* headers.
+func (s *Server) userAllowed(r *http.Request) bool {
+	if len(s.cfg.ControlUsers) == 0 {
+		return true
+	}
+	name := r.Header.Get("X-Remote-User-Display-Name")
+	if name == "" {
+		name = r.Header.Get("X-Remote-User-Name")
+	}
+	id := r.Header.Get("X-Remote-User-Id")
+	for _, u := range s.cfg.ControlUsers {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		if strings.EqualFold(u, name) || u == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) writeFiles() {
@@ -74,7 +107,9 @@ func (s *Server) writeFiles() {
 }
 
 func (s *Server) writeWrapper() {
-	page := fmt.Sprintf(indexHTML, "energy_schema.svg", s.cfg.Refresh)
+	// файловый враппер в /local/ открывают вне ingress (эндпоинт /control недоступен),
+	// поэтому он всегда «только просмотр» — удобен для дашбордов и ТВ.
+	page := fmt.Sprintf(indexHTML, "false", "energy_schema.svg", s.cfg.Refresh)
 	if err := os.WriteFile(wwwDir+"/energy_schema.html", []byte(page), 0644); err != nil {
 		log.Println("write wrapper:", err)
 	}
@@ -99,6 +134,10 @@ func (s *Server) simSet(id, v string) error {
 // Safety (e.g. AVR manual-only) is enforced here server-side — never trust the
 // client. Dangerous actions still require a confirm dialog in the UI.
 func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
+	if !s.userAllowed(r) {
+		http.Error(w, "только просмотр — нет прав управления", http.StatusForbidden)
+		return
+	}
 	act, val := r.URL.Query().Get("act"), r.URL.Query().Get("val")
 	switch act {
 	case "avr_src": // переключение источника АВР Инвертор↔Резерв — только в РУЧНОМ
