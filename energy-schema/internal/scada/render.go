@@ -110,8 +110,8 @@ func stabOut(st State, ph int, contRyb bool) string {
 // Render builds the full SVG single-line diagram from the current state snapshot.
 func Render(st State, cfg config.Config) string {
 	s := &Builder{}
-	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 960" font-family="Arial,Helvetica,sans-serif">`)
-	s.p(`<rect x="0" y="0" width="1440" height="960" fill="#0f1115"/>`)
+	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 830" font-family="Arial,Helvetica,sans-serif">`)
+	s.p(`<rect x="0" y="0" width="1440" height="830" fill="#0f1115"/>`)
 	s.t(1428, 28, 18, cTxt, "end", cfg.Title)
 
 	cont := st.State("sensor.sim_contactor")
@@ -381,11 +381,11 @@ func Render(st State, cfg config.Config) string {
 	}
 	// по фазам: ВХОД (сеть) и ВЫХОД (инвертор → дом) — это РАЗНЫЕ счётчики.
 	// При пропаже сети вход = 0В (красный), а выход инвертора держит ~230В.
-	s.t(414, 372, 10, cSub, "start", "фаза")
-	s.t(540, 372, 10, cSub, "end", "сеть · вход")
-	s.t(726, 372, 10, cSub, "end", "инвертор → дом")
+	s.t(414, 372, 11, cSub, "start", "фаза")
+	s.t(566, 372, 11, cSub, "end", "сеть · вход")
+	s.t(726, 372, 11, cSub, "end", "инвертор → дом")
 	for ph := 1; ph <= 3; ph++ {
-		y := 390.0 + float64(ph-1)*17
+		y := 392.0 + float64(ph-1)*19
 		gv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_voltage", ph))
 		gw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_grid_l%d_power", ph))
 		ov := st.Num(fmt.Sprintf("sensor.deye_sun_30k_output_l%d_voltage", ph))
@@ -396,9 +396,9 @@ func Render(st State, cfg config.Config) string {
 		} else if gv < 205 || gv > 250 {
 			gc = cOrg
 		}
-		s.t(414, y, 12, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(540, y, 11, gc, "end", fmt.Sprintf("%.0fВ·%.0fВт", gv, gw))
-		s.t(726, y, 11, cTxt, "end", fmt.Sprintf("%.0fВ·%.0fВт", ov, lw))
+		s.t(414, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.t(566, y, 14, gc, "end", fmt.Sprintf("%.0fВ·%.0fВт", gv, gw))
+		s.t(726, y, 14, cTxt, "end", fmt.Sprintf("%.0fВ·%.0fВт", ov, lw))
 	}
 	// частота сети + интервал реконнекта (после срабатывания защиты)
 	s.t(414, 446, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), st.Num("number.deye_sun_30k_grid_reconnection_time")))
@@ -460,7 +460,7 @@ func Render(st State, cfg config.Config) string {
 
 	// ===================== ROW 3 =====================
 	// Батарея
-	s.box(24, 520, 300, 400)
+	s.box(24, 520, 300, 280)
 	bAlarm := st.On("binary_sensor.deye_sun_30k_battery_fault") || st.On("binary_sensor.deye_sun_30k_battery_alarm")
 	bStatCol := cGrn
 	if bAlarm {
@@ -478,37 +478,37 @@ func Render(st State, cfg config.Config) string {
 	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
 
 	soc := st.Num("sensor.deye_sun_30k_battery")
-	bcx, bcy := 174.0, 624.0
-	s.arc(bcx, bcy, 78, 180, 0, "#23272f", 13)
+	bcx, bcy := 174.0, 610.0
+	s.arc(bcx, bcy, 68, 180, 0, "#23272f", 13)
 	socCol := cGrn
 	if soc < 20 {
 		socCol = cRed
 	} else if soc < 50 {
 		socCol = cAmb
 	}
-	s.arc(bcx, bcy, 78, 180, gAng(soc, 100), socCol, 13)
-	s.marker(bcx, bcy, 78, gAng(soc, 100), 7)
-	s.t(bcx, bcy-2, 28, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
+	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
+	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
+	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
 	// ток батареи — слева от спидометра
-	s.t(58, 610, 11, cSub, "middle", "ток")
-	s.t(58, 630, 15, cTxt, "middle", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
+	s.t(54, 596, 11, cSub, "middle", "ток")
+	s.t(54, 616, 15, cTxt, "middle", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
 
 	// заряд/разряд — визуально (пилюля со стрелкой); покой = без стрелки
 	if bAlarm {
-		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, cRed, cRed)
-		s.t(174, 668, 15, cRed, "middle", "⚠ АВАРИЯ БАТАРЕИ")
+		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="%s" fill-opacity="0.18" stroke="%s" stroke-width="1.5"/>`, cRed, cRed)
+		s.t(174, 652, 14, cRed, "middle", "⚠ АВАРИЯ БАТАРЕИ")
 	} else if bp < -20 {
-		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cGrn, cGrn)
-		s.p(`<polygon points="70,670 78,654 86,670" fill="%s"/>`, cGrn)
-		s.t(190, 668, 15, cGrn, "middle", "ЗАРЯД "+kw(-bp))
+		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cGrn, cGrn)
+		s.p(`<polygon points="70,653 78,640 86,653" fill="%s"/>`, cGrn)
+		s.t(190, 652, 14, cGrn, "middle", "ЗАРЯД "+kw(-bp))
 	} else if bp > 20 {
-		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cOrg, cOrg)
-		s.p(`<polygon points="70,654 78,670 86,654" fill="%s"/>`, cOrg)
-		s.t(190, 668, 15, cOrg, "middle", "РАЗРЯД "+kw(bp))
+		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, cOrg, cOrg)
+		s.p(`<polygon points="70,640 78,653 86,640" fill="%s"/>`, cOrg)
+		s.t(190, 652, 14, cOrg, "middle", "РАЗРЯД "+kw(bp))
 	} else {
-		s.p(`<rect x="44" y="648" width="260" height="30" rx="15" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
-		s.t(174, 668, 14, cSub, "middle", "ожидание (idle)")
+		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
+		s.t(174, 652, 13, cSub, "middle", "ожидание (idle)")
 	}
 
 	// доступно сейчас: запас энергии до отключения + на сколько его хватит
@@ -560,16 +560,16 @@ func Render(st State, cfg config.Config) string {
 	if usableKWh < capKWh*0.12 {
 		rcol = cOrg
 	}
-	s.t(174, 726, 12, cSub, "middle", "доступно сейчас")
-	s.t(174, 760, 20, rcol, "middle", fmt.Sprintf("%.1f кВт·ч  %s", usableKWh, htxt))
+	s.t(174, 684, 12, cSub, "middle", "доступно сейчас")
+	s.t(174, 712, 20, rcol, "middle", fmt.Sprintf("%.1f кВт·ч  %s", usableKWh, htxt))
 
 	// низ: SOH, ёмкость, отключение
-	s.t(40, 824, 12, cSub, "start", "SOH")
-	s.t(308, 824, 13, cTxt, "end", fmt.Sprintf("%.1f %%", st.Num("sensor.deye_sun_30k_battery_soh")))
-	s.t(174, 856, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
+	s.t(40, 744, 12, cSub, "start", "SOH")
+	s.t(308, 744, 13, cTxt, "end", fmt.Sprintf("%.1f %%", st.Num("sensor.deye_sun_30k_battery_soh")))
+	s.t(174, 772, 11, cSub, "middle", fmt.Sprintf("ёмкость %.0f кВт·ч · отключение %.0f%%", capKWh, cutoff))
 
 	// Солнышко
-	s.box(360, 520, 560, 400)
+	s.box(360, 520, 560, 280)
 	s.head(360, 520, 560, "sun", "Солнышко", "")
 	// текущая погода: иконка состояния + значения, по центру шапки
 	if w := "weather.forecast_home_assistant"; st.State(w) != "" && st.State(w) != "unavailable" {
@@ -581,16 +581,16 @@ func Render(st State, cfg config.Config) string {
 	gx := []float64{500, 650, 800}
 	for i := 0; i < 3; i++ {
 		pw := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1))
-		s.gauge(gx[i], 652, 58, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), cfg.PVLabels[i])
+		s.gauge(gx[i], 646, 66, pw/1000, 8, []band{{3, cAmb}, {6, cGrn}, {8, cRed}}, kw(pw), cfg.PVLabels[i])
 		vv := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_voltage", i+1))
 		aa := st.Num(fmt.Sprintf("sensor.deye_sun_30k_pv%d_current", i+1))
-		s.t(gx[i], 692, 12, cSub, "middle", fmt.Sprintf("%.0fВ · %.1fА", vv, aa))
+		s.t(gx[i], 700, 13, cSub, "middle", fmt.Sprintf("%.0fВ · %.1fА", vv, aa))
 	}
-	s.t(380, 802, 12, cSub, "start", "Всего")
-	s.bar(380, 816, 520, 46, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
+	s.t(380, 716, 12, cSub, "start", "Всего")
+	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
-	s.box(956, 520, 464, 300)
+	s.box(956, 520, 464, 280)
 	gk := "gen"
 	gtc, gtxt := cGry, "ВЫКЛЮЧЕН"
 	if genRun {
@@ -613,9 +613,9 @@ func Render(st State, cfg config.Config) string {
 	default:
 		sigCol, sigTxt = cRed, "сигнал · НЕ ЗАВЁЛСЯ"
 	}
-	s.p(`<rect x="972" y="568" width="220" height="30" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
-	s.p(`<circle cx="990" cy="583" r="4" fill="none" stroke="%s" stroke-width="2"/><line x1="994" y1="583" x2="1006" y2="583" stroke="%s" stroke-width="2"/><line x1="1006" y1="583" x2="1006" y2="588" stroke="%s" stroke-width="2"/><line x1="1002" y1="583" x2="1002" y2="587" stroke="%s" stroke-width="2"/>`, sigCol, sigCol, sigCol, sigCol)
-	s.t(1014, 587, 12, sigCol, "start", sigTxt)
+	s.p(`<rect x="972" y="560" width="220" height="28" rx="8" fill="%s" fill-opacity="0.12" stroke="%s" stroke-width="1.3"/>`, sigCol, sigCol)
+	s.p(`<circle cx="990" cy="574" r="4" fill="none" stroke="%s" stroke-width="2"/><line x1="994" y1="574" x2="1006" y2="574" stroke="%s" stroke-width="2"/><line x1="1006" y1="574" x2="1006" y2="579" stroke="%s" stroke-width="2"/><line x1="1002" y1="574" x2="1002" y2="578" stroke="%s" stroke-width="2"/>`, sigCol, sigCol, sigCol, sigCol)
+	s.t(1014, 578, 12, sigCol, "start", sigTxt)
 
 	// подогрев ОЖ + температура
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
@@ -623,17 +623,17 @@ func Render(st State, cfg config.Config) string {
 	if htOn {
 		htCol, htTxt = cOrg, "подогрев вкл"
 	}
-	s.p(`<rect x="1204" y="568" width="200" height="30" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
+	s.p(`<rect x="1204" y="560" width="200" height="28" rx="8" fill="%s" fill-opacity="0.10" stroke="%s" stroke-width="1.3"/>`, htCol, cBrd)
 	for i := 0; i < 3; i++ {
 		x := 1220.0 + float64(i)*5
-		s.p(`<path d="M %.1f 590 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
+		s.p(`<path d="M %.1f 581 q 2 -3 0 -6 q -2 -3 0 -6" fill="none" stroke="%s" stroke-width="1.8"/>`, x, htCol)
 	}
-	s.t(1242, 587, 12, htCol, "start", htTxt)
-	s.t(1396, 587, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
+	s.t(1242, 578, 12, htCol, "start", htTxt)
+	s.t(1396, 578, 13, cTxt, "end", fmt.Sprintf("%d°C", st.Int("sensor.sim_gen_coolant_temp")))
 
 	// наработка + замена масла — крупно
-	s.t(972, 644, 11, cSub, "start", "Наработка")
-	s.t(972, 668, 19, cTxt, "start", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
+	s.t(972, 618, 11, cSub, "start", "Наработка")
+	s.t(972, 642, 19, cTxt, "start", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
 	oil := st.Num("sensor.sim_gen_oil_remaining_h")
 	oilCol := cTxt
 	if oil < 10 {
@@ -641,20 +641,18 @@ func Render(st State, cfg config.Config) string {
 	} else if oil < 30 {
 		oilCol = cOrg
 	}
-	s.t(1404, 644, 11, cSub, "end", "До замены масла")
-	s.t(1404, 668, 19, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
+	s.t(1404, 618, 11, cSub, "end", "До замены масла")
+	s.t(1404, 642, 19, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
 
 	// нагрузка по фазам
-	s.t(972, 706, 11, cSub, "start", "Нагрузка по фазам")
-	s.t(1090, 728, 10, cSub, "start", "U")
-	s.t(1404, 728, 10, cSub, "end", "ток · мощность")
+	s.t(972, 678, 11, cSub, "start", "Нагрузка по фазам")
 	for ph := 1; ph <= 3; ph++ {
-		y := 750.0 + float64(ph-1)*22
+		y := 704.0 + float64(ph-1)*24
 		p := fmt.Sprintf("sensor.sim_gen_l%d", ph)
 		a, v := st.Num(p+"_load"), st.Num(p+"_v")
-		s.t(972, y, 13, cTxt, "start", fmt.Sprintf("L%d", ph))
-		s.t(1090, y, 13, cTxt, "start", fmt.Sprintf("%.0f В", v))
-		s.t(1404, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
+		s.t(972, y, 14, cTxt, "start", fmt.Sprintf("L%d", ph))
+		s.t(1090, y, 14, cTxt, "start", fmt.Sprintf("%.0f В", v))
+		s.t(1404, y, 14, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
 	}
 
 	s.p(`</svg>`)
