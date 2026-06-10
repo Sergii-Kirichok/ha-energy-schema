@@ -882,9 +882,14 @@ func Render(st State, cfg config.Config) string {
 	// --- управление: подогрев + старт/стоп — компактно, одной строкой справа ---
 	htOn := st.State("sensor.sim_gen_coolant_heater") == "on"
 	htCur := st.Int("sensor.sim_gen_coolant_temp")
+	// температура старта (до которой греем ОЖ перед запуском) — настраивается из UI HA
+	// через input_number.gen_start_temp; иначе старый хелпер/эмулятор.
 	htTgt := st.Num("sensor.sim_gen_coolant_target")
 	if st.Available("input_number.gen_coolant_target") {
 		htTgt = st.Num("input_number.gen_coolant_target")
+	}
+	if st.Available("input_number.gen_start_temp") {
+		htTgt = st.Num("input_number.gen_start_temp")
 	}
 	htCol, htFill := cSub, "0"
 	if htOn {
