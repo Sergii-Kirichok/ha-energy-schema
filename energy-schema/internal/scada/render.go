@@ -171,17 +171,18 @@ func Render(st State, cfg config.Config) string {
 	// АВР -> Дом
 	s.flow(cGrn, "on", 3, false, 1000, 380, 1140, 380)
 	// Батарея <-> Инвертор
-	// Батарея <-> Инвертор: движение только при заряде/разряде; в покое (idle) — статичная линия
+	// Батарея <-> Инвертор: движение только при заряде/разряде; в покое (idle) — статичная линия.
+	// Горизонталь на одном уровне с линией генератора (y=494).
 	if math.Abs(bp) > 20 {
-		s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 488, 470, 488, 470, 460)
+		s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 494, 470, 494, 470, 475)
 	} else {
-		s.poly(cPur, 3, "", 174, 520, 174, 488, 470, 488, 470, 460)
+		s.poly(cPur, 3, "", 174, 520, 174, 494, 470, 494, 470, 475)
 	}
 	// PV -> Инвертор
-	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 460)
+	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 475)
 	// Генератор -> Инвертор: одна силовая линия. Управляющий сигнал отдельной линией
 	// не рисуем — он показан значком «G» в правом нижнем углу карточки инвертора.
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 484, 588, 484, 588, 460)
+	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 494, 588, 494, 588, 475)
 
 	// ===================== ROW 1 =====================
 	s.box(24, 44, 240, 175)
@@ -348,7 +349,7 @@ func Render(st State, cfg config.Config) string {
 	da := st.State("sensor.deye_sun_30k_device_alarm")
 	invState := st.State("sensor.deye_sun_30k_device_state")
 	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
-	s.box(400, 300, 340, 160)
+	s.box(400, 300, 340, 175)
 	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
 	if invProb {
 		hc = cRed
