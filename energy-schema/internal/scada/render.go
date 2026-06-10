@@ -183,32 +183,53 @@ func Render(st State, cfg config.Config) string {
 	s.flow(cGrn, rybPhase(st, 3, contRyb), 2, false, 264, 180, 284, 180, 284, 14, 875, 14, 875, 44)
 	// выходы 3 стабилизаторов -> общая шина (y=275) -> Контактор и АВР(резерв)
 	out1, out2, out3 := stabOut(st, 1, contRyb), stabOut(st, 2, contRyb), stabOut(st, 3, contRyb)
-	s.flow(cGrn, out1, 3, false, 435, 219, 435, 275)
-	s.flow(cGrn, out2, 3, false, 655, 219, 655, 275)
-	s.flow(cGrn, out3, 3, false, 875, 219, 875, 275)
-	// шина: зелёная ТОЛЬКО если все три выхода в норме; оранжевая если хоть одна
-	// фаза в потере связи/байпасе (стабилизация под вопросом); серая если всё off.
+	// стабилизаторы отдают мощность, только если есть потребитель: контактор на
+	// Ввод1 ИЛИ АВР в резерве. Иначе выходы/шина — серые штрихованые (нет нагрузки).
+	stabConsumer := contRyb || avrPos == "reserve"
+	og := func(realSt string) string {
+		if stabConsumer {
+			return realSt
+		}
+		return "off"
+	}
+	s.flow(cGrn, og(out1), 3, false, 435, 219, 435, 275)
+	s.flow(cGrn, og(out2), 3, false, 655, 219, 655, 275)
+	s.flow(cGrn, og(out3), 3, false, 875, 219, 875, 275)
+	// шина: зелёная если все выходы в норме; оранжевая при потере; серая штрихованая
+	// если всё off ИЛИ нет потребителя.
 	busSt := "off"
 	if out1 == "on" && out2 == "on" && out3 == "on" {
 		busSt = "on"
 	} else if out1 != "off" || out2 != "off" || out3 != "off" {
 		busSt = "lost"
 	}
+	if !stabConsumer {
+		busSt = "off"
+	}
 	busDash := ""
-	if busSt == "lost" {
+	switch busSt {
+	case "lost":
 		busDash = "6 5"
+	case "off":
+		busDash = "7 7"
 	}
 	s.poly(stOn[busSt], 3, busDash, 435, 275, 875, 275)
-	s.flow(cGrn, busSt, 3, false, 435, 275, 119, 275, 119, 300)
+	// шина -> контактор: активна только когда контактор на Ввод1 (стабилизаторы)
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[contRyb], 3, false, 435, 275, 119, 275, 119, 300)
+	// шина -> АВР(резерв): активна только когда АВР в резерве
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 905, 275, 905, 300)
-	// Ввод2 -> Контактор
-	s.flow(cBlu, grnSt, 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
-	// Контактор -> Инвертор (активный ввод всегда питает инвертор)
+	// Ввод2 -> Контактор: активна только когда контактор на Ввод2
+	s.flow(cBlu, map[bool]string{true: grnSt, false: "off"}[contOn], 2, exporting, 1020, 150, 1002, 150, 1002, 250, 95, 250, 95, 300)
+	// Контактор -> Инвертор: цвет по активному вводу (зелёный=стабилизаторы, синий=Зелёный)
 	cSt := "on"
 	if !gridIn {
 		cSt = "bad"
 	}
-	s.flow(cBlu, cSt, 2, false, 264, 380, 400, 380)
+	inCol := cGrn
+	if contOn {
+		inCol = cBlu
+	}
+	s.flow(inCol, cSt, 2, false, 264, 380, 400, 380)
 	// Инвертор -> АВР (осн.)
 	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 740, 380, 800, 380)
 	// АВР -> Дом
