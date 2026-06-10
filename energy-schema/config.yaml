@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.4.60"
+version: "0.4.61"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы BobRIXOS (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -9,6 +9,8 @@ arch:
 init: false
 ingress: true
 ingress_port: 8099
+panel_icon: mdi:home-lightning-bolt
+panel_title: Энергосхема
 homeassistant_api: true
 hassio_api: true
 map:
