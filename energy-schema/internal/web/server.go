@@ -265,7 +265,12 @@ func (s *Server) seedRolls() {
 // The device exposes only the delay setpoint, not a live countdown, so the Store
 // times it — restarting on each re-entry (a failed attempt drops the relay again).
 func (s *Server) trackReconnect() {
-	gridPresent := s.store.On("binary_sensor.deye_sun_30k_grid")
+	// «сеть присутствует» — по НАПРЯЖЕНИЮ фаз (оно появляется сразу при возврате
+	// сети), а не по binary_sensor.grid (тот включается лишь в момент подключения,
+	// поэтому окно ожидания «напряжение есть, но не подключился» им не поймать).
+	gridPresent := s.store.Num("sensor.deye_sun_30k_grid_l1_voltage") > 150 ||
+		s.store.Num("sensor.deye_sun_30k_grid_l2_voltage") > 150 ||
+		s.store.Num("sensor.deye_sun_30k_grid_l3_voltage") > 150
 	bonded := strings.Contains(s.store.State("sensor.deye_sun_30k_device_relay"), "Grid")
 	total := s.store.Num("number.deye_sun_30k_grid_reconnection_time")
 	s.store.UpdateReconnect(gridPresent && !bonded, gridPresent, total)
