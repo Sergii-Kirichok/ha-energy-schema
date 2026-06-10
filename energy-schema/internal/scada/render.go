@@ -8,6 +8,10 @@ import (
 	"energy-schema/internal/config"
 )
 
+// invPeakKW — пиковая мощность инвертора (10 с) сверх длительных 33 кВт; зона
+// 33–45 кВт показывается как «перегруз» на шкалах генерации и потребления.
+const invPeakKW = 45.0
+
 // State is the read-only view of HA entity states the renderer needs.
 // *hass.Store satisfies it.
 type State interface {
@@ -502,21 +506,21 @@ func Render(st State, cfg config.Config) string {
 	// Дом — гейдж
 	s.box(1140, 290, 280, 190)
 	s.head(1140, 290, 280, "home", "Дом", "")
-	s.gauge(1280, 410, 78, load, cfg.HomeMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.HomeMax, cRed}}, kw(load*1000), "потребление")
-	// шкала с тиками: концы 0/макс и значения у переходов цветовых зон
-	s.gaugeTick(1280, 410, 78, 0, cfg.HomeMax, "0")
-	s.gaugeTick(1280, 410, 78, cfg.HomeT1, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT1))
-	s.gaugeTick(1280, 410, 78, cfg.HomeT2, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT2))
-	s.gaugeTick(1280, 410, 78, cfg.HomeT3, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeT3))
-	s.gaugeTick(1280, 410, 78, cfg.HomeMax, cfg.HomeMax, fmt.Sprintf("%.0f", cfg.HomeMax))
+	// шкала до 45 кВт: 33 — длительный максимум инвертора, 33–45 — перегруз (10 с)
+	hMax := invPeakKW
+	s.gauge(1280, 410, 78, load, hMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.PVMax, cRed}, {hMax, cRed2}}, kw(load*1000), "потребление")
+	// тики: концы 0/45 + переходы зон (3 пропускаем — сливается с 5 на сжатой шкале)
+	for _, tk := range []float64{0, cfg.HomeT2, cfg.HomeT3, cfg.PVMax, hMax} {
+		s.gaugeTick(1280, 410, 78, tk, hMax, fmt.Sprintf("%.0f", tk))
+	}
 	lpe := "sensor.deye_sun_30k_load_power"
 	// красная капля — пик потребления за 24 ч; синяя — минимум за 24 ч
 	if pl := st.Max24h(lpe); pl > 50 {
-		s.markerMax(1280, 410, 78, gAng(pl/1000, cfg.HomeMax), 78*0.12, cRed)
+		s.markerMax(1280, 410, 78, gAng(pl/1000, hMax), 78*0.12, cRed)
 	}
 	lo, okLo := st.Min24h(lpe)
 	if okLo {
-		s.markerMax(1280, 410, 78, gAng(lo/1000, cfg.HomeMax), 78*0.12, cBlu)
+		s.markerMax(1280, 410, 78, gAng(lo/1000, hMax), 78*0.12, cBlu)
 	}
 	// итог за 24 ч одной строкой — крупнее, мин/макс через слэш
 	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("за 24ч · мин/макс: %.1f / %.1f кВт", lo/1000, st.Max24h(lpe)/1000))
@@ -556,6 +560,10 @@ func Render(st State, cfg config.Config) string {
 		s.markerMax(bcx, bcy, 68, gAng(ps, 100), 68*0.12, cRed)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
+	// пик заряда за 24 ч — цифрами (в тон красной капле)
+	if ps := st.Max24h("sensor.deye_sun_30k_battery"); ps > 1 {
+		s.t(bcx, bcy+18, 11, cRed, "middle", fmt.Sprintf("↑ пик 24ч %.0f%%", ps))
+	}
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
@@ -651,7 +659,16 @@ func Render(st State, cfg config.Config) string {
 		s.t(566, 548, 14, cTxt, "start", fmt.Sprintf("%.0f°C · обл %.0f%% · %.1f м/с",
 			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
 	}
-	s.t(906, 547, 14, cAmb, "end", fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production")))
+	// сегодня: факт + прогноз на день (ясный день × облачность сегодня)
+	todayKWhTxt := fmt.Sprintf("сегодня: %.0f кВт·ч", st.Num("sensor.deye_sun_30k_today_production"))
+	if cloud0, cond0, ok0 := st.ForecastInfo(0); ok0 {
+		if cloud0 <= 0 {
+			cloud0 = condCloud(cond0)
+		}
+		todayKWhTxt = fmt.Sprintf("сегодня: %.0f / прогноз ~%.0f кВт·ч",
+			st.Num("sensor.deye_sun_30k_today_production"), clearDay*(1-0.7*cloud0/100))
+	}
+	s.t(906, 547, 14, cAmb, "end", todayKWhTxt)
 	gx := []float64{470, 650, 830} // меньше гейджи → больше места под боковые подписи
 	pvFieldMax := 13.0             // макс на 1 MPPT по шильдику (39 кВт / 3 ≈ 13 кВт)
 	pvR := 52.0
@@ -675,12 +692,14 @@ func Render(st State, cfg config.Config) string {
 	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
 	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
 		s.t(900, 710, 14, cRed, "end", "Max: "+kw(pmax))
-		s.barMax(380, 722, 520, pmax/1000, cfg.PVMax, cRed)
+		s.barMax(380, 722, 520, pmax/1000, invPeakKW, cRed)
 	}
-	s.bar(380, 722, 520, 44, pvtot/1000, cfg.PVMax, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}}, kw(pvtot))
-	// границы шкалы — чтобы на глаз читать положение стрелки
+	// шкала до 45 кВт: 33 кВт — длительный максимум, 33–45 — перегруз (пик 10 с)
+	s.bar(380, 722, 520, 44, pvtot/1000, invPeakKW, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}, {invPeakKW, cRed2}}, kw(pvtot))
+	// границы шкалы + значения переходов зон
 	s.t(382, 779, 10, cSub, "start", "0")
-	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", cfg.PVMax))
+	s.barTicks(380, 779, 520, invPeakKW, []float64{cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 20 · 25 · 33
+	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", invPeakKW))
 
 	// Генератор — компактно: верх = ключевые индикаторы, ниже наработка/масло и фазы
 	s.box(956, 520, 464, 280)
@@ -738,18 +757,31 @@ func Render(st State, cfg config.Config) string {
 		s.t(1180, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
 	}
 
-	// ПРАВО: обслуживание — остаток до замены масла + общая наработка
-	oil := st.Num("sensor.sim_gen_oil_remaining_h")
-	oilCol := cTxt
-	if oil < 10 {
-		oilCol = cRed
-	} else if oil < 30 {
-		oilCol = cOrg
+	// ПРАВО: обслуживание — кольца обратного отсчёта (масло, ТО) в моточасах
+	ringCol := func(frac float64) string {
+		switch {
+		case frac < 0.1:
+			return cRed
+		case frac < 0.25:
+			return cOrg
+		default:
+			return cGrn
+		}
 	}
-	s.t(1212, 626, 11, cSub, "start", "До замены масла")
-	s.t(1404, 660, 22, oilCol, "end", fmt.Sprintf("%.0f ч", oil))
-	s.t(1212, 710, 11, cSub, "start", "Наработка, всего")
-	s.t(1404, 744, 22, cTxt, "end", fmt.Sprintf("%.1f ч", st.Num("sensor.sim_gen_runtime_h")))
+	frac := func(rem, interval float64) float64 {
+		if interval <= 0 {
+			return 1
+		}
+		return rem / interval
+	}
+	oilRem := st.Num("sensor.sim_gen_oil_remaining_h")
+	oilFr := frac(oilRem, st.Num("sensor.sim_gen_oil_interval_h"))
+	svcRem := st.Num("sensor.sim_gen_service_remaining_h")
+	svcFr := frac(svcRem, st.Num("sensor.sim_gen_service_interval_h"))
+	s.ringTimer(1258, 672, 33, oilFr, ringCol(oilFr), "замена масла", fmt.Sprintf("%.0f ч", oilRem))
+	s.ringTimer(1352, 672, 33, svcFr, ringCol(svcFr), "ТО", fmt.Sprintf("%.0f ч", svcRem))
+	// наработка — одной строкой
+	s.t(1304, 768, 13, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", st.Num("sensor.sim_gen_runtime_h")))
 
 	s.p(`</svg>`)
 	return s.String()

@@ -159,6 +159,20 @@ func (s *Store) Max24h(entity string) float64 {
 	return v
 }
 
+// SeedDayMax seeds today's peak from a historical sample so the "max today"
+// figure (e.g. sun generation) survives a restart instead of resetting to the
+// values seen since boot. Only samples from the current local day count.
+func (s *Store) SeedDayMax(entity string, t time.Time, v float64) {
+	if t.Local().Format("2006-01-02") != time.Now().Format("2006-01-02") {
+		return
+	}
+	s.mu.Lock()
+	if v > s.dayMax[entity] {
+		s.dayMax[entity] = v
+	}
+	s.mu.Unlock()
+}
+
 // SeedRoll injects a historical sample (with its real timestamp) into an
 // entity's rolling 24h window, so the min/max survive an add-on restart.
 func (s *Store) SeedRoll(entity string, t time.Time, v float64) {

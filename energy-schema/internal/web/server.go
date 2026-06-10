@@ -115,6 +115,14 @@ var rollSeedEntities = []string{
 	"sensor.deye_sun_30k_battery",
 }
 
+// pvDayMaxEntities have today's peak seeded from history (sun "Max today").
+var pvDayMaxEntities = []string{
+	"sensor.deye_sun_30k_pv_power",
+	"sensor.deye_sun_30k_pv1_power",
+	"sensor.deye_sun_30k_pv2_power",
+	"sensor.deye_sun_30k_pv3_power",
+}
+
 // seedRolls pre-fills the rolling 24h windows from recorder history so a freshly
 // restarted add-on already reflects the true last-24h min/max, not just values
 // seen since boot.
@@ -130,6 +138,20 @@ func (s *Server) seedRolls() {
 			s.store.SeedRoll(e, p.Time, p.Value)
 		}
 		log.Printf("seed %s: %d points (24h)", e, len(pts))
+	}
+	// sun "Max today" peaks — seed from today's history so they survive a restart
+	now := time.Now()
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	for _, e := range pvDayMaxEntities {
+		pts, err := s.client.History(e, midnight)
+		if err != nil {
+			log.Println("seed daymax:", e, err)
+			continue
+		}
+		for _, p := range pts {
+			s.store.SeedDayMax(e, p.Time, p.Value)
+		}
+		log.Printf("seed daymax %s: %d points (today)", e, len(pts))
 	}
 }
 

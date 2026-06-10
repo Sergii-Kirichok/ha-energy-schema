@@ -6,17 +6,18 @@ import "fmt"
 
 // Palette — dark SCADA theme.
 const (
-	cTxt = "#e5e7eb"
-	cSub = "#9ca3af"
-	cBox = "#171a20"
-	cBrd = "#2b2f38"
-	cGrn = "#22c55e"
-	cGry = "#6b7280"
-	cRed = "#ef4444"
-	cOrg = "#f59e0b"
-	cAmb = "#f5b300"
-	cBlu = "#60a5fa"
-	cPur = "#a78bfa"
+	cTxt  = "#e5e7eb"
+	cSub  = "#9ca3af"
+	cBox  = "#171a20"
+	cBrd  = "#2b2f38"
+	cGrn  = "#22c55e"
+	cGry  = "#6b7280"
+	cRed  = "#ef4444"
+	cRed2 = "#b91c1c" // тёмно-красный — зона перегруза (33–45 кВт, пик 10 с)
+	cOrg  = "#f59e0b"
+	cAmb  = "#f5b300"
+	cBlu  = "#60a5fa"
+	cPur  = "#a78bfa"
 )
 
 // band is a colored zone of a gauge/bar, filled up to threshold thr.
