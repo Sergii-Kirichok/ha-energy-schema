@@ -702,19 +702,17 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, br, gAng(soc, 100), 7)
-	// выноски за последние 12 ч (по аналогии): красная капля = пик заряда (SOC),
-	// голубая = минимум. Минимум рисуем, только если он заметно ниже пика — иначе
-	// две подписи налезут друг на друга.
+	// пик и минимум заряда (SOC) за последние 12 ч — каплями прямо на дуге
+	// (красная = пик, голубая = минимум); численные значения выводим строкой ниже
+	// в тон каплям (радиальные выноски у полукруга налезали бы на заголовок).
 	pkMax := st.Max12h("sensor.deye_sun_30k_battery")
 	if pkMax > 1 {
-		a := gAng(pkMax, 100)
-		s.markerMax(bcx, bcy, br, a, br*0.12, cRed)
-		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", pkMax), cRed)
+		s.markerMax(bcx, bcy, br, gAng(pkMax, 100), br*0.12, cRed)
 	}
-	if mn, ok := st.Min12h("sensor.deye_sun_30k_battery"); ok && mn > 0 && pkMax-mn > 2 {
-		a := gAng(mn, 100)
-		s.markerMax(bcx, bcy, br, a, br*0.12, cCyn)
-		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", mn), cCyn)
+	mn, okMin := st.Min12h("sensor.deye_sun_30k_battery")
+	showMin := okMin && mn > 0 && pkMax-mn > 2
+	if showMin {
+		s.markerMax(bcx, bcy, br, gAng(mn, 100), br*0.12, cCyn)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
@@ -739,6 +737,16 @@ func Render(st State, cfg config.Config) string {
 	} else {
 		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
 		s.t(174, 652, 13, cSub, "middle", "ожидание (idle)")
+	}
+
+	// строка «за 12 ч»: минимум (голубой) и пик (красный) заряда — в тон каплям
+	if pkMax > 1 {
+		if showMin {
+			s.t(166, 674, 12, cCyn, "end", fmt.Sprintf("мин %.0f%%", mn))
+			s.t(182, 674, 12, cRed, "start", fmt.Sprintf("пик %.0f%%", pkMax))
+		} else {
+			s.t(174, 674, 12, cRed, "middle", fmt.Sprintf("пик %.0f%%", pkMax))
+		}
 	}
 
 	// доступно сейчас: запас энергии до отключения + на сколько его хватит
