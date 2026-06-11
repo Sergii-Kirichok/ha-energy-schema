@@ -691,24 +691,30 @@ func Render(st State, cfg config.Config) string {
 
 	soc := st.Num("sensor.deye_sun_30k_battery")
 	be := "sensor.deye_sun_30k_battery"
-	// гейдж оформлен как у «Дома»: зоны заряда, тики, стрелка, значение в центре и
-	// подпись; меньше прежнего. Пик (красная капля) и минимум (голубая) заряда за
-	// 12 ч — выносками прямо на гейдже (значения не отдельной строкой).
-	bcx, bcy, br := 174.0, 608.0, 56.0
-	s.gauge(bcx, bcy, br, soc, 100, []band{{20, cRed}, {50, cAmb}, {100, cGrn}}, fmt.Sprintf("%.0f%%", soc), "заряд")
-	for _, tk := range []float64{0, 20, 50, 100} {
-		s.gaugeTick(bcx, bcy, br, tk, 100, fmt.Sprintf("%.0f", tk))
+	// прежний тип гейджа: дуга заливается ТОЛЬКО до текущего заряда (цвет по уровню),
+	// дальше тёмная. Просто уменьшен, чтобы выноски не вылезали за карточку. Пик
+	// (красная капля) и минимум (голубая) заряда за 12 ч — выносками на самом гейдже.
+	bcx, bcy, br := 174.0, 606.0, 50.0
+	s.arc(bcx, bcy, br, 180, 0, "#23272f", 12)
+	socCol := cGrn
+	if soc < 20 {
+		socCol = cRed
+	} else if soc < 50 {
+		socCol = cAmb
 	}
+	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 12)
+	s.marker(bcx, bcy, br, gAng(soc, 100), 6)
 	if pkMax := st.Max12h(be); pkMax > 1 {
 		a := gAng(pkMax, 100)
-		s.markerMax(bcx, bcy, br, a, br*0.12, cRed)
+		s.markerMax(bcx, bcy, br, a, br*0.13, cRed)
 		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f", pkMax), cRed)
 	}
 	if mn, ok := st.Min12h(be); ok && mn > 0 {
 		a := gAng(mn, 100)
-		s.markerMax(bcx, bcy, br, a, br*0.12, cCyn)
+		s.markerMax(bcx, bcy, br, a, br*0.13, cCyn)
 		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f", mn), cCyn)
 	}
+	s.t(bcx, bcy-2, 24, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
