@@ -232,7 +232,7 @@ func Render(st State, cfg config.Config) string {
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 905, 275, 905, 300)
 	// точки на узлах шины стабилизаторов (соединение по правилам): выходы стабов и
 	// ответвления к контактору/АВР
-	for _, jx := range []float64{455, 720, 905, 985} {
+	for _, jx := range []float64{455, 720, 905} {
 		s.dot(jx, 275, 3.5, cSub)
 	}
 	// Ввод2 -> Контактор: активна только когда контактор на Ввод2; выходим снизу
@@ -1018,7 +1018,7 @@ func Render(st State, cfg config.Config) string {
 	if int(lastMin) >= 60 {
 		durTxt = fmt.Sprintf("%d ч %d мин", int(lastMin)/60, int(lastMin)%60)
 	}
-	s.t(1306, 752, 10, cSub, "middle", fmt.Sprintf("посл. запуск %s · длит. %s", lastTime.Format("2006-01-02 15:04"), durTxt))
+	s.t(1306, 762, 10, cSub, "middle", fmt.Sprintf("%s · длит. %s", lastTime.Format("2006-01-02 15:04"), durTxt))
 	// таймер обратного отсчёта до периодического (планового) запуска
 	if nextTs := firstNum("input_number.gen_next_run_ts", "sensor.sim_gen_next_run_ts"); nextTs > 0 {
 		rem := int(nextTs - float64(clockNow().Unix()))
@@ -1029,7 +1029,7 @@ func Render(st State, cfg config.Config) string {
 		if d := rem / 86400; d > 0 {
 			ct = fmt.Sprintf("%d д %d ч %d мин", d, (rem%86400)/3600, (rem%3600)/60)
 		}
-		s.t(1306, 768, 10, cAmb, "middle", "до планового пуска: "+ct)
+		s.t(1306, 778, 10, cAmb, "middle", "до планового пуска: "+ct)
 	}
 
 	s.p(`</svg>`)
