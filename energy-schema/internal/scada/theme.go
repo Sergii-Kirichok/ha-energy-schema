@@ -18,6 +18,7 @@ const (
 	cAmb  = "#f5b300"
 	cBlu  = "#60a5fa"
 	cPur  = "#a78bfa"
+	cCyn  = "#22d3ee" // голубой — маркер минимума (заряд/трофа), в пару к красному пику
 )
 
 // band is a colored zone of a gauge/bar, filled up to threshold thr.

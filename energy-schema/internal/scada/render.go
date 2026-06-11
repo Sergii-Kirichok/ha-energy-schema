@@ -49,6 +49,7 @@ type State interface {
 	// rolling 24h peak/trough (for battery/home markers — independent of midnight)
 	Max24h(entity string) float64
 	Max12h(entity string) float64
+	Min12h(entity string) (float64, bool)
 	Avg24h(entity string) (float64, bool)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
@@ -701,11 +702,19 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, br, gAng(soc, 100), 7)
-	// красная капля + выноска со значением пика заряда (SOC) за последние 12 ч
-	if ps := st.Max12h("sensor.deye_sun_30k_battery"); ps > 1 {
-		a := gAng(ps, 100)
+	// выноски за последние 12 ч (по аналогии): красная капля = пик заряда (SOC),
+	// голубая = минимум. Минимум рисуем, только если он заметно ниже пика — иначе
+	// две подписи налезут друг на друга.
+	pkMax := st.Max12h("sensor.deye_sun_30k_battery")
+	if pkMax > 1 {
+		a := gAng(pkMax, 100)
 		s.markerMax(bcx, bcy, br, a, br*0.12, cRed)
-		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", ps), cRed)
+		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", pkMax), cRed)
+	}
+	if mn, ok := st.Min12h("sensor.deye_sun_30k_battery"); ok && mn > 0 && pkMax-mn > 2 {
+		a := gAng(mn, 100)
+		s.markerMax(bcx, bcy, br, a, br*0.12, cCyn)
+		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", mn), cCyn)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 

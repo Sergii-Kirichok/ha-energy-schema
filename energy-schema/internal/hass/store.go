@@ -99,9 +99,13 @@ func (r *rollMax) maxWindow(now time.Time, buckets int64) float64 {
 	return m
 }
 
-// min returns the trough over the window; ok=false if the window has no data.
-func (r *rollMax) min(now time.Time) (float64, bool) {
-	cutoff := now.Unix()/300 - 288
+// min returns the trough over 24h; ok=false if the window has no data.
+func (r *rollMax) min(now time.Time) (float64, bool) { return r.minWindow(now, 288) }
+
+// minWindow returns the trough over the last `buckets` 5-min buckets (288=24h,
+// 144=12h); ok=false if the window has no data.
+func (r *rollMax) minWindow(now time.Time, buckets int64) (float64, bool) {
+	cutoff := now.Unix()/300 - buckets
 	m, ok := 0.0, false
 	for i := 0; i < 288; i++ {
 		if r.stamp[i] > cutoff && (!ok || r.lo[i] < m) {
@@ -308,6 +312,19 @@ func (s *Store) Max12h(entity string) float64 {
 	}
 	s.mu.RUnlock()
 	return v
+}
+
+// Min12h returns the 12h trough for an entity (ok=false if no data yet).
+func (s *Store) Min12h(entity string) (float64, bool) {
+	s.mu.RLock()
+	r := s.roll[entity]
+	var v float64
+	ok := false
+	if r != nil {
+		v, ok = r.minWindow(time.Now(), 144)
+	}
+	s.mu.RUnlock()
+	return v, ok
 }
 
 // SeedDayMax seeds today's peak from a historical sample so the "max today"
