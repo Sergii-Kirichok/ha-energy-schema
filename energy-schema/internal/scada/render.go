@@ -678,7 +678,7 @@ func Render(st State, cfg config.Config) string {
 	if bAlarm {
 		bStatCol = cRed
 	}
-	s.head(24, 520, 300, "batt", "Батарея", bStatCol)
+	s.head(24, 520, 300, "batt", "АКБ", bStatCol)
 	// температура — рядом со значком статуса (не отдельной строкой)
 	btemp := st.Num("sensor.deye_sun_30k_battery_temperature")
 	btc := cGrn
@@ -690,31 +690,25 @@ func Render(st State, cfg config.Config) string {
 	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
 
 	soc := st.Num("sensor.deye_sun_30k_battery")
-	// гейдж уменьшен на ~10% (r 68→61) и опущен ниже, чтобы выноска пика заряда
-	// не вылезала за верхний край карточки
-	bcx, bcy, br := 174.0, 620.0, 61.0
-	s.arc(bcx, bcy, br, 180, 0, "#23272f", 13)
-	socCol := cGrn
-	if soc < 20 {
-		socCol = cRed
-	} else if soc < 50 {
-		socCol = cAmb
+	be := "sensor.deye_sun_30k_battery"
+	// гейдж оформлен как у «Дома»: зоны заряда, тики, стрелка, значение в центре и
+	// подпись; меньше прежнего. Пик (красная капля) и минимум (голубая) заряда за
+	// 12 ч — выносками прямо на гейдже (значения не отдельной строкой).
+	bcx, bcy, br := 174.0, 608.0, 56.0
+	s.gauge(bcx, bcy, br, soc, 100, []band{{20, cRed}, {50, cAmb}, {100, cGrn}}, fmt.Sprintf("%.0f%%", soc), "заряд")
+	for _, tk := range []float64{0, 20, 50, 100} {
+		s.gaugeTick(bcx, bcy, br, tk, 100, fmt.Sprintf("%.0f", tk))
 	}
-	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 13)
-	s.marker(bcx, bcy, br, gAng(soc, 100), 7)
-	// пик и минимум заряда (SOC) за последние 12 ч — каплями прямо на дуге
-	// (красная = пик, голубая = минимум); численные значения выводим строкой ниже
-	// в тон каплям (радиальные выноски у полукруга налезали бы на заголовок).
-	pkMax := st.Max12h("sensor.deye_sun_30k_battery")
-	if pkMax > 1 {
-		s.markerMax(bcx, bcy, br, gAng(pkMax, 100), br*0.12, cRed)
+	if pkMax := st.Max12h(be); pkMax > 1 {
+		a := gAng(pkMax, 100)
+		s.markerMax(bcx, bcy, br, a, br*0.12, cRed)
+		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f", pkMax), cRed)
 	}
-	mn, okMin := st.Min12h("sensor.deye_sun_30k_battery")
-	showMin := okMin && mn > 0 && pkMax-mn > 2
-	if showMin {
-		s.markerMax(bcx, bcy, br, gAng(mn, 100), br*0.12, cCyn)
+	if mn, ok := st.Min12h(be); ok && mn > 0 {
+		a := gAng(mn, 100)
+		s.markerMax(bcx, bcy, br, a, br*0.12, cCyn)
+		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f", mn), cCyn)
 	}
-	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
@@ -737,16 +731,6 @@ func Render(st State, cfg config.Config) string {
 	} else {
 		s.p(`<rect x="44" y="634" width="260" height="26" rx="13" fill="none" stroke="%s" stroke-width="1"/>`, cBrd)
 		s.t(174, 652, 13, cSub, "middle", "ожидание (idle)")
-	}
-
-	// строка «за 12 ч»: минимум (голубой) и пик (красный) заряда — в тон каплям
-	if pkMax > 1 {
-		if showMin {
-			s.t(166, 674, 12, cCyn, "end", fmt.Sprintf("мин %.0f%%", mn))
-			s.t(182, 674, 12, cRed, "start", fmt.Sprintf("пик %.0f%%", pkMax))
-		} else {
-			s.t(174, 674, 12, cRed, "middle", fmt.Sprintf("пик %.0f%%", pkMax))
-		}
 	}
 
 	// доступно сейчас: запас энергии до отключения + на сколько его хватит
