@@ -818,11 +818,11 @@ func Render(st State, cfg config.Config) string {
 	for i := 0; i < 3; i++ {
 		pe := fmt.Sprintf("sensor.deye_sun_30k_pv%d_power", i+1)
 		pw := st.Num(pe)
-		s.gauge(gx[i], 646, pvR, pw/1000, pvFieldMax, []band{{5, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
+		s.gauge(gx[i], 646, pvR, pw/1000, pvFieldMax, []band{{2, cAmb}, {10, cGrn}, {pvFieldMax, cRed}}, kw(pw), cfg.PVLabels[i])
 		// суточная выработка стринга — мелким серым над текущей мощностью
 		s.t(gx[i], 626, 10, cSub, "middle", fmt.Sprintf("%.1f кВт·ч", st.DayEnergy(pe)))
-		// шкала тиками радиально (как у Дома): концы 0/13 по бокам + переходы зон 5/10
-		for _, tk := range []float64{0, 5, 10, pvFieldMax} {
+		// шкала тиками радиально (как у Дома): концы 0/13 + переходы зон 2/10
+		for _, tk := range []float64{0, 2, 10, pvFieldMax} {
 			s.gaugeTick(gx[i], 646, pvR, tk, pvFieldMax, fmt.Sprintf("%.0f", tk))
 		}
 		// капля + выноска со значением — пик генерации поля за сегодня
