@@ -183,6 +183,14 @@ func Render(st State, cfg config.Config) string {
 	pvtot := st.Num("sensor.deye_sun_30k_pv1_power") + st.Num("sensor.deye_sun_30k_pv2_power") + st.Num("sensor.deye_sun_30k_pv3_power")
 	bp := st.Num("sensor.deye_sun_30k_battery_voltage") * st.Num("sensor.deye_sun_30k_battery_current")
 
+	// «связь с устройствами»: в демо-эмуляторе sim_heartbeat обновляется каждый
+	// цикл (unix-метка). Если она устарела (>30с) или эмулятор выключен — связи с
+	// девайсами по RS-485 фактически нет, индикаторы краснеют. В реальной системе
+	// heartbeat отсутствует (HA сам периодически опрашивает Modbus/RS-485): тогда
+	// живость определяется доступностью самих сущностей — реальный офлайн девайса
+	// делает сущность unavailable, и RS-485 так же краснеет.
+	emuStale := st.Available("sensor.sim_heartbeat") && clockNow().Unix()-int64(st.Num("sensor.sim_heartbeat")) > 30
+
 	// ===== FLOWS (under boxes) =====
 	stOn := map[string]string{"on": cGrn, "bad": cOrg, "lost": cOrg, "off": cGry}
 	// Контактор — одно реле: ВЫКЛ → Ввод1 Рыбхоз (по автоматам, дефолт); ВКЛ → Ввод2 Зелёный.
@@ -300,7 +308,7 @@ func Render(st State, cfg config.Config) string {
 		}
 	}
 	// связь RS-485 со счётчиком ввода (живая, если хоть одна фаза отвечает)
-	rybRS := st.Available("sensor.sim_ryb_l1_on") || st.Available("sensor.sim_ryb_l2_on") || st.Available("sensor.sim_ryb_l3_on")
+	rybRS := (st.Available("sensor.sim_ryb_l1_on") || st.Available("sensor.sim_ryb_l2_on") || st.Available("sensor.sim_ryb_l3_on")) && !emuStale
 	if rybRS {
 		s.t(34, 210, 10, cSub, "start", "RS-485 ✓")
 	} else {
@@ -312,7 +320,7 @@ func Render(st State, cfg config.Config) string {
 		ph := i + 1
 		x := stabX[i]
 		p := fmt.Sprintf("sensor.sim_ryb_l%d", ph)
-		linkOk := st.State(p+"_link") == "ok"
+		linkOk := st.State(p+"_link") == "ok" && !emuStale
 		linkCol := cGrn
 		if !linkOk {
 			linkCol = cRed
@@ -400,7 +408,7 @@ func Render(st State, cfg config.Config) string {
 		}
 	}
 	// связь RS-485 со счётчиком ввода
-	grnRS := st.Available("sensor.sim_green_l1_on") || st.Available("sensor.sim_green_l2_on") || st.Available("sensor.sim_green_l3_on")
+	grnRS := (st.Available("sensor.sim_green_l1_on") || st.Available("sensor.sim_green_l2_on") || st.Available("sensor.sim_green_l3_on")) && !emuStale
 	if grnRS {
 		s.t(1190, 210, 10, cSub, "start", "RS-485 ✓")
 	} else {
@@ -410,7 +418,7 @@ func Render(st State, cfg config.Config) string {
 	// ===================== ROW 2 =====================
 	// Контактор — одно реле (RS-485), с обратной связью: ВЫКЛ=Ввод1, ВКЛ=Ввод2
 	s.box(24, 300, 240, 175)
-	ctLink := st.State("sensor.sim_contactor_link") != "lost" // обратная связь RS-485 (по умолч. есть)
+	ctLink := st.State("sensor.sim_contactor_link") != "lost" && !emuStale // обратная связь RS-485 (по умолч. есть)
 	ctDot := cGrn
 	if !ctLink {
 		ctDot = cRed
@@ -566,7 +574,7 @@ func Render(st State, cfg config.Config) string {
 
 	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
 	s.box(800, 300, 200, 175)
-	avrLink := st.State("sensor.sim_avr_link") == "ok"
+	avrLink := st.State("sensor.sim_avr_link") == "ok" && !emuStale
 	avrLinkCol := cGrn
 	if avrStuck {
 		avrLinkCol = cOrg // залип — оранжевая тревога
@@ -681,21 +689,23 @@ func Render(st State, cfg config.Config) string {
 	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
 
 	soc := st.Num("sensor.deye_sun_30k_battery")
-	bcx, bcy := 174.0, 610.0
-	s.arc(bcx, bcy, 68, 180, 0, "#23272f", 13)
+	// гейдж уменьшен на ~10% (r 68→61) и опущен ниже, чтобы выноска пика заряда
+	// не вылезала за верхний край карточки
+	bcx, bcy, br := 174.0, 620.0, 61.0
+	s.arc(bcx, bcy, br, 180, 0, "#23272f", 13)
 	socCol := cGrn
 	if soc < 20 {
 		socCol = cRed
 	} else if soc < 50 {
 		socCol = cAmb
 	}
-	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
-	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
+	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 13)
+	s.marker(bcx, bcy, br, gAng(soc, 100), 7)
 	// красная капля + выноска со значением пика заряда (SOC) за последние 12 ч
 	if ps := st.Max12h("sensor.deye_sun_30k_battery"); ps > 1 {
 		a := gAng(ps, 100)
-		s.markerMax(bcx, bcy, 68, a, 68*0.12, cRed)
-		s.markerLabel(bcx, bcy, 68, a, fmt.Sprintf("%.0f%%", ps), cRed)
+		s.markerMax(bcx, bcy, br, a, br*0.12, cRed)
+		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f%%", ps), cRed)
 	}
 	s.t(bcx, bcy-2, 26, cTxt, "middle", fmt.Sprintf("%.0f%%", soc))
 
@@ -970,7 +980,7 @@ func Render(st State, cfg config.Config) string {
 		s.t(1180, y, 13, cTxt, "end", fmt.Sprintf("%.0f А · %.2f кВт", a, a*v/1000))
 	}
 	// связь управления генератором (RS-485 через наш блок) — в левом нижнем углу
-	if st.Available("sensor.sim_gen_state") {
+	if st.Available("sensor.sim_gen_state") && !emuStale {
 		s.t(972, 790, 10, cSub, "start", "RS-485 ✓")
 	} else {
 		s.t(972, 790, 10, cRed, "start", "RS-485 ✕")
