@@ -7,13 +7,7 @@ import (
 )
 
 // Builder accumulates SVG markup with small drawing primitives.
-// phase is the current animation time (seconds) used to position the marching
-// flow arrows — baked into static coordinates so they move even when the SVG is
-// rasterised (rsvg/ТВ doesn't play SMIL).
-type Builder struct {
-	b     strings.Builder
-	phase float64
-}
+type Builder struct{ b strings.Builder }
 
 // String returns the accumulated SVG.
 func (s *Builder) String() string { return s.b.String() }

@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"energy-schema/internal/config"
 )
+
+// clockNow returns the current time (local). Overridden to a fixed value in
+// tests so the golden render (timestamp label, generator times) is deterministic.
+var clockNow = func() time.Time { return time.Now() }
 
 // invPeakKW — пиковая мощность инвертора по выходу (10 с) сверх длительных
 // 33 кВт; зона 33–45 кВт — «перегруз» на гейдже потребления (Дом).
@@ -152,10 +157,11 @@ func stabOut(st State, ph int, contRyb bool) string {
 
 // Render builds the full SVG single-line diagram from the current state snapshot.
 func Render(st State, cfg config.Config) string {
-	s := &Builder{phase: animClock()}
+	s := &Builder{}
 	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 808" font-family="Arial,Helvetica,sans-serif">`)
 	s.p(`<rect x="0" y="0" width="1440" height="830" fill="#0f1115"/>`)
-	s.t(1428, 28, 18, cTxt, "end", cfg.Title)
+	// вместо заголовка — текущая временная метка
+	s.t(1428, 28, 18, cTxt, "end", clockNow().Format("2006-01-02 15:04:05"))
 
 	cont := st.State("sensor.sim_contactor")
 	gridAvail := st.On("binary_sensor.deye_sun_30k_grid")
@@ -1005,8 +1011,26 @@ func Render(st State, cfg config.Config) string {
 	// ПРАВО (под кольцами масло/ТО): наработка + последний запуск
 	lastAgo := firstNum("input_number.gen_last_run_h", "sensor.sim_gen_last_run_h")
 	lastMin := firstNum("input_number.gen_last_run_min", "sensor.sim_gen_last_run_min")
-	s.t(1306, 740, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
-	s.t(1306, 756, 10, cSub, "middle", fmt.Sprintf("посл. запуск %.0fч назад · работал %.0f мин", lastAgo, lastMin))
+	s.t(1306, 736, 12, cSub, "middle", fmt.Sprintf("Наработка: %.1f ч", runtime))
+	// последний запуск: абсолютная метка времени + длительность (Xч Yмин)
+	lastTime := clockNow().Add(-time.Duration(lastAgo * float64(time.Hour)))
+	durTxt := fmt.Sprintf("%d мин", int(lastMin))
+	if int(lastMin) >= 60 {
+		durTxt = fmt.Sprintf("%d ч %d мин", int(lastMin)/60, int(lastMin)%60)
+	}
+	s.t(1306, 752, 10, cSub, "middle", fmt.Sprintf("посл. запуск %s · длит. %s", lastTime.Format("2006-01-02 15:04"), durTxt))
+	// таймер обратного отсчёта до периодического (планового) запуска
+	if nextTs := firstNum("input_number.gen_next_run_ts", "sensor.sim_gen_next_run_ts"); nextTs > 0 {
+		rem := int(nextTs - float64(clockNow().Unix()))
+		if rem < 0 {
+			rem = 0
+		}
+		ct := fmt.Sprintf("%d ч %d мин", (rem%86400)/3600, (rem%3600)/60)
+		if d := rem / 86400; d > 0 {
+			ct = fmt.Sprintf("%d д %d ч %d мин", d, (rem%86400)/3600, (rem%3600)/60)
+		}
+		s.t(1306, 768, 10, cAmb, "middle", "до планового пуска: "+ct)
+	}
 
 	s.p(`</svg>`)
 	return s.String()

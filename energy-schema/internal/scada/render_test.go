@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
@@ -100,7 +101,7 @@ func fixtureStore() *hass.Store {
 //
 //	UPDATE_GOLDEN=1 go test ./internal/scada/...
 func TestRenderGolden(t *testing.T) {
-	animClock = func() float64 { return 0 } // детерминированные позиции стрелок
+	clockNow = func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) } // детерминизм меток времени
 	got := Render(fixtureStore(), config.Default())
 	golden := filepath.Join("testdata", "golden.svg")
 

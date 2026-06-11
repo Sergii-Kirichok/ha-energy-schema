@@ -1,20 +1,8 @@
 package scada
 
-import (
-	"math"
-	"time"
-)
-
 const (
-	flowBaseSpeed  = 29.07 // px/сек при нулевой нагрузке (медленно; −5% и ещё −10%)
-	flowLoadSpeed  = 7.695 // +px/сек на каждый кВт (больше нагрузка → быстрее)
-	flowMaxSpeed   = 102.6 // потолок скорости, px/сек
-	flowDotSpacing = 95.0  // целевой интервал между стрелками, px
+	flowDotSpacing = 95.0 // целевой интервал между стрелками-направлениями, px
 )
-
-// animClock returns the current animation time in seconds. Overridden to a
-// constant in tests so the golden render is deterministic.
-var animClock = func() float64 { return float64(time.Now().UnixNano()) / 1e9 }
 
 // arrow draws a small filled triangle (flow direction marker) centred at
 // (px,py), pointing along the unit direction (dx,dy).
@@ -32,9 +20,9 @@ func (s *Builder) arrow(px, py, dx, dy float64, col string) {
 //   - "bad":  red dashed line with a ✕ at the midpoint (real break/fault)
 //   - "lost": orange dashed line with a «?» at the midpoint (sensor link lost,
 //     line probably still live)
-//   - otherwise: solid colored line with moving dots at a UNIFORM linear speed
-//     (px/sec, independent of line length); more load (magKW) → a bit faster.
-//     Dot count scales with length so spacing stays constant. reverse flips dir.
+//   - otherwise: solid colored line with STATIC direction arrows (triangles)
+//     showing which way current flows; reverse flips the direction. magKW is
+//     kept for signature compatibility (no longer affects animation).
 func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float64) {
 	if st == "off" {
 		s.poly(cGry, 2, "7 7", pts...)
@@ -58,25 +46,19 @@ func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float
 		return
 	}
 	s.poly(col, 3, "", pts...)
-	// направление потока: к получателю (или обратно при reverse — отдача)
+	// направление потока: к получателю (или обратно при reverse — отдача).
+	// Стрелки СТАТИЧНЫЕ — показывают только направление тока, без движения.
 	seq := pts
 	if reverse {
 		seq = revPts(pts)
-	}
-	speed := flowBaseSpeed + magKW*flowLoadSpeed // px/сек, одинаково по всей линии
-	if speed > flowMaxSpeed {
-		speed = flowMaxSpeed
 	}
 	L := pathLen(seq)
 	n := int(L/flowDotSpacing + 0.5)
 	if n < 1 {
 		n = 1
 	}
-	// стрелки маршируют вдоль линии: смещение запекается из текущего времени
-	// (rsvg/ТВ не играет SMIL, поэтому позиции статичны и двигаются между кадрами).
-	off := math.Mod(s.phase*speed/L, 1.0)
 	for k := 0; k < n; k++ {
-		f := math.Mod(off+float64(k)/float64(n), 1.0)
+		f := (float64(k) + 0.5) / float64(n)
 		px, py, dx, dy := pointDir(seq, f*L)
 		s.arrow(px, py, dx, dy, col)
 	}
