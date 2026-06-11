@@ -100,6 +100,7 @@ func fixtureStore() *hass.Store {
 //
 //	UPDATE_GOLDEN=1 go test ./internal/scada/...
 func TestRenderGolden(t *testing.T) {
+	animClock = func() float64 { return 0 } // детерминированные позиции стрелок
 	got := Render(fixtureStore(), config.Default())
 	golden := filepath.Join("testdata", "golden.svg")
 

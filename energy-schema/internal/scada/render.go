@@ -152,7 +152,7 @@ func stabOut(st State, ph int, contRyb bool) string {
 
 // Render builds the full SVG single-line diagram from the current state snapshot.
 func Render(st State, cfg config.Config) string {
-	s := &Builder{}
+	s := &Builder{phase: animClock()}
 	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 808" font-family="Arial,Helvetica,sans-serif">`)
 	s.p(`<rect x="0" y="0" width="1440" height="830" fill="#0f1115"/>`)
 	s.t(1428, 28, 18, cTxt, "end", cfg.Title)
@@ -224,6 +224,11 @@ func Render(st State, cfg config.Config) string {
 	// шина -> АВР(резерв): активна только когда АВР в резерве. Падаем вертикально
 	// прямо с шины в точке x=905 (раньше шёл 985->905 по самой шине — наложение).
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 905, 275, 905, 300)
+	// точки на узлах шины стабилизаторов (соединение по правилам): выходы стабов и
+	// ответвления к контактору/АВР
+	for _, jx := range []float64{455, 720, 905, 985} {
+		s.dot(jx, 275, 3.5, cSub)
+	}
 	// Ввод2 -> Контактор: активна только когда контактор на Ввод2; выходим снизу
 	// карточки Зелёного (x=1300) и заводим к центру контактора (x=156)
 	s.flow(cBlu, map[bool]string{true: grnSt, false: "off"}[contOn], 2, exporting, 1300, 219, 1300, 252, 156, 252, 156, 300)
@@ -607,7 +612,7 @@ func Render(st State, cfg config.Config) string {
 	if avrStuck {
 		s.t(900, 444, 11, cOrg, "middle", "⚠ залип — инвертор кормит")
 	} else {
-		s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("переключений: всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
+		s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
 	}
 	// низ: связь RS-485 (как у контактора)
 	if avrLink {
@@ -829,10 +834,20 @@ func Render(st State, cfg config.Config) string {
 		s.p(`<text x="%g" y="684" font-size="16" text-anchor="middle" fill="%s"><tspan fill="%s">%s%.0f В</tspan> · %.1f А</text>`, gx[i], cTxt, vCol, vMark, vv, aa)
 	}
 	s.t(380, 710, 13, cSub, "start", "Всего")
-	// пик суммарной генерации за сегодня: число (крупнее) + красная капля над шкалой
+	// пик суммарной генерации за сегодня: красная капля над шкалой + значение РЯДОМ
+	// с каплей (информативнее, чем отдельная подпись «Max:»).
 	if pmax := st.DayMax("sensor.deye_sun_30k_pv_power"); pmax > 50 {
-		s.t(900, 710, 14, cRed, "end", "Max: "+kw(pmax))
 		s.barMax(380, 722, 520, pmax/1000, pvInputMaxKW, cRed)
+		mv := pmax / 1000
+		if mv > pvInputMaxKW {
+			mv = pvInputMaxKW
+		}
+		mx := 380 + 520*mv/pvInputMaxKW
+		if mx < 840 {
+			s.t(mx+10, 714, 13, cRed, "start", kw(pmax))
+		} else {
+			s.t(mx-10, 714, 13, cRed, "end", kw(pmax))
+		}
 	}
 	// шкала PV-входа до 39 кВт (шильдик); 33–39 — верхняя зона
 	s.bar(380, 722, 520, 44, pvtot/1000, pvInputMaxKW, []band{{cfg.PVT1, cAmb}, {cfg.PVT2, cGrn}, {cfg.PVT3, cOrg}, {cfg.PVMax, cRed}, {pvInputMaxKW, cRed2}}, kw(pvtot))

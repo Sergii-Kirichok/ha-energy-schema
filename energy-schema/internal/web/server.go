@@ -357,6 +357,16 @@ func (s *Server) loop() {
 	}
 }
 
+// loopAnim re-renders the on-disk SVG ~once a second so the marching flow arrows
+// move smoothly on the TV (host re-fetches /local/energy_schema.svg; rsvg can't
+// play SMIL). Data itself refreshes on the slower poll loop.
+func (s *Server) loopAnim() {
+	for {
+		time.Sleep(time.Second)
+		s.writeFiles()
+	}
+}
+
 // Run starts the background poll loop and the HTTP server (blocking).
 func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
@@ -369,6 +379,7 @@ func (s *Server) Run() error {
 	}
 	go s.seedRolls()
 	go s.loop()
+	go s.loopAnim()
 	go s.loopForecast()
 	go s.loopPVHistory()
 	go s.loopPersist()

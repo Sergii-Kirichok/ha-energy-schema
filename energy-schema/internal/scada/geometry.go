@@ -52,6 +52,20 @@ func pointAt(pts []float64, dist float64) (float64, float64) {
 	return pts[len(pts)-2], pts[len(pts)-1]
 }
 
+// pointDir returns the point at distance dist along the polyline plus the unit
+// tangent direction there (for orienting flow arrows).
+func pointDir(pts []float64, dist float64) (x, y, dx, dy float64) {
+	x, y = pointAt(pts, dist)
+	x2, y2 := pointAt(pts, dist+1.0)
+	dx, dy = x2-x, y2-y
+	if l := math.Hypot(dx, dy); l > 0 {
+		dx, dy = dx/l, dy/l
+	} else {
+		dx, dy = 1, 0
+	}
+	return
+}
+
 // revPts returns the x,y pairs in reverse order (for reversed flow animation).
 func revPts(pts []float64) []float64 {
 	r := make([]float64, len(pts))

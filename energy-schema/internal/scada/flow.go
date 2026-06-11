@@ -1,11 +1,31 @@
 package scada
 
+import (
+	"math"
+	"time"
+)
+
 const (
 	flowBaseSpeed  = 29.07 // px/сек при нулевой нагрузке (медленно; −5% и ещё −10%)
 	flowLoadSpeed  = 7.695 // +px/сек на каждый кВт (больше нагрузка → быстрее)
 	flowMaxSpeed   = 102.6 // потолок скорости, px/сек
-	flowDotSpacing = 110.0 // целевой интервал между кружочками, px
+	flowDotSpacing = 95.0  // целевой интервал между стрелками, px
 )
+
+// animClock returns the current animation time in seconds. Overridden to a
+// constant in tests so the golden render is deterministic.
+var animClock = func() float64 { return float64(time.Now().UnixNano()) / 1e9 }
+
+// arrow draws a small filled triangle (flow direction marker) centred at
+// (px,py), pointing along the unit direction (dx,dy).
+func (s *Builder) arrow(px, py, dx, dy float64, col string) {
+	const ahead, back, half = 5.5, 3.5, 4.0
+	nx, ny := -dy, dx // перпендикуляр
+	s.p(`<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="%s"/>`,
+		px+dx*ahead, py+dy*ahead,
+		px-dx*back+nx*half, py-dy*back+ny*half,
+		px-dx*back-nx*half, py-dy*back-ny*half, col)
+}
 
 // flow draws an energy path between points (flat x,y pairs) by state:
 //   - "off":  grey dashed line (deliberately not powered)
@@ -38,21 +58,26 @@ func (s *Builder) flow(col, st string, magKW float64, reverse bool, pts ...float
 		return
 	}
 	s.poly(col, 3, "", pts...)
-	pd := pathD(pts)
+	// направление потока: к получателю (или обратно при reverse — отдача)
+	seq := pts
 	if reverse {
-		pd = pathD(revPts(pts))
+		seq = revPts(pts)
 	}
 	speed := flowBaseSpeed + magKW*flowLoadSpeed // px/сек, одинаково по всей линии
 	if speed > flowMaxSpeed {
 		speed = flowMaxSpeed
 	}
-	L := pathLen(pts)
-	dur := L / speed // длиннее линия → дольше проход (но та же скорость)
+	L := pathLen(seq)
 	n := int(L/flowDotSpacing + 0.5)
 	if n < 1 {
 		n = 1
 	}
+	// стрелки маршируют вдоль линии: смещение запекается из текущего времени
+	// (rsvg/ТВ не играет SMIL, поэтому позиции статичны и двигаются между кадрами).
+	off := math.Mod(s.phase*speed/L, 1.0)
 	for k := 0; k < n; k++ {
-		s.p(`<circle r="4.5" fill="%s"><animateMotion dur="%.2fs" repeatCount="indefinite" begin="-%.2fs" path="%s"/></circle>`, col, dur, float64(k)*dur/float64(n), pd)
+		f := math.Mod(off+float64(k)/float64(n), 1.0)
+		px, py, dx, dy := pointDir(seq, f*L)
+		s.arrow(px, py, dx, dy, col)
 	}
 }
