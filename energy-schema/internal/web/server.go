@@ -225,6 +225,11 @@ func (s *Server) loopForecast() {
 		} else {
 			s.store.SetForecast(days)
 		}
+		if hrs, err := s.client.HourlyForecast(weatherEntity); err != nil {
+			log.Println("hourly forecast:", err)
+		} else {
+			s.store.SetHourly(hrs)
+		}
 		time.Sleep(30 * time.Minute)
 	}
 }

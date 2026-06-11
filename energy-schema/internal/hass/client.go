@@ -98,10 +98,18 @@ type ForecastDay struct {
 	Cloud     float64 // cloud coverage, %
 }
 
-// DailyForecast calls the weather.get_forecasts service and returns the daily
-// forecast for the entity (HA 2024.3+: forecasts are not state attributes).
+// DailyForecast / HourlyForecast call weather.get_forecasts (HA 2024.3+:
+// forecasts are not state attributes). Hourly carries cloud_coverage even when
+// daily omits it — used for an accurate daytime cloud average.
 func (c *Client) DailyForecast(entity string) ([]ForecastDay, error) {
-	body, _ := json.Marshal(map[string]string{"entity_id": entity, "type": "daily"})
+	return c.forecast(entity, "daily")
+}
+func (c *Client) HourlyForecast(entity string) ([]ForecastDay, error) {
+	return c.forecast(entity, "hourly")
+}
+
+func (c *Client) forecast(entity, ftype string) ([]ForecastDay, error) {
+	body, _ := json.Marshal(map[string]string{"entity_id": entity, "type": ftype})
 	req, err := http.NewRequest(http.MethodPost, c.APIBase+"/services/weather/get_forecasts?return_response", bytes.NewReader(body))
 	if err != nil {
 		return nil, err

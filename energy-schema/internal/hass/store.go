@@ -85,8 +85,11 @@ func (r *rollMax) avg(now time.Time) (float64, bool) {
 	return total / float64(n), true
 }
 
-func (r *rollMax) max(now time.Time) float64 {
-	cutoff := now.Unix()/300 - 288 // anything older than 24h is excluded
+func (r *rollMax) max(now time.Time) float64 { return r.maxWindow(now, 288) }
+
+// maxWindow returns the peak over the last `buckets` 5-min buckets (288=24h, 144=12h).
+func (r *rollMax) maxWindow(now time.Time, buckets int64) float64 {
+	cutoff := now.Unix()/300 - buckets
 	m := 0.0
 	for i := 0; i < 288; i++ {
 		if r.stamp[i] > cutoff && r.hi[i] > m {
@@ -195,6 +198,7 @@ type Store struct {
 	cur       map[string]Entity
 	lastGood  map[string]Entity
 	forecast  []ForecastDay
+	hourly    []ForecastDay // почасовой прогноз (несёт cloud_coverage)
 	dayMax    map[string]float64
 	dayYMD    string
 	roll      map[string]*rollMax // rolling 24h peak per numeric entity
@@ -289,6 +293,18 @@ func (s *Store) Max24h(entity string) float64 {
 	var v float64
 	if r != nil {
 		v = r.max(time.Now())
+	}
+	s.mu.RUnlock()
+	return v
+}
+
+// Max12h returns the entity's peak over the last 12 hours.
+func (s *Store) Max12h(entity string) float64 {
+	s.mu.RLock()
+	r := s.roll[entity]
+	var v float64
+	if r != nil {
+		v = r.maxWindow(time.Now(), 144)
 	}
 	s.mu.RUnlock()
 	return v
@@ -516,6 +532,37 @@ func (s *Store) SetForecast(days []ForecastDay) {
 	s.mu.Lock()
 	s.forecast = days
 	s.mu.Unlock()
+}
+
+// SetHourly stores the hourly forecast (carries cloud_coverage).
+func (s *Store) SetHourly(h []ForecastDay) {
+	s.mu.Lock()
+	s.hourly = h
+	s.mu.Unlock()
+}
+
+// CloudForDay returns the average cloud coverage (%) over the daylight hours
+// (local 08:00–18:00) of the day daysAhead from now, from the hourly forecast.
+// ok=false when the hourly forecast has no daytime data for that day — this is
+// far more accurate than mapping a single daily condition (e.g. a "rainy" day
+// that's actually clear in the morning) to a flat cloud %.
+func (s *Store) CloudForDay(daysAhead int) (float64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ty, tm, td := time.Now().AddDate(0, 0, daysAhead).Date()
+	sum, n := 0.0, 0
+	for _, h := range s.hourly {
+		lt := h.Time.Local()
+		y, m, d := lt.Date()
+		if y == ty && m == tm && d == td && lt.Hour() >= 8 && lt.Hour() < 18 {
+			sum += h.Cloud
+			n++
+		}
+	}
+	if n == 0 {
+		return 0, false
+	}
+	return sum / float64(n), true
 }
 
 // ForecastInfo returns the forecast cloud coverage (%) and condition daysAhead

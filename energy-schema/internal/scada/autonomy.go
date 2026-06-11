@@ -42,21 +42,29 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	if hSet == 0 && hRise == 0 { // нет данных солнца — простая оценка без прогноза
 		return usable / loadKW, fmt.Sprintf("без прогноза · нагрузка %.1f кВт", loadKW)
 	}
-	// облачность на завтра: дневной прогноз; если провайдер не отдал % — по condition
-	cloud, cond, okF := st.ForecastInfo(1)
-	if okF && cloud <= 0 {
-		cloud = condCloud(cond)
-	}
-	if !okF {
-		cloud = st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+	// облачность на завтра — среднее по светлому дню из почасового прогноза
+	// (точнее огрублённого дневного condition: «дождливый» день с ясным утром);
+	// фолбэк — дневной прогноз/condition, затем «живая».
+	cloud, okc1 := st.CloudForDay(1)
+	if !okc1 {
+		c, cond, okF := st.ForecastInfo(1)
+		if okF && c <= 0 {
+			c = condCloud(cond)
+		}
+		if !okF {
+			c = st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+		}
+		cloud = c
 	}
 	tomorrowKWh := clearDayKWh * (1 - 0.7*cloud/100)
-	// облачность на сегодня — «живая» (как в шапке солнца), а не дневной condition;
-	// иначе сегодня и завтра выходят одинаковыми, хотя погода разная.
-	cloudToday := st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
-	if cloudToday <= 0 {
-		if _, c0, ok0 := st.ForecastInfo(0); ok0 {
-			cloudToday = condCloud(c0)
+	// облачность на сегодня — так же по светлому дню (фолбэк — «живая»/condition)
+	cloudToday, okc0 := st.CloudForDay(0)
+	if !okc0 {
+		cloudToday = st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+		if cloudToday <= 0 {
+			if _, c0, ok0 := st.ForecastInfo(0); ok0 {
+				cloudToday = condCloud(c0)
+			}
 		}
 	}
 	todayKWh := clearDayKWh * (1 - 0.7*cloudToday/100)

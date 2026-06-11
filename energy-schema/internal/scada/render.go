@@ -40,12 +40,15 @@ type State interface {
 	HoursUntil(entity, key string) float64
 	// daily weather forecast (cloud % + condition, 0=today 1=tomorrow)
 	ForecastInfo(daysAhead int) (float64, string, bool)
+	// daytime cloud average (%) from the hourly forecast (0=today, 1=tomorrow)
+	CloudForDay(daysAhead int) (float64, bool)
 	// today's peak numeric value for an entity (for gauge max markers)
 	DayMax(entity string) float64
 	// energy (kWh) integrated for a *_power entity since local midnight
 	DayEnergy(entity string) float64
 	// rolling 24h peak/trough (for battery/home markers — independent of midnight)
 	Max24h(entity string) float64
+	Max12h(entity string) float64
 	Avg24h(entity string) (float64, bool)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
@@ -688,8 +691,8 @@ func Render(st State, cfg config.Config) string {
 	}
 	s.arc(bcx, bcy, 68, 180, gAng(soc, 100), socCol, 13)
 	s.marker(bcx, bcy, 68, gAng(soc, 100), 7)
-	// красная капля + выноска со значением пика заряда (SOC) за последние 24 ч
-	if ps := st.Max24h("sensor.deye_sun_30k_battery"); ps > 1 {
+	// красная капля + выноска со значением пика заряда (SOC) за последние 12 ч
+	if ps := st.Max12h("sensor.deye_sun_30k_battery"); ps > 1 {
 		a := gAng(ps, 100)
 		s.markerMax(bcx, bcy, 68, a, 68*0.12, cRed)
 		s.markerLabel(bcx, bcy, 68, a, fmt.Sprintf("%.0f%%", ps), cRed)
@@ -795,10 +798,15 @@ func Render(st State, cfg config.Config) string {
 	todayProd := st.Num("sensor.deye_sun_30k_today_production")
 	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", todayProd)
 	if st.Available("weather.forecast_home_assistant") {
-		cloudT := st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
-		if cloudT <= 0 {
-			if _, c0, ok0 := st.ForecastInfo(0); ok0 {
-				cloudT = condCloud(c0)
+		// облачность сегодня — среднее по светлому дню из почасового прогноза
+		// (точнее, чем мгновенная «живая» или огрублённый дневной condition).
+		cloudT, okc := st.CloudForDay(0)
+		if !okc {
+			cloudT = st.AttrNum("weather.forecast_home_assistant", "cloud_coverage")
+			if cloudT <= 0 {
+				if _, c0, ok0 := st.ForecastInfo(0); ok0 {
+					cloudT = condCloud(c0)
+				}
 			}
 		}
 		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч", todayProd, clearDay*(1-0.7*cloudT/100))
