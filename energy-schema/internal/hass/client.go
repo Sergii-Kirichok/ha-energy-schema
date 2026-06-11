@@ -28,6 +28,29 @@ func NewClient(apiBase, token string) *Client {
 	}
 }
 
+// TimeZone returns Home Assistant's configured time zone (e.g. "Europe/Kyiv")
+// so timestamps render in local time — the add-on container itself runs in UTC.
+func (c *Client) TimeZone() (string, error) {
+	req, err := http.NewRequest(http.MethodGet, c.APIBase+"/config", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var cfg struct {
+		TimeZone string `json:"time_zone"`
+	}
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return "", err
+	}
+	return cfg.TimeZone, nil
+}
+
 // FetchStates GETs /states and returns an entity_id -> Entity map (state +
 // last_changed, so the store can track how long a device has been offline).
 func (c *Client) FetchStates() (map[string]Entity, error) {

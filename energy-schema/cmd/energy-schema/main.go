@@ -5,6 +5,8 @@ package main
 import (
 	"log"
 	"os"
+	"time"
+	_ "time/tzdata" // встроенная база TZ (контейнер аддона без zoneinfo)
 
 	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
@@ -17,6 +19,17 @@ func main() {
 
 	store := hass.NewStore()
 	client := hass.NewClient(cfg.APIBase, cfg.Token)
+	// метки времени — в локальном поясе HA (контейнер аддона работает в UTC)
+	if tz, err := client.TimeZone(); err == nil && tz != "" {
+		if loc, e := time.LoadLocation(tz); e == nil {
+			time.Local = loc
+			log.Printf("timezone: %s", tz)
+		} else {
+			log.Printf("timezone %q load: %v", tz, e)
+		}
+	} else if err != nil {
+		log.Printf("timezone fetch: %v", err)
+	}
 	srv := web.New(cfg, store, client)
 
 	log.Fatal(srv.Run())
