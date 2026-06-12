@@ -382,6 +382,9 @@ func (s *Server) Run() error {
 	} else {
 		log.Println("roll: restored 24h buffers from", rollFile)
 	}
+	// зафиксировать текущие локальные сутки ДО старта опроса/сидинга, иначе первый
+	// Replace (видя пустой dayYMD) обнулит подсеянный из истории суточный пик
+	s.store.InitDayBoundary()
 	go s.seedRolls()
 	go s.loop()
 	go s.loopAnim()

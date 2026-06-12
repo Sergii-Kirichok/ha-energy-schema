@@ -215,6 +215,17 @@ type Store struct {
 	pvDaysN    int     // сколько суток в выборке
 }
 
+// InitDayBoundary stamps the current local calendar day so the FIRST Replace
+// after a restart does not wipe today's peaks seeded from history (the empty
+// "" → today transition in Replace would otherwise clear dayMax/dayEnergy).
+// Call once at startup, after time.Local is set. Genuine midnight rollover still
+// triggers the daily reset, since Replace compares against this stamp.
+func (s *Store) InitDayBoundary() {
+	s.mu.Lock()
+	s.dayYMD = time.Now().Format("2006-01-02")
+	s.mu.Unlock()
+}
+
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
 	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}, dayEnergy: map[string]float64{}}
