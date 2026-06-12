@@ -51,6 +51,9 @@ type State interface {
 	Max12h(entity string) float64
 	Min12h(entity string) (float64, bool)
 	Avg24h(entity string) (float64, bool)
+	// прогноз генерации (провайдер solar): суточные итоги + источник; почасовой профиль
+	SolarTotals() (today, todayLeft, tomorrow float64, source string, ok bool)
+	SolarProfile() (profile [72]float64, startDay, updated time.Time, ok bool)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
 	PVRecent() (float64, int)
@@ -814,7 +817,9 @@ func Render(st State, cfg config.Config) string {
 	// в шапке), чтобы прогноз сегодня и завтра (в карточке батареи) различались.
 	todayProd := st.Num("sensor.deye_sun_30k_today_production")
 	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", todayProd)
-	if st.Available("weather.forecast_home_assistant") {
+	if fcToday, fcLeft, _, _, ok := st.SolarTotals(); ok {
+		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f · ещё ~%.0f кВт·ч", todayProd, fcToday, fcLeft)
+	} else if st.Available("weather.forecast_home_assistant") {
 		// облачность сегодня — среднее по светлому дню из почасового прогноза
 		// (точнее, чем мгновенная «живая» или огрублённый дневной condition).
 		cloudT, okc := st.CloudForDay(0)

@@ -28,6 +28,23 @@ type Config struct {
 	// управление (АВР, контактор, генератор). Пусто = управляют все (как раньше).
 	// Любой пользователь не из списка получает режим «только просмотр».
 	ControlUsers []string
+
+	// PVStrings — физические стринги PV для прогноза генерации (геометрия). Одно
+	// «поле» может состоять из нескольких стрингов (одинаковый Field, разные углы).
+	// Настраивается из HA (опции аддона). Пусто = прогноз по геометрии выключен.
+	PVStrings []PVString
+	// PVACLimitKW — длительный потолок выдачи инвертора (клип прогноза на сумме).
+	PVACLimitKW float64
+}
+
+// PVString описывает один физический стринг панелей. Azimuth — КОМПАСНЫЙ
+// (0=север, 90=восток, 180=юг, 270=запад). Bifacial — доля прибавки задней
+// стороны (0.12 = +12%; 0 = моно). Controllable — можно ли отключать/курвлять
+// стринг (через control-шину RS-485).
+type PVString struct {
+	Name, Field                  string
+	KWp, Tilt, Azimuth, Bifacial float64
+	Controllable                 bool
 }
 
 // Default returns the built-in defaults applied before options are loaded.
@@ -68,6 +85,16 @@ type options struct {
 	PvT3           float64  `json:"pv_t3"`
 	PvDayClear     float64  `json:"pv_day_clear_kwh"`
 	ControlUsers   []string `json:"control_users"`
+	PVStrings      []struct {
+		Name         string  `json:"name"`
+		Field        string  `json:"field"`
+		KWp          float64 `json:"kwp"`
+		Tilt         float64 `json:"tilt"`
+		Azimuth      float64 `json:"azimuth"`
+		Bifacial     float64 `json:"bifacial"`
+		Controllable bool    `json:"controllable"`
+	} `json:"pv_strings"`
+	PVACLimit float64 `json:"pv_ac_limit_kw"`
 }
 
 // Load returns Default() with the options file and supervisorToken applied.
@@ -134,6 +161,20 @@ func (c *Config) apply(o options) {
 		c.PVDayClearKWh = o.PvDayClear
 	}
 	c.ControlUsers = o.ControlUsers
+	for _, s := range o.PVStrings {
+		if s.KWp <= 0 { // строка без мощности — пропускаем
+			continue
+		}
+		ps := PVString{Name: s.Name, Field: s.Field, KWp: s.KWp, Tilt: s.Tilt, Azimuth: s.Azimuth, Bifacial: s.Bifacial, Controllable: s.Controllable}
+		if ps.Field == "" {
+			ps.Field = ps.Name
+		}
+		c.PVStrings = append(c.PVStrings, ps)
+	}
+	c.PVACLimitKW = c.PVMax // дефолт — потолок PV-входа
+	if o.PVACLimit > 0 {
+		c.PVACLimitKW = o.PVACLimit
+	}
 	// LLAT path: only switch APIBase off the Supervisor default when a token is given.
 	if o.HaToken != "" {
 		c.Token = o.HaToken

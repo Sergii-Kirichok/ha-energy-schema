@@ -3,6 +3,7 @@ package scada
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 // condCloud estimates cloud coverage (%) from a HA condition string — daily
@@ -42,6 +43,14 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	if hSet == 0 && hRise == 0 { // нет данных солнца — простая оценка без прогноза
 		return usable / loadKW, fmt.Sprintf("без прогноза · нагрузка %.1f кВт", loadKW)
 	}
+	// почасовой прогноз генерации (провайдер solar) — если свежий и за сегодня,
+	// используем его профиль вместо облачной эвристики ниже
+	profile, fcStart, fcUpd, profOK := st.SolarProfile()
+	_, fcLeft, fcTomorrow, fcSrc, totOK := st.SolarTotals()
+	now := clockNow()
+	freshFc := profOK && totOK &&
+		fcStart.Year() == now.Year() && fcStart.YearDay() == now.YearDay() &&
+		now.Sub(fcUpd) < 3*time.Hour
 	// облачность на завтра — среднее по светлому дню из почасового прогноза
 	// (точнее огрублённого дневного condition: «дождливый» день с ясным утром);
 	// фолбэк — дневной прогноз/condition, затем «живая».
@@ -89,24 +98,40 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	}
 
 	// разбивка для подписи под цифрой: прогноз генерации на остаток сегодня и завтра
-	note := fmt.Sprintf("завтра ~%.0f кВт·ч (обл %.0f%%)", tomorrowKWh, cloud)
-	if dayNow {
-		note = fmt.Sprintf("сегодня ещё ~%.0f · ", todayLeft) + note
+	var note string
+	if freshFc {
+		if dayNow {
+			note = fmt.Sprintf("сегодня ещё ~%.0f · завтра ~%.0f кВт·ч · %s", fcLeft, fcTomorrow, fcSrc)
+		} else {
+			note = fmt.Sprintf("ночь, восход ~%.0fч · завтра ~%.0f кВт·ч · %s", hRise, fcTomorrow, fcSrc)
+		}
 	} else {
-		note = fmt.Sprintf("ночь, восход ~%.0fч · ", hRise) + note
+		note = fmt.Sprintf("завтра ~%.0f кВт·ч (обл %.0f%%)", tomorrowKWh, cloud)
+		if dayNow {
+			note = fmt.Sprintf("сегодня ещё ~%.0f · ", todayLeft) + note
+		} else {
+			note = fmt.Sprintf("ночь, восход ~%.0fч · ", hRise) + note
+		}
 	}
 
 	e := usable
 	const dt = 0.25
 	for t := 0.0; t < 48; t += dt {
 		pv := 0.0
-		switch {
-		case dayNow && t < hSet: // остаток сегодня — по прогнозу, не мгновенная мощность
-			pv = pvTodayAvg
-		case t >= hRise && t < hRise+dayLen: // завтрашний световой день
-			pv = pvTomorrow
-		case t >= hRise+24 && t < hRise+24+dayLen: // послезавтра — так же
-			pv = pvTomorrow
+		if freshFc {
+			// почасовой профиль кВт·ч/ч = средняя мощность кВт за час
+			if idx := int(now.Add(time.Duration(t * float64(time.Hour))).Sub(fcStart).Hours()); idx >= 0 && idx < 72 {
+				pv = profile[idx]
+			}
+		} else {
+			switch {
+			case dayNow && t < hSet: // остаток сегодня — по прогнозу, не мгновенная мощность
+				pv = pvTodayAvg
+			case t >= hRise && t < hRise+dayLen: // завтрашний световой день
+				pv = pvTomorrow
+			case t >= hRise+24 && t < hRise+24+dayLen: // послезавтра — так же
+				pv = pvTomorrow
+			}
 		}
 		e += (pv - loadKW) * dt
 		if e > usableMax {

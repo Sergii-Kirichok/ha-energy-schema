@@ -213,6 +213,73 @@ type Store struct {
 	pvClearKWh float64 // лучший суточный день — оценка «ясного дня» сезона
 	pvAvgKWh   float64 // средняя суточная генерация
 	pvDaysN    int     // сколько суток в выборке
+	solarFc    SolarForecastSnapshot
+	solarFcOK  bool
+}
+
+// SolarForecastSnapshot — готовый прогноз генерации, который провайдер кладёт в
+// Store, а рендер/автономия читают (как SetForecast/SetHourly). HourlyKWh —
+// почасовой профиль кВт·ч на 72ч от локальной полуночи StartDay (день[0]=сегодня).
+type SolarForecastSnapshot struct {
+	StartDay                            time.Time
+	HourlyKWh                           [72]float64
+	TodayKWh, TodayLeftKWh, TomorrowKWh float64
+	Source                              string // "open-meteo" | "met.no" | "clearsky"
+	UpdatedAt                           time.Time
+}
+
+// SetSolarForecast stores the latest solar generation forecast snapshot.
+func (s *Store) SetSolarForecast(snap SolarForecastSnapshot) {
+	s.mu.Lock()
+	s.solarFc, s.solarFcOK = snap, true
+	s.mu.Unlock()
+}
+
+// SolarForecast returns the latest forecast snapshot (ok=false if none yet).
+func (s *Store) SolarForecast() (SolarForecastSnapshot, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.solarFc, s.solarFcOK
+}
+
+// SolarTotals exposes the forecast day totals as primitives (for scada.State,
+// keeping the renderer decoupled from the snapshot type).
+func (s *Store) SolarTotals() (today, todayLeft, tomorrow float64, source string, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.solarFcOK {
+		return 0, 0, 0, "", false
+	}
+	f := s.solarFc
+	return f.TodayKWh, f.TodayLeftKWh, f.TomorrowKWh, f.Source, true
+}
+
+// SolarProfile exposes the 72h hourly kWh profile + its start day and update time.
+func (s *Store) SolarProfile() (profile [72]float64, startDay, updated time.Time, ok bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.solarFcOK {
+		return profile, time.Time{}, time.Time{}, false
+	}
+	return s.solarFc.HourlyKWh, s.solarFc.StartDay, s.solarFc.UpdatedAt, true
+}
+
+// HourlyCloud returns per-local-hour cloud coverage (%) for the day daysAhead
+// from the hourly forecast, plus a presence mask — for the Met.no fallback.
+func (s *Store) HourlyCloud(daysAhead int) ([24]float64, [24]bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out [24]float64
+	var ok [24]bool
+	ty, tm, td := time.Now().AddDate(0, 0, daysAhead).Date()
+	for _, h := range s.hourly {
+		lt := h.Time.Local()
+		if y, m, d := lt.Date(); y == ty && m == tm && d == td {
+			out[lt.Hour()] = h.Cloud
+			ok[lt.Hour()] = true
+		}
+	}
+	return out, ok
 }
 
 // InitDayBoundary stamps the current local calendar day so the FIRST Replace

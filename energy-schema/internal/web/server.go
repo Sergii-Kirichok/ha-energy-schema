@@ -15,6 +15,7 @@ import (
 	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
 	"energy-schema/internal/scada"
+	"energy-schema/internal/solar"
 )
 
 const (
@@ -50,6 +51,7 @@ type Server struct {
 	cfg    config.Config
 	store  *hass.Store
 	client *hass.Client
+	solar  *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
 }
 
 // New builds a Server.
@@ -262,6 +264,7 @@ func (s *Server) loopPVHistory() {
 var rollSeedEntities = []string{
 	"sensor.deye_sun_30k_load_power",
 	"sensor.deye_sun_30k_battery",
+	"sensor.deye_sun_30k_pv_power", // часовой факт генерации для калибровки прогноза
 }
 
 // rollFile persists the rolling 24h buffers across restarts (the HA recorder
@@ -273,6 +276,7 @@ const rollFile = "/data/roll.json"
 var rollPersistEntities = []string{
 	"sensor.deye_sun_30k_battery",
 	"sensor.deye_sun_30k_load_power",
+	"sensor.deye_sun_30k_pv_power",
 }
 
 // loopPersist saves the rolling buffers to disk every minute.
@@ -372,6 +376,26 @@ func (s *Server) loopAnim() {
 	}
 }
 
+// loopSolarForecast refreshes the generation forecast snapshot every 30 minutes
+// (Open-Meteo recomputes ~every 15 min; more often is pointless).
+func (s *Server) loopSolarForecast() {
+	for {
+		snap := s.solar.Build(time.Now(), s.store)
+		s.store.SetSolarForecast(hass.SolarForecastSnapshot{
+			StartDay:     snap.StartDay,
+			HourlyKWh:    snap.HourlyKWh,
+			TodayKWh:     snap.Today,
+			TodayLeftKWh: snap.TodayLeft,
+			TomorrowKWh:  snap.Tomorrow,
+			Source:       snap.Source,
+			UpdatedAt:    time.Now(),
+		})
+		log.Printf("solar: прогноз (%s) сегодня %.1f · остаток %.1f · завтра %.1f кВт·ч",
+			snap.Source, snap.Today, snap.TodayLeft, snap.Tomorrow)
+		time.Sleep(30 * time.Minute)
+	}
+}
+
 // Run starts the background poll loop and the HTTP server (blocking).
 func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
@@ -391,6 +415,28 @@ func (s *Server) Run() error {
 	go s.loopForecast()
 	go s.loopPVHistory()
 	go s.loopPersist()
+	// прогноз генерации (геометрия + Open-Meteo) — если заданы стринги и координаты
+	if len(s.cfg.PVStrings) > 0 {
+		if lat, lon, elev, err := s.client.Location(); err != nil {
+			log.Println("solar: не удалось получить координаты HA:", err)
+		} else if lat == 0 && lon == 0 {
+			log.Println("solar: координаты HA не заданы (0,0) — прогноз по геометрии выключен")
+		} else {
+			arrays := make([]solar.Array, 0, len(s.cfg.PVStrings))
+			for _, ps := range s.cfg.PVStrings {
+				arrays = append(arrays, solar.Array{Name: ps.Name, KWp: ps.KWp, TiltDeg: ps.Tilt, AzDeg: ps.Azimuth, Bifacial: ps.Bifacial})
+			}
+			s.solar = &solar.Provider{
+				Loc:     solar.Location{Lat: lat, Lon: lon, AltM: elev},
+				Arrays:  arrays,
+				ACLimit: s.cfg.PVACLimitKW,
+				TZ:      time.Local.String(),
+				HTTP:    &http.Client{Timeout: 15 * time.Second},
+			}
+			go s.loopSolarForecast()
+			log.Printf("solar: провайдер активен — %d стрингов, AC-лимит %.0f кВт, tz %s, %.4f,%.4f", len(arrays), s.cfg.PVACLimitKW, time.Local.String(), lat, lon)
+		}
+	}
 	http.HandleFunc("/schematic.svg", s.handleSVG)
 	http.HandleFunc("/control", s.handleControl)
 	http.HandleFunc("/", s.handleIndex)

@@ -51,6 +51,31 @@ func (c *Client) TimeZone() (string, error) {
 	return cfg.TimeZone, nil
 }
 
+// Location returns the site latitude/longitude/elevation from /config (the same
+// endpoint as TimeZone). Used to drive the solar geometry and Open-Meteo query.
+func (c *Client) Location() (lat, lon, elev float64, err error) {
+	req, err := http.NewRequest(http.MethodGet, c.APIBase+"/config", nil)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var cfg struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+		Elevation float64 `json:"elevation"`
+	}
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return 0, 0, 0, err
+	}
+	return cfg.Latitude, cfg.Longitude, cfg.Elevation, nil
+}
+
 // FetchStates GETs /states and returns an entity_id -> Entity map (state +
 // last_changed, so the store can track how long a device has been offline).
 func (c *Client) FetchStates() (map[string]Entity, error) {
