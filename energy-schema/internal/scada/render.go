@@ -163,6 +163,27 @@ func stabOut(st State, ph int, contRyb bool) string {
 }
 
 // Render builds the full SVG single-line diagram from the current state snapshot.
+// hoursToGen — часы до начала заметной генерации по прогнозному почасовому
+// профилю (учитывает ориентацию/наклон полей и погоду; калибровка по истории за
+// последние дни уточняет профиль). Возвращает 0, если профиля нет или старт
+// генерации не найден в горизонте. Фолбэк без профиля — время до восхода.
+func hoursToGen(st State) float64 {
+	prof, sd, _, ok := st.SolarProfile()
+	if !ok {
+		return st.HoursUntil("sun.sun", "next_rising")
+	}
+	const genThresh = 0.5 // кВт·ч/ч — порог «генерация началась»
+	now := clockNow()
+	for i := 0; i < 72; i++ {
+		if prof[i] >= genThresh {
+			if d := sd.Add(time.Duration(i) * time.Hour).Sub(now).Hours(); d > 0 {
+				return d
+			}
+		}
+	}
+	return 0
+}
+
 func Render(st State, cfg config.Config) string {
 	s := &Builder{}
 	s.p(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 808" font-family="Arial,Helvetica,sans-serif">`)
@@ -795,8 +816,12 @@ func Render(st State, cfg config.Config) string {
 	s.t(308, 690, 20, rcol, "end", fmt.Sprintf("%.1f кВт·ч", usableKWh))
 	s.t(40, 716, 13, cSub, "start", "Только от АКБ")
 	batCol := cTxt
-	if hr := st.HoursUntil("sun.sun", "next_rising"); st.State("sun.sun") != "above_horizon" && hr > 0 && batH < hr {
-		batCol = cRed // ночью батареи не хватит до восхода
+	// красный, если батареи в одиночку не хватит ДО НАЧАЛА ГЕНЕРАЦИИ (по прогнозу
+	// с учётом полей и истории), пока солнце практически не даёт
+	if pvKW < 0.3 {
+		if hGen := hoursToGen(st); hGen > 0 && batH < hGen {
+			batCol = cRed
+		}
 	}
 	s.t(308, 716, 20, batCol, "end", hfmt(batH))
 	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
