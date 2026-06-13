@@ -46,7 +46,7 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	// почасовой прогноз генерации (провайдер solar) — если свежий и за сегодня,
 	// используем его профиль вместо облачной эвристики ниже
 	profile, fcStart, fcUpd, profOK := st.SolarProfile()
-	_, fcLeft, fcTomorrow, fcSrc, totOK := st.SolarTotals()
+	_, fcLeft, fcTomorrow, _, totOK := st.SolarTotals()
 	now := clockNow()
 	freshFc := profOK && totOK &&
 		fcStart.Year() == now.Year() && fcStart.YearDay() == now.YearDay() &&
@@ -101,9 +101,9 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 	var note string
 	if freshFc {
 		if dayNow {
-			note = fmt.Sprintf("сегодня ещё ~%.0f · завтра ~%.0f кВт·ч · %s", fcLeft, fcTomorrow, fcSrc)
+			note = fmt.Sprintf("сегодня ещё ~%.0f · завтра ~%.0f кВт·ч", fcLeft, fcTomorrow)
 		} else {
-			note = fmt.Sprintf("ночь, восход ~%.0fч · завтра ~%.0f кВт·ч · %s", hRise, fcTomorrow, fcSrc)
+			note = fmt.Sprintf("ночь, восход ~%.0fч · завтра ~%.0f кВт·ч", hRise, fcTomorrow)
 		}
 	} else {
 		note = fmt.Sprintf("завтра ~%.0f кВт·ч (обл %.0f%%)", tomorrowKWh, cloud)
@@ -138,9 +138,6 @@ func simulateAutonomy(st State, usable, usableMax, loadKW, pvNowKW, clearDayKWh 
 			e = usableMax
 		}
 		if e <= 0 {
-			if !dayNow && t < hRise {
-				return t, fmt.Sprintf("до восхода ~%.0fч НЕ дотянем · %s", hRise, note)
-			}
 			return t, note
 		}
 	}

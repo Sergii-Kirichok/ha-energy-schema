@@ -794,7 +794,11 @@ func Render(st State, cfg config.Config) string {
 	s.t(40, 690, 13, cSub, "start", "Доступно")
 	s.t(308, 690, 20, rcol, "end", fmt.Sprintf("%.1f кВт·ч", usableKWh))
 	s.t(40, 716, 13, cSub, "start", "Только от АКБ")
-	s.t(308, 716, 20, cTxt, "end", hfmt(batH))
+	batCol := cTxt
+	if hr := st.HoursUntil("sun.sun", "next_rising"); st.State("sun.sun") != "above_horizon" && hr > 0 && batH < hr {
+		batCol = cRed // ночью батареи не хватит до восхода
+	}
+	s.t(308, 716, 20, batCol, "end", hfmt(batH))
 	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
 	s.t(308, 742, 20, cGrn, "end", hfmt(autoH))
 	// откуда берётся прогноз генерации + детали симуляции

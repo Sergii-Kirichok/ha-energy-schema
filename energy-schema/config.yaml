@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.5.2"
+version: "0.5.3"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы BobRIXOS (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
