@@ -21,7 +21,7 @@ import (
 const (
 	listen       = ":8099"
 	wwwDir       = "/homeassistant/www"
-	pollInterval = 5 * time.Second
+	pollInterval = 2 * time.Second // опрос HA (раньше 5с) — меньше задержка до экрана
 )
 
 // indexHTML auto-reloads the given SVG file every refresh seconds.
@@ -76,7 +76,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	// разово помогает узнать точное имя пользователя HA для control_users
 	log.Printf("index: user=%q id=%q control=%s",
 		r.Header.Get("X-Remote-User-Display-Name"), r.Header.Get("X-Remote-User-Id"), canCtl)
-	fmt.Fprintf(w, indexHTML, canCtl, "schematic.svg", s.cfg.Refresh)
+	// schematic.svg рендерится вживую при каждой загрузке; перезагружаем раз в 1с
+	// (а не каждые cfg.Refresh) — минимальная задержка отображения данных
+	fmt.Fprintf(w, indexHTML, canCtl, "schematic.svg", 1)
 }
 
 // userAllowed reports whether the HA user making this ingress request may control
