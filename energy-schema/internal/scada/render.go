@@ -54,6 +54,7 @@ type State interface {
 	// прогноз генерации (провайдер solar): суточные итоги + источник; почасовой профиль
 	SolarTotals() (today, todayLeft, tomorrow float64, source string, ok bool)
 	SolarProfile() (profile [72]float64, startDay, updated time.Time, ok bool)
+	SolarCloudNow() (float64, bool) // облачность Open-Meteo на текущий час (%)
 	// empirical generation baseline from long-term statistics
 	PVClearDayKWh() float64 // best recent day (clear-day proxy), 0 if unknown
 	PVRecent() (float64, int)
@@ -163,6 +164,19 @@ func stabOut(st State, ph int, contRyb bool) string {
 }
 
 // Render builds the full SVG single-line diagram from the current state snapshot.
+// cloudCond мапит облачность (%) в condition для иконки погоды (когда берём
+// облачность из Open-Meteo, а не из Met.no).
+func cloudCond(c float64) string {
+	switch {
+	case c < 20:
+		return "sunny"
+	case c < 60:
+		return "partlycloudy"
+	default:
+		return "cloudy"
+	}
+}
+
 // hoursToGen — часы до начала заметной генерации по прогнозному почасовому
 // профилю (учитывает ориентацию/наклон полей и погоду; калибровка по истории за
 // последние дни уточняет профиль). Возвращает 0, если профиля нет или старт
@@ -838,9 +852,17 @@ func Render(st State, cfg config.Config) string {
 	s.head(360, 520, 560, "sun", "Солнышко", "")
 	// текущая погода: иконка состояния + значения, по центру шапки
 	if w := "weather.forecast_home_assistant"; st.State(w) != "" && st.State(w) != "unavailable" {
-		s.wicon(st.State(w), 548, 540)
+		// облачность и иконку берём из Open-Meteo (точнее Met.no, который сильно
+		// врёт); Met.no — фолбэк + источник температуры/ветра
+		cloudPct := st.AttrNum(w, "cloud_coverage")
+		cond := st.State(w)
+		if c, ok := st.SolarCloudNow(); ok {
+			cloudPct = c
+			cond = cloudCond(c)
+		}
+		s.wicon(cond, 548, 540)
 		s.t(566, 548, 14, cTxt, "start", fmt.Sprintf("%.0f°C · обл %.0f%% · %.1f м/с",
-			st.AttrNum(w, "temperature"), st.AttrNum(w, "cloud_coverage"), st.AttrNum(w, "wind_speed")))
+			st.AttrNum(w, "temperature"), cloudPct, st.AttrNum(w, "wind_speed")))
 	}
 	// сегодня: факт / прогноз на день — кратко. Облачность берём «живую» (как ниже
 	// в шапке), чтобы прогноз сегодня и завтра (в карточке батареи) различались.

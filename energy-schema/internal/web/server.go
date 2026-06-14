@@ -388,6 +388,7 @@ func (s *Server) loopSolarForecast() {
 			TodayLeftKWh: snap.TodayLeft,
 			TomorrowKWh:  snap.Tomorrow,
 			Source:       snap.Source,
+			CloudNow:     snap.CloudNow,
 			UpdatedAt:    time.Now(),
 		})
 		log.Printf("solar: прогноз (%s) сегодня %.1f · остаток %.1f · завтра %.1f кВт·ч",

@@ -23,6 +23,7 @@ type Snapshot struct {
 	HourlyKWh                  [72]float64
 	Today, TodayLeft, Tomorrow float64
 	Source                     string
+	CloudNow                   float64 // облачность Open-Meteo на текущий час, % (-1 если нет)
 }
 
 // CloudSource supplies fallback per-hour cloud (implemented by *hass.Store).
@@ -44,7 +45,8 @@ func (p *Provider) Build(now time.Time, cs CloudSource) Snapshot {
 		copy(clr[day*24:day*24+24], hc[:])
 	}
 
-	raw := p.fromOpenMeteo(startDay)
+	raw, cloudNow := p.fromOpenMeteo(startDay, now)
+	snap.CloudNow = cloudNow
 	src := "open-meteo"
 	if raw == nil {
 		if cs != nil {
@@ -87,15 +89,22 @@ func (p *Provider) Build(now time.Time, cs CloudSource) Snapshot {
 	return snap
 }
 
-// fromOpenMeteo returns the raw hourly kWh from Open-Meteo, or nil on failure.
-func (p *Provider) fromOpenMeteo(startDay time.Time) *[72]float64 {
+// fromOpenMeteo returns the raw hourly kWh from Open-Meteo (nil if no generation
+// in horizon / fetch failed) plus the cloud cover (%) for the current local hour
+// (-1 if unavailable — valid even at night, when the profile itself is nil).
+func (p *Provider) fromOpenMeteo(startDay, now time.Time) (*[72]float64, float64) {
 	hours, err := FetchOpenMeteo(p.Loc, p.Arrays, p.TZ, p.HTTP)
 	if err != nil || len(hours) == 0 {
-		return nil
+		return nil, -1
 	}
+	curHour := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
+	cloudNow := -1.0
 	var out [72]float64
 	any := false
 	for _, oh := range hours {
+		if oh.HourStart.Equal(curHour) {
+			cloudNow = oh.CloudPct
+		}
 		idx := int(oh.HourStart.Sub(startDay).Hours() + 0.5)
 		if idx < 0 || idx >= 72 {
 			continue
@@ -113,9 +122,9 @@ func (p *Provider) fromOpenMeteo(startDay time.Time) *[72]float64 {
 		}
 	}
 	if !any {
-		return nil
+		return nil, cloudNow
 	}
-	return &out
+	return &out, cloudNow
 }
 
 // fromCloud modulates the clear-sky ceiling by hourly cloud (Kasten–Czeplak).

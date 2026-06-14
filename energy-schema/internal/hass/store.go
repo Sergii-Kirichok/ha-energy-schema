@@ -224,7 +224,8 @@ type SolarForecastSnapshot struct {
 	StartDay                            time.Time
 	HourlyKWh                           [72]float64
 	TodayKWh, TodayLeftKWh, TomorrowKWh float64
-	Source                              string // "open-meteo" | "met.no" | "clearsky"
+	Source                              string  // "open-meteo" | "met.no" | "clearsky"
+	CloudNow                            float64 // облачность Open-Meteo на текущий час, % (-1 нет)
 	UpdatedAt                           time.Time
 }
 
@@ -252,6 +253,17 @@ func (s *Store) SolarTotals() (today, todayLeft, tomorrow float64, source string
 	}
 	f := s.solarFc
 	return f.TodayKWh, f.TodayLeftKWh, f.TomorrowKWh, f.Source, true
+}
+
+// SolarCloudNow returns the Open-Meteo cloud cover (%) for the current hour from
+// the latest snapshot (ok=false if no snapshot or no Open-Meteo cloud datum).
+func (s *Store) SolarCloudNow() (float64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.solarFcOK || s.solarFc.CloudNow < 0 {
+		return 0, false
+	}
+	return s.solarFc.CloudNow, true
 }
 
 // SolarProfile exposes the 72h hourly kWh profile + its start day and update time.
