@@ -868,8 +868,10 @@ func Render(st State, cfg config.Config) string {
 	// в шапке), чтобы прогноз сегодня и завтра (в карточке батареи) различались.
 	todayProd := st.Num("sensor.deye_sun_30k_today_production")
 	todayKWhTxt := fmt.Sprintf("сегодня %.0f кВт·ч", todayProd)
-	if fcToday, _, _, _, ok := st.SolarTotals(); ok {
-		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч", todayProd, fcToday)
+	if _, fcLeft, _, _, ok := st.SolarTotals(); ok {
+		// прогноз на день = факт + прогноз на остаток (само корректируется, не
+		// показывает завышенную утреннюю оценку, когда день пошёл иначе)
+		todayKWhTxt = fmt.Sprintf("сегодня %.0f / %.0f кВт·ч", todayProd, todayProd+fcLeft)
 	} else if st.Available("weather.forecast_home_assistant") {
 		// облачность сегодня — среднее по светлому дню из почасового прогноза
 		// (точнее, чем мгновенная «живая» или огрублённый дневной condition).
