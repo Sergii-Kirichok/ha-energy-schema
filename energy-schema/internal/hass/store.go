@@ -276,6 +276,53 @@ func (s *Store) SolarProfile() (profile [72]float64, startDay, updated time.Time
 	return s.solarFc.HourlyKWh, s.solarFc.StartDay, s.solarFc.UpdatedAt, true
 }
 
+// HourlyEnergy integrates the entity's energy (kWh) over the hour starting at
+// hourUnix from its 5-min roll buckets, plus how many of the 12 buckets had data
+// (coverage). Used to learn the calibration on real generation per hour.
+func (s *Store) HourlyEnergy(entity string, hourUnix int64) (float64, int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	r := s.roll[entity]
+	if r == nil {
+		return 0, 0
+	}
+	p0 := hourUnix / 300
+	kwh := 0.0
+	cov := 0
+	for k := int64(0); k < 12; k++ {
+		p := p0 + k
+		i := p % 288
+		if r.stamp[i] == p && r.cnt[i] > 0 {
+			kwh += (r.sum[i] / r.cnt[i]) / 1000.0 / 12.0 // средняя мощность Вт × (5 мин = 1/12 ч)
+			cov++
+		}
+	}
+	return kwh, cov
+}
+
+// HourlyMax returns the peak value of an entity over the hour starting at
+// hourUnix from the roll buckets (ok=false if no data) — e.g. max SOC for the
+// full-battery calibration gate.
+func (s *Store) HourlyMax(entity string, hourUnix int64) (float64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	r := s.roll[entity]
+	if r == nil {
+		return 0, false
+	}
+	p0 := hourUnix / 300
+	m := 0.0
+	ok := false
+	for k := int64(0); k < 12; k++ {
+		p := p0 + k
+		i := p % 288
+		if r.stamp[i] == p && (!ok || r.hi[i] > m) {
+			m, ok = r.hi[i], true
+		}
+	}
+	return m, ok
+}
+
 // HourlyCloud returns per-local-hour cloud coverage (%) for the day daysAhead
 // from the hourly forecast, plus a presence mask — for the Met.no fallback.
 func (s *Store) HourlyCloud(daysAhead int) ([24]float64, [24]bool) {

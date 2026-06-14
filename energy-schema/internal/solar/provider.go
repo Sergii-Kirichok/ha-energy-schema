@@ -15,6 +15,7 @@ type Provider struct {
 	ACLimit float64
 	TZ      string // IANA name for Open-Meteo
 	HTTP    *http.Client
+	Cal     *Calibrator // самокалибровка (nil = без калибровки)
 }
 
 // Snapshot mirrors the fields the Store/renderer need.
@@ -24,6 +25,7 @@ type Snapshot struct {
 	Today, TodayLeft, Tomorrow float64
 	Source                     string
 	CloudNow                   float64 // облачность Open-Meteo на текущий час, % (-1 если нет)
+	CalibDays                  float64 // эффективный вес калибровки (≈ дней истории)
 }
 
 // CloudSource supplies fallback per-hour cloud (implemented by *hass.Store).
@@ -64,14 +66,27 @@ func (p *Provider) Build(now time.Time, cs CloudSource) Snapshot {
 	}
 
 	for i := 0; i < 72; i++ {
-		v := raw[i]
-		if lim := 1.3 * clr[i]; lim > 0 && v > lim { // не выше 1.3× физического потолка
-			v = lim
-		}
-		if v < 0 {
-			v = 0
+		hourStart := startDay.Add(time.Duration(i) * time.Hour)
+		var v float64
+		if p.Cal != nil {
+			v = p.Cal.Apply(src, raw[i], clr[i]) // поправка по погоде (KBin) + уровень
+			if hourStart.After(now) {            // будущие часы — морозим сырой прогноз для обучения
+				p.Cal.Freeze(hourStart.Unix(), raw[i], clr[i], src)
+			}
+		} else {
+			v = raw[i]
+			if lim := 1.3 * clr[i]; lim > 0 && v > lim { // не выше 1.3× физического потолка
+				v = lim
+			}
+			if v < 0 {
+				v = 0
+			}
 		}
 		snap.HourlyKWh[i] = v
+	}
+	if p.Cal != nil {
+		w, _, _, _ := p.Cal.Status()
+		snap.CalibDays = w
 	}
 
 	for h := 0; h < 24; h++ {

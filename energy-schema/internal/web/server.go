@@ -279,12 +279,17 @@ var rollPersistEntities = []string{
 	"sensor.deye_sun_30k_pv_power",
 }
 
-// loopPersist saves the rolling buffers to disk every minute.
+// loopPersist saves the rolling buffers (and calibration) to disk every minute.
 func (s *Server) loopPersist() {
 	for {
 		time.Sleep(60 * time.Second)
 		if err := s.store.SaveRoll(rollFile, rollPersistEntities); err != nil {
 			log.Println("save roll:", err)
+		}
+		if s.solar != nil && s.solar.Cal != nil {
+			if err := s.solar.Cal.Save(); err != nil {
+				log.Println("save calib:", err)
+			}
 		}
 	}
 }
@@ -397,6 +402,25 @@ func (s *Server) loopSolarForecast() {
 	}
 }
 
+// loopCalib learns the forecast calibration from finished hours every 5 minutes
+// (actual hourly generation from pv_power roll vs the frozen forecast, gated by
+// coverage and full-battery SOC).
+func (s *Server) loopCalib() {
+	const pv = "sensor.deye_sun_30k_pv_power"
+	const soc = "sensor.deye_sun_30k_battery"
+	for {
+		time.Sleep(5 * time.Minute)
+		if s.solar == nil || s.solar.Cal == nil {
+			continue
+		}
+		s.solar.Cal.ObserveDue(time.Now(),
+			func(h int64) (float64, int) { return s.store.HourlyEnergy(pv, h) },
+			func(h int64) (float64, bool) { return s.store.HourlyMax(soc, h) })
+		w, rl, days, mae := s.solar.Cal.Status()
+		log.Printf("calib: уровень W=%.1f R=%.2f · дней=%d · MAE7=%.1f кВт·ч", w, rl, days, mae)
+	}
+}
+
 // Run starts the background poll loop and the HTTP server (blocking).
 func (s *Server) Run() error {
 	_ = os.MkdirAll(wwwDir, 0755)
@@ -433,8 +457,10 @@ func (s *Server) Run() error {
 				ACLimit: s.cfg.PVACLimitKW,
 				TZ:      time.Local.String(),
 				HTTP:    &http.Client{Timeout: 15 * time.Second},
+				Cal:     solar.NewCalibrator("/data/calib.json", solar.GeoHash(arrays)),
 			}
 			go s.loopSolarForecast()
+			go s.loopCalib()
 			log.Printf("solar: провайдер активен — %d стрингов, AC-лимит %.0f кВт, tz %s, %.4f,%.4f", len(arrays), s.cfg.PVACLimitKW, time.Local.String(), lat, lon)
 		}
 	}
