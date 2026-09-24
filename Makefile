@@ -108,6 +108,14 @@ logs: require-deploy
 	  "$(HA_KEY)" "$(HA_USER)" "$(HA_HOST)" "$(ADDON_SLUG)" \
 	  | plink -batch -pw "$(DEPLOY_PASS)" $(DEPLOY_USER)@$(DEPLOY_HOST) /bin/sh
 
+## remote-sh: run a local shell script on HAOS via the bridge (usage: make remote-sh SCRIPT=scripts/ha_states.sh)
+remote-sh: require-deploy
+	@test -n "$(SCRIPT)" || { echo 'SCRIPT is required, e.g. make remote-sh SCRIPT=scripts/ha_states.sh'; exit 1; }
+	pscp -batch -pw "$(DEPLOY_PASS)" $(SCRIPT) $(DEPLOY_USER)@$(DEPLOY_HOST):/tmp/remote.sh
+	printf 'ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 22 %s@%s "SLUG=%s sh -s" < /tmp/remote.sh\n' \
+	  "$(HA_KEY)" "$(HA_USER)" "$(HA_HOST)" "$(ADDON_SLUG)" \
+	  | plink -batch -pw "$(DEPLOY_PASS)" $(DEPLOY_USER)@$(DEPLOY_HOST) /bin/sh
+
 ## deploy: check + push current state + remote update (usage: make deploy MSG="...")
 deploy: check push remote-update
 
@@ -127,4 +135,4 @@ require-deploy:
 	@test -n "$(DEPLOY_HOST)" || { echo "deploy config missing: cp deploy.local.mk.example deploy.local.mk and fill it in"; exit 1; }
 
 .PHONY: help fmt fmt-check vet test cover tidy build golden check bump clean \
-        push remote-update logs deploy release require-msg require-deploy
+        push remote-update logs remote-sh deploy release require-msg require-deploy
