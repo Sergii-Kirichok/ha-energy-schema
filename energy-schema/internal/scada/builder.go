@@ -13,7 +13,7 @@ type Builder struct{ b strings.Builder }
 func (s *Builder) String() string { return s.b.String() }
 
 // p writes a formatted fragment.
-func (s *Builder) p(f string, a ...interface{}) { s.b.WriteString(fmt.Sprintf(f, a...)) }
+func (s *Builder) p(f string, a ...interface{}) { fmt.Fprintf(&s.b, f, a...) }
 
 // box draws a rounded card rectangle.
 func (s *Builder) box(x, y, w, h float64) {

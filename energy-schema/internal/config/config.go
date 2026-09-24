@@ -4,6 +4,7 @@ package config
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strings"
 )
@@ -104,7 +105,9 @@ func Load(optionsPath, supervisorToken string) Config {
 	c.Token = supervisorToken
 	if b, err := os.ReadFile(optionsPath); err == nil {
 		var o options
-		if json.Unmarshal(b, &o) == nil {
+		if err := json.Unmarshal(b, &o); err != nil {
+			log.Printf("config: %s unparseable, using defaults: %v", optionsPath, err)
+		} else {
 			c.apply(o)
 		}
 	}

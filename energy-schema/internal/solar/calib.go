@@ -3,6 +3,7 @@ package solar
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -118,9 +119,19 @@ func GeoHash(arrays []Array) string {
 // NewCalibrator loads /data/calib.json; if the geometry hash differs, starts clean.
 func NewCalibrator(path, geoHash string) *Calibrator {
 	c := &Calibrator{path: path, d: calibData{KBin: map[string][6]cell{}, Pending: map[string]hourPred{}, GeoHash: geoHash, V: 1}}
-	if b, err := os.ReadFile(path); err == nil {
+	b, err := os.ReadFile(path)
+	switch {
+	case os.IsNotExist(err):
+		// первый запуск — холодный старт, это норма
+	case err != nil:
+		log.Printf("calib: read %s: %v (cold start)", path, err)
+	default:
 		var d calibData
-		if json.Unmarshal(b, &d) == nil && d.GeoHash == geoHash {
+		if err := json.Unmarshal(b, &d); err != nil {
+			log.Printf("calib: %s corrupt: %v (reset)", path, err)
+		} else if d.GeoHash != geoHash {
+			log.Printf("calib: geometry changed (%s -> %s), reset", d.GeoHash, geoHash)
+		} else {
 			if d.KBin == nil {
 				d.KBin = map[string][6]cell{}
 			}

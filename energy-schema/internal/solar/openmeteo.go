@@ -72,8 +72,11 @@ func FetchOpenMeteo(loc Location, arrays []Array, tz string, httpc *http.Client)
 		if err != nil {
 			return nil, err
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, rerr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if rerr != nil {
+			return nil, fmt.Errorf("open-meteo read body: %w", rerr)
+		}
 		if resp.StatusCode != 200 {
 			return nil, fmt.Errorf("open-meteo status %d", resp.StatusCode)
 		}

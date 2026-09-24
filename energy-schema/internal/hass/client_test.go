@@ -53,3 +53,22 @@ func TestFetchStatesBadJSON(t *testing.T) {
 		t.Error("expected error on non-JSON body, got nil")
 	}
 }
+
+// HA answers 401/500 with a JSON object; before doJSON that decoded "fine"
+// into zero values (tz="" / lat=lon=0) with err == nil.
+func TestTimeZoneNon200IsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL+"/api", "")
+	if tz, err := c.TimeZone(); err == nil {
+		t.Errorf("expected error on 401, got tz=%q err=nil", tz)
+	}
+	if _, _, _, err := c.Location(); err == nil {
+		t.Error("expected error on 401 from Location, got nil")
+	}
+}

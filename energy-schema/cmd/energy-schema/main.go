@@ -29,6 +29,8 @@ func main() {
 		}
 	} else if err != nil {
 		log.Printf("timezone fetch: %v", err)
+	} else {
+		log.Printf("timezone: empty time_zone in HA config, staying UTC")
 	}
 	srv := web.New(cfg, store, client)
 

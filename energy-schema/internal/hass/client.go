@@ -28,6 +28,34 @@ func NewClient(apiBase, token string) *Client {
 	}
 }
 
+// doJSON sends req with the bearer token, checks for a 2xx status and decodes
+// the JSON body into v. A non-2xx reply (401/500: HA answers with a JSON
+// object that would otherwise unmarshal "successfully" into zero values) and a
+// truncated body both become explicit errors.
+func (c *Client) doJSON(what string, req *http.Request, v any) error {
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s: read body (status=%d): %w", what, resp.StatusCode, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		snip := strings.TrimSpace(string(body))
+		if len(snip) > 120 {
+			snip = snip[:120] + "..."
+		}
+		return fmt.Errorf("%s: status=%d tokenlen=%d body=%q", what, resp.StatusCode, len(c.Token), snip)
+	}
+	if err := json.Unmarshal(body, v); err != nil {
+		return fmt.Errorf("decode %s (status=%d): %w", what, resp.StatusCode, err)
+	}
+	return nil
+}
+
 // TimeZone returns Home Assistant's configured time zone (e.g. "Europe/Kyiv")
 // so timestamps render in local time — the add-on container itself runs in UTC.
 func (c *Client) TimeZone() (string, error) {
@@ -35,17 +63,10 @@ func (c *Client) TimeZone() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	var cfg struct {
 		TimeZone string `json:"time_zone"`
 	}
-	if err := json.Unmarshal(body, &cfg); err != nil {
+	if err := c.doJSON("config", req, &cfg); err != nil {
 		return "", err
 	}
 	return cfg.TimeZone, nil
@@ -58,19 +79,12 @@ func (c *Client) Location() (lat, lon, elev float64, err error) {
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	var cfg struct {
 		Latitude  float64 `json:"latitude"`
 		Longitude float64 `json:"longitude"`
 		Elevation float64 `json:"elevation"`
 	}
-	if err := json.Unmarshal(body, &cfg); err != nil {
+	if err := c.doJSON("config", req, &cfg); err != nil {
 		return 0, 0, 0, err
 	}
 	return cfg.Latitude, cfg.Longitude, cfg.Elevation, nil
@@ -83,21 +97,14 @@ func (c *Client) FetchStates() (map[string]Entity, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	var arr []struct {
 		EntityID    string                     `json:"entity_id"`
 		State       string                     `json:"state"`
 		LastChanged string                     `json:"last_changed"`
 		Attributes  map[string]json.RawMessage `json:"attributes"`
 	}
-	if err := json.Unmarshal(body, &arr); err != nil {
-		return nil, fmt.Errorf("decode states (status=%d tokenlen=%d): %w", resp.StatusCode, len(c.Token), err)
+	if err := c.doJSON("states", req, &arr); err != nil {
+		return nil, err
 	}
 	m := make(map[string]Entity, len(arr))
 	for _, e := range arr {
@@ -139,14 +146,7 @@ func (c *Client) forecast(entity, ftype string) ([]ForecastDay, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
 	var out struct {
 		ServiceResponse map[string]struct {
 			Forecast []struct {
@@ -156,12 +156,12 @@ func (c *Client) forecast(entity, ftype string) ([]ForecastDay, error) {
 			} `json:"forecast"`
 		} `json:"service_response"`
 	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("decode forecast (status=%d): %w", resp.StatusCode, err)
+	if err := c.doJSON("forecast", req, &out); err != nil {
+		return nil, err
 	}
 	fc, ok := out.ServiceResponse[entity]
 	if !ok {
-		return nil, fmt.Errorf("no forecast for %s (status=%d)", entity, resp.StatusCode)
+		return nil, fmt.Errorf("no forecast for %s", entity)
 	}
 	days := make([]ForecastDay, 0, len(fc.Forecast))
 	for _, f := range fc.Forecast {
@@ -188,21 +188,14 @@ func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
 	// response: [[{state,last_changed,...}, {state,last_changed}, ...]]
 	var arr [][]struct {
 		State       string `json:"state"`
 		LastChanged string `json:"last_changed"`
 		LastUpdated string `json:"last_updated"`
 	}
-	if err := json.Unmarshal(body, &arr); err != nil {
-		return nil, fmt.Errorf("decode history (status=%d): %w", resp.StatusCode, err)
+	if err := c.doJSON("history", req, &arr); err != nil {
+		return nil, err
 	}
 	if len(arr) == 0 {
 		return nil, nil

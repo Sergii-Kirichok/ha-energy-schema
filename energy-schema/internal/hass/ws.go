@@ -48,7 +48,7 @@ func wsDial(apiBase string) (*wsConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = conn.SetDeadline(time.Now().Add(25 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(wsIOTimeout))
 	keyb := make([]byte, 16)
 	_, _ = rand.Read(keyb)
 	key := base64.StdEncoding.EncodeToString(keyb)
@@ -78,7 +78,12 @@ func wsDial(apiBase string) (*wsConn, error) {
 func (w *wsConn) close() { _ = w.c.Close() }
 
 // writeText sends one masked text frame (our messages fit in a single frame).
+// wsIOTimeout — таймаут на ОДИН кадр/запись; обновляется перед каждой операцией,
+// иначе долгий (но живой) обмен упирался бы в единственный дедлайн с момента dial.
+const wsIOTimeout = 25 * time.Second
+
 func (w *wsConn) writeText(data []byte) error {
+	_ = w.c.SetDeadline(time.Now().Add(wsIOTimeout))
 	var hdr []byte
 	n := len(data)
 	switch {
@@ -116,6 +121,7 @@ func (w *wsConn) writeJSON(v interface{}) error {
 func (w *wsConn) readMessage() ([]byte, error) {
 	var payload []byte
 	for {
+		_ = w.c.SetDeadline(time.Now().Add(wsIOTimeout))
 		h := make([]byte, 2)
 		if _, err := io.ReadFull(w.r, h); err != nil {
 			return nil, err

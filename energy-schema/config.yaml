@@ -12,7 +12,6 @@ ingress_port: 8099
 panel_icon: mdi:home-lightning-bolt
 panel_title: Энергосхема
 homeassistant_api: true
-hassio_api: true
 map:
   - homeassistant_config:rw
 options:
