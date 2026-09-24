@@ -11,3 +11,6 @@
 # local deploy secrets (host/password/key/slug) — NEVER commit (public repo)
 /deploy.local.mk
 /coverage.out
+
+# graphify (rebuilt by post-commit hook)
+/graphify-out/
