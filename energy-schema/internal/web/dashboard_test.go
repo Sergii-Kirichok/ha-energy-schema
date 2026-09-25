@@ -169,3 +169,16 @@ func TestPatchChargeCardAddsMissingRows(t *testing.T) {
 		}
 	}
 }
+
+func TestPatchChargeCardDisablesHeaderToggle(t *testing.T) {
+	src := `{"views":[{"cards":[{"type":"entities","entities":[{"entity":"input_boolean.energy_schema_charge_auto"}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	_, _ = patchChargeCard(cfg)
+	if v, ok := findCardWith(cfg, dashChargeMarker)["show_header_toggle"]; !ok || v != false {
+		t.Errorf("show_header_toggle = %v", v)
+	}
+	if dashChargeCard["show_header_toggle"] != false {
+		t.Error("template must disable the header toggle")
+	}
+}

@@ -27,8 +27,9 @@ var dashBMSRows = []map[string]any{
 const dashChargeMarker = "input_boolean.energy_schema_charge_auto"
 
 var dashChargeCard = map[string]any{
-	"type":  "entities",
-	"title": "Заряд АКБ",
+	"type":               "entities",
+	"show_header_toggle": false,
+	"title":              "Заряд АКБ",
 	"entities": []any{
 		map[string]any{"entity": dashChargeMarker, "name": "Авто-регулятор"},
 		map[string]any{"entity": "sensor.energy_schema_charge_setpoint", "name": "Уставка тока"},
@@ -49,6 +50,12 @@ func patchChargeCard(node any) (bool, error) {
 	if card == nil {
 		return appendCardOnce(node, false, dashChargeCard)
 	}
+	changed := false
+	// общий переключатель в заголовке включал бы ВСЕ тумблеры сразу (в т.ч.
+	// «Полный заряд сейчас») — убираем
+	if card["show_header_toggle"] != false {
+		card["show_header_toggle"], changed = false, true
+	}
 	// карточка есть — дорисовать строки, появившиеся в новых версиях, на их
 	// место по шаблону (строки пользователя и порядок сохраняются)
 	ents, _ := card["entities"].([]any)
@@ -57,7 +64,6 @@ func patchChargeCard(node any) (bool, error) {
 		have[entityID(e)] = true
 	}
 	tmpl := dashChargeCard["entities"].([]any)
-	changed := false
 	for i, r := range tmpl {
 		id := entityID(r)
 		if have[id] {

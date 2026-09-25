@@ -31,10 +31,10 @@ const (
 var chargeHelpers = []hass.Helper{
 	{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
 	{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: 30, Step: 1, Initial: 25, Unit: "A", Icon: "mdi:current-dc"},
-	{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 0, Max: 185, Step: 1, Initial: 5, Unit: "A", Icon: "mdi:transmission-tower"},
+	{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 1, Max: 15, Step: 1, Initial: 5, Unit: "A", Icon: "mdi:transmission-tower"},
 	{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
 	{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
-	{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: 60, Step: 1, Initial: 14, Unit: "д", Icon: "mdi:calendar-refresh"},
+	{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: 30, Step: 1, Initial: 14, Unit: "д", Icon: "mdi:calendar-refresh"},
 	{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
 }
 

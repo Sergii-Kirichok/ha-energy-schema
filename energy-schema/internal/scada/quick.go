@@ -12,10 +12,10 @@ type QuickParam struct {
 var QuickParams = []QuickParam{
 	{Key: "auto", Label: "Авто-регулятор", Entity: "input_boolean.energy_schema_charge_auto", Bool: true},
 	{Key: "max_a", Label: "Общий лимит", Unit: "А", Entity: "input_number.energy_schema_charge_max_a", Min: 1, Max: 30, Step: 5},
-	{Key: "grid_a", Label: "Лимит от сети", Unit: "А", Entity: "input_number.energy_schema_charge_grid_a", Min: 0, Max: 185, Step: 1},
+	{Key: "grid_a", Label: "Лимит от сети", Unit: "А", Entity: "input_number.energy_schema_charge_grid_a", Min: 1, Max: 15, Step: 1},
 	{Key: "taper_soc", Label: "Снижать ток с", Unit: "%", Entity: "input_number.energy_schema_charge_taper_soc", Min: 50, Max: 99, Step: 5},
 	{Key: "target_soc", Label: "Цель на ночь", Unit: "%", Entity: "input_number.energy_schema_charge_target_soc", Min: 50, Max: 100, Step: 5},
-	{Key: "full_days", Label: "Полный раз в", Unit: "д", Entity: "input_number.energy_schema_charge_full_days", Min: 1, Max: 60, Step: 1},
+	{Key: "full_days", Label: "Полный раз в", Unit: "д", Entity: "input_number.energy_schema_charge_full_days", Min: 1, Max: 30, Step: 1},
 	{Key: "full_now", Label: "Полный заряд сейчас", Entity: "input_boolean.energy_schema_charge_full_now", Bool: true},
 }
 

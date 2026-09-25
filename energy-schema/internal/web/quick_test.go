@@ -20,8 +20,8 @@ func TestQuickParam(t *testing.T) {
 	defer srv.Close()
 	s := &Server{client: hass.NewClient(srv.URL+"/api", "T"), store: hass.NewStore()}
 	s.store.ReplaceStates(map[string]string{
-		"input_number.energy_schema_charge_max_a":      "183",
-		"input_number.energy_schema_charge_grid_a":     "0",
+		"input_number.energy_schema_charge_max_a":      "28",
+		"input_number.energy_schema_charge_grid_a":     "1",
 		"input_boolean.energy_schema_charge_auto":      "on",
 		"input_number.energy_schema_charge_target_soc": "90",
 	})
@@ -29,8 +29,8 @@ func TestQuickParam(t *testing.T) {
 		val, wantCall string
 		wantErr       bool
 	}{
-		{"max_a:+5", `set_value {"entity_id":"input_number.energy_schema_charge_max_a","value":185}`, false}, // clamp to max
-		{"grid_a:-1", `set_value {"entity_id":"input_number.energy_schema_charge_grid_a","value":0}`, false}, // clamp to min
+		{"max_a:+5", `set_value {"entity_id":"input_number.energy_schema_charge_max_a","value":30}`, false},  // clamp to max
+		{"grid_a:-1", `set_value {"entity_id":"input_number.energy_schema_charge_grid_a","value":1}`, false}, // clamp to min
 		{"target_soc:-5", `"value":85}`, false},
 		{"auto:toggle", `/api/services/input_boolean/toggle {"entity_id":"input_boolean.energy_schema_charge_auto"}`, false},
 		{"auto:+1", "", true},          // bool needs toggle
