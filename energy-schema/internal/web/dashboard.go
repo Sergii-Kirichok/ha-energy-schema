@@ -49,16 +49,23 @@ func patchChargeCard(node any) (bool, error) {
 }
 
 // Разбег ячеек цветом: entities-строку раскрасить нативно нельзя (card-mod не
-// стоит), поэтому рядом — gauge с зонами зелёный/жёлтый/красный (0/30/100 мВ).
-var dashDeltaGauge = map[string]any{
-	"type": "gauge", "entity": "sensor.energy_schema_bms_cell_delta", "name": "Разбег ячеек",
-	"unit": "mV", "min": 0, "max": 150, "needle": true,
-	"severity": map[string]any{"green": 0, "yellow": cellDeltaOKmV, "red": cellDeltaWarnmV},
+// стоит), поэтому под карточкой — markdown-строка, цвет по порогам 30/100 мВ.
+const dashDeltaMdKey = "sensor.energy_schema_bms_cell_delta"
+
+var dashDeltaMd = map[string]any{
+	"type": "markdown",
+	"content": fmt.Sprintf(`{%% set d = states('%s') | int(-1) %%}{%% if d < 0 %%}▲ Разбег ячеек: нет данных BMS{%% else %%}`+
+		`<font color="{{ '#22c55e' if d <= %d else '#f59e0b' if d <= %d else '#ef4444' }}">**▲ Разбег ячеек {{ d }} mV** · `+
+		`{{ states('sensor.energy_schema_bms_cell_min') }}–{{ states('sensor.energy_schema_bms_cell_max') }} В · `+
+		`{{ states('sensor.energy_schema_bms_balance') }}</font>{%% endif %%}`, dashDeltaMdKey, cellDeltaOKmV, cellDeltaWarnmV),
 }
 
-func patchDeltaGauge(node any) (bool, error) {
-	// маркер — именно gauge на этой сущности (строка в списке не считается)
-	return appendCardOnce(node, findOwnEntityCard(node, "gauge", "sensor.energy_schema_bms_cell_delta") != nil, dashDeltaGauge)
+// patchDeltaMd adds the coloured delta line once and removes the older gauge
+// card on the same entity (replaced by the line).
+func patchDeltaMd(node any) (bool, error) {
+	removed := removeOwnEntityCard(node, "gauge", dashDeltaMdKey)
+	added, err := appendCardOnce(node, findMarkdownWith(node, dashDeltaMdKey) != nil, dashDeltaMd)
+	return removed || added, err
 }
 
 // appendCardOnce appends card to the cards list holding the battery card
@@ -75,36 +82,6 @@ func appendCardOnce(node any, present bool, card map[string]any) (bool, error) {
 	holder[key] = append(holder[key].([]any), card)
 	return true, nil
 }
-
-// findCardsHolding returns [parentMap, key] of the []any that contains target.
-func findCardsHolding(node any, target map[string]any) []any {
-	m, ok := node.(map[string]any)
-	if !ok {
-		if l, ok := node.([]any); ok {
-			for _, c := range l {
-				if r := findCardsHolding(c, target); r != nil {
-					return r
-				}
-			}
-		}
-		return nil
-	}
-	for k, v := range m {
-		if l, ok := v.([]any); ok {
-			for _, c := range l {
-				if cm, ok := c.(map[string]any); ok && sameMap(cm, target) {
-					return []any{m, k}
-				}
-			}
-		}
-		if r := findCardsHolding(v, target); r != nil {
-			return r
-		}
-	}
-	return nil
-}
-
-func sameMap(a, b map[string]any) bool { return fmt.Sprintf("%p", a) == fmt.Sprintf("%p", b) }
 
 // ensureDashboard adds the BMS rows to the battery card and the charge card if missing.
 func (s *Server) ensureDashboard(urlPath string) {
@@ -123,7 +100,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
 	}
-	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta gauge": patchDeltaGauge} {
+	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta line": patchDeltaMd, "flow battery": patchFlowBattery} {
 		if c2, err := patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, name, err)
 		} else {
@@ -171,84 +148,45 @@ func patchBatteryCard(node any) (bool, error) {
 			add = append(add, r)
 		}
 	}
-	if len(add) == 0 {
-		if changed {
-			card["entities"] = ents
-		}
-		return changed, nil
-	}
 	out := append([]any{}, ents[:anchor+1]...)
 	out = append(out, add...)
 	out = append(out, ents[anchor+1:]...)
-	card["entities"] = out
+	// дубли одной сущности (например, два SOH после старых версий) — оставляем первую
+	seen := map[string]bool{}
+	ded := out[:0]
+	for _, e := range out {
+		if id := entityID(e); id != "" && seen[id] {
+			continue
+		} else if id != "" {
+			seen[id] = true
+		}
+		ded = append(ded, e)
+	}
+	if len(add) == 0 && len(ded) == len(ents) && !changed {
+		return false, nil
+	}
+	card["entities"] = ded
 	return true, nil
 }
 
-func entityID(e any) string {
-	switch v := e.(type) {
-	case string:
-		return v
-	case map[string]any:
-		id, _ := v["entity"].(string)
-		return id
-	}
-	return ""
-}
+// Карточка «Поток энергии» (power-flow-card-plus) показывала мощность АКБ из
+// sensor.*_battery_power — Solarman отдаёт половину (батарея на двух каналах
+// инвертора). Переключаем на template-сенсор V×I, который считает верно.
+const (
+	flowBattHalved  = "sensor.deye_sun_30k_battery_power"
+	flowBattCorrect = "sensor.deye_battery_power_kw"
+)
 
-func findEntitiesCard(node any) map[string]any {
-	if c := findCardWith(node, dashAnchorEntity); c != nil {
-		return c
+func patchFlowBattery(node any) (bool, error) {
+	card := findOwnTypeCard(node, "custom:power-flow-card-plus")
+	if card == nil {
+		return false, nil
 	}
-	return findCardWith(node, bmsSOHEntity)
-}
-
-// findCardWith returns the first entities card whose rows include entity.
-func findCardWith(node any, entity string) map[string]any {
-	switch v := node.(type) {
-	case map[string]any:
-		if v["type"] == "entities" {
-			if ents, ok := v["entities"].([]any); ok {
-				for _, e := range ents {
-					if entityID(e) == entity {
-						return v
-					}
-				}
-			}
-		}
-		for _, child := range v {
-			if c := findCardWith(child, entity); c != nil {
-				return c
-			}
-		}
-	case []any:
-		for _, child := range v {
-			if c := findCardWith(child, entity); c != nil {
-				return c
-			}
-		}
+	ents, _ := card["entities"].(map[string]any)
+	batt, _ := ents["battery"].(map[string]any)
+	if batt == nil || batt["entity"] != flowBattHalved {
+		return false, nil
 	}
-	return nil
-}
-
-// findOwnEntityCard returns the first card of the given type whose own
-// `entity` is entity (gauge, tile, ...).
-func findOwnEntityCard(node any, typ, entity string) map[string]any {
-	switch v := node.(type) {
-	case map[string]any:
-		if v["type"] == typ && v["entity"] == entity {
-			return v
-		}
-		for _, child := range v {
-			if c := findOwnEntityCard(child, typ, entity); c != nil {
-				return c
-			}
-		}
-	case []any:
-		for _, child := range v {
-			if c := findOwnEntityCard(child, typ, entity); c != nil {
-				return c
-			}
-		}
-	}
-	return nil
+	batt["entity"] = flowBattCorrect
+	return true, nil
 }
