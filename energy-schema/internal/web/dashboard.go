@@ -48,26 +48,6 @@ func patchChargeCard(node any) (bool, error) {
 	return appendCardOnce(node, findCardWith(node, dashChargeMarker) != nil, dashChargeCard)
 }
 
-// Разбег ячеек цветом: entities-строку раскрасить нативно нельзя (card-mod не
-// стоит), поэтому под карточкой — markdown-строка, цвет по порогам 30/100 мВ.
-const dashDeltaMdKey = "sensor.energy_schema_bms_cell_delta"
-
-var dashDeltaMd = map[string]any{
-	"type": "markdown",
-	"content": fmt.Sprintf(`{%% set d = states('%s') | int(-1) %%}{%% if d < 0 %%}▲ Разбег ячеек: нет данных BMS{%% else %%}`+
-		`<font color="{{ '#22c55e' if d <= %d else '#f59e0b' if d <= %d else '#ef4444' }}">**▲ Разбег ячеек {{ d }} mV** · `+
-		`{{ states('sensor.energy_schema_bms_cell_min') }}–{{ states('sensor.energy_schema_bms_cell_max') }} В · `+
-		`{{ states('sensor.energy_schema_bms_balance') }}</font>{%% endif %%}`, dashDeltaMdKey, cellDeltaOKmV, cellDeltaWarnmV),
-}
-
-// patchDeltaMd adds the coloured delta line once and removes the older gauge
-// card on the same entity (replaced by the line).
-func patchDeltaMd(node any) (bool, error) {
-	removed := removeOwnEntityCard(node, "gauge", dashDeltaMdKey)
-	added, err := appendCardOnce(node, findMarkdownWith(node, dashDeltaMdKey) != nil, dashDeltaMd)
-	return removed || added, err
-}
-
 // appendCardOnce appends card to the cards list holding the battery card
 // unless `present` says it is already there.
 func appendCardOnce(node any, present bool, card map[string]any) (bool, error) {
@@ -100,7 +80,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
 	}
-	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta line": patchDeltaMd, "flow battery": patchFlowBattery} {
+	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta cleanup": patchDeltaCleanup, "flow battery": patchFlowBattery} {
 		if c2, err := patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, name, err)
 		} else {
@@ -132,6 +112,14 @@ func patchBatteryCard(node any) (bool, error) {
 	for i, e := range ents {
 		id := entityID(e)
 		have[id] = true
+		if id == flowBattHalved {
+			if m, ok := e.(map[string]any); ok {
+				m["entity"] = flowBattCorrect
+			} else {
+				ents[i] = map[string]any{"entity": flowBattCorrect, "name": "Мощность"}
+			}
+			have[flowBattCorrect], changed = true, true
+		}
 		if id == dashAnchorEntity && anchor < 0 {
 			// расчётный SOH Solarman (92 % при 97 % от BMS) заменяем нашей строкой
 			// на том же месте — две строки «здоровье» только путают
@@ -189,4 +177,22 @@ func patchFlowBattery(node any) (bool, error) {
 	}
 	batt["entity"] = flowBattCorrect
 	return true, nil
+}
+
+// Разбег ячеек отдельной карточкой пользователю не нужен: старые варианты
+// (gauge, markdown, conditional tiles) вычищаем, строка остаётся в карточке.
+const dashDeltaEntity = "sensor.energy_schema_bms_cell_delta"
+
+func patchDeltaCleanup(node any) (bool, error) {
+	changed := removeOwnEntityCard(node, "gauge", dashDeltaEntity)
+	if md := findMarkdownWith(node, dashDeltaEntity); md != nil {
+		changed = removeCard(node, md) || changed
+	}
+	for c := findConditionalTile(node, dashDeltaEntity); c != nil; c = findConditionalTile(node, dashDeltaEntity) {
+		if !removeCard(node, c) {
+			break
+		}
+		changed = true
+	}
+	return changed, nil
 }

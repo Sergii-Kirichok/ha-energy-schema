@@ -182,3 +182,46 @@ func findOwnTypeCard(node any, typ string) map[string]any {
 	}
 	return nil
 }
+
+// findConditionalTile returns the first conditional card wrapping a tile on entity.
+func findConditionalTile(node any, entity string) map[string]any {
+	switch v := node.(type) {
+	case map[string]any:
+		if v["type"] == "conditional" {
+			if c, ok := v["card"].(map[string]any); ok && c["type"] == "tile" && c["entity"] == entity {
+				return v
+			}
+		}
+		for _, child := range v {
+			if c := findConditionalTile(child, entity); c != nil {
+				return c
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if c := findConditionalTile(child, entity); c != nil {
+				return c
+			}
+		}
+	}
+	return nil
+}
+
+// removeCard deletes exactly this card object from whichever list holds it.
+func removeCard(node any, card map[string]any) bool {
+	h := findCardsHolding(node, card)
+	if h == nil {
+		return false
+	}
+	holder, key := h[0].(map[string]any), h[1].(string)
+	l := holder[key].([]any)
+	kept := l[:0:0]
+	for _, c := range l {
+		if cm, ok := c.(map[string]any); ok && sameMap(cm, card) {
+			continue
+		}
+		kept = append(kept, c)
+	}
+	holder[key] = kept
+	return true
+}

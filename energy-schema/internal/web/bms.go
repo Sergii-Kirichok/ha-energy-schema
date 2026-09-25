@@ -92,7 +92,8 @@ func (s *Server) publishBMS(r map[int]int) (string, error) {
 		{"sensor.energy_schema_bms_cell_min", fmt.Sprintf("%.3f", float64(minMV)/1000),
 			withCell(mv("Ячейка мин", "mdi:battery-arrow-down"), r[regCellMinN])},
 		{"sensor.energy_schema_bms_cell_delta", strconv.Itoa(maxMV - minMV), map[string]any{
-			"friendly_name": "Разбег ячеек", "unit_of_measurement": "mV", "state_class": "measurement", "icon": "mdi:delta"}},
+			"friendly_name": "Разбег ячеек", "unit_of_measurement": "mV", "state_class": "measurement", "icon": "mdi:delta",
+			"cell_min": fmt.Sprintf("%.3f В", float64(minMV)/1000), "cell_max": fmt.Sprintf("%.3f В", float64(maxMV)/1000), "verdict": note}},
 		{"sensor.energy_schema_bms_balance", note, map[string]any{"friendly_name": "Баланс ячеек", "level": level,
 			"delta_mv": maxMV - minMV, "icon": map[string]string{"ok": "mdi:check-circle", "warn": "mdi:alert", "bad": "mdi:alert-octagon"}[level]}},
 		{"sensor.energy_schema_bms_cycles", strconv.Itoa(cyc), map[string]any{"friendly_name": "Циклы (BMS)",

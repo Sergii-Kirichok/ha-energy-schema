@@ -72,27 +72,6 @@ func TestPatchChargeCard(t *testing.T) {
 	}
 }
 
-func TestPatchDeltaMd(t *testing.T) {
-	src := `{"views":[{"sections":[{"cards":[
-	  {"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"},{"entity":"sensor.energy_schema_bms_cell_delta"}]},
-	  {"type":"gauge","entity":"sensor.energy_schema_bms_cell_delta"}]}]}]}`
-	var cfg any
-	_ = json.Unmarshal([]byte(src), &cfg)
-	if changed, err := patchDeltaMd(cfg); err != nil || !changed {
-		t.Fatalf("changed=%v err=%v", changed, err)
-	}
-	if changed, _ := patchDeltaMd(cfg); changed {
-		t.Error("second run must be a no-op")
-	}
-	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
-	if len(cards) != 2 || cards[1].(map[string]any)["type"] != "markdown" {
-		t.Errorf("gauge must be replaced by markdown: %v", cards)
-	}
-	if c := cards[1].(map[string]any)["content"].(string); !strings.Contains(c, "#22c55e") || !strings.Contains(c, "d <= 30") {
-		t.Errorf("content = %s", c)
-	}
-}
-
 func TestPatchBatteryCardDedupesSOH(t *testing.T) {
 	src := `{"views":[{"cards":[{"type":"entities","entities":[
 	  {"entity":"sensor.deye_sun_30k_battery"},
@@ -135,5 +114,33 @@ func TestPatchFlowBattery(t *testing.T) {
 	b, _ := json.Marshal(cfg)
 	if !strings.Contains(string(b), `"entity":"sensor.deye_battery_power_kw","state_of_charge"`) || strings.Contains(string(b), flowBattHalved) {
 		t.Errorf("cfg = %s", b)
+	}
+}
+
+func TestPatchDeltaCleanupAndPowerRow(t *testing.T) {
+	src := `{"views":[{"sections":[{"cards":[
+	  {"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"},{"entity":"sensor.deye_sun_30k_battery_power","name":"Мощность"}]},
+	  {"type":"gauge","entity":"sensor.energy_schema_bms_cell_delta"},
+	  {"type":"markdown","content":"{{ states('sensor.energy_schema_bms_cell_delta') }}"},
+	  {"type":"conditional","conditions":[],"card":{"type":"tile","entity":"sensor.energy_schema_bms_cell_delta"}},
+	  {"type":"conditional","conditions":[],"card":{"type":"tile","entity":"sensor.energy_schema_bms_cell_delta"}}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	if changed, err := patchDeltaCleanup(cfg); err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if changed, _ := patchDeltaCleanup(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
+	if len(cards) != 1 {
+		t.Fatalf("only the entities card must remain, got %d", len(cards))
+	}
+	if _, err := patchBatteryCard(cfg); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(cards[0])
+	if strings.Contains(string(b), flowBattHalved) || !strings.Contains(string(b), `"entity":"sensor.deye_battery_power_kw","name":"Мощность"`) {
+		t.Errorf("power row not switched: %s", b)
 	}
 }
