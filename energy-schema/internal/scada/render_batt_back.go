@@ -11,10 +11,8 @@ func (f *frame) batteryBack() {
 	s.p(`<g class="face f-back">`)
 	s.box(24, 520, 300, 280)
 	s.head(24, 520, 300, "batt", "АКБ · заряд", "")
-	// «↩» — назад на лицевую сторону
-	s.p(`<g data-flip="batt" style="cursor:pointer"><rect x="284" y="528" width="30" height="22" rx="6" fill="transparent" stroke="%s"/>`, cBrd)
-	s.t(299, 544, 13, cSub, "middle", "↩")
-	s.p(`</g>`)
+	// клик по иконке / заголовку — назад на лицевую сторону
+	s.p(`<rect x="28" y="524" width="150" height="32" rx="6" fill="transparent" style="cursor:pointer" data-flip="batt"/>`)
 
 	y := 578.0
 	for _, q := range QuickParams {

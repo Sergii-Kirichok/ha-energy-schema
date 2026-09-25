@@ -23,10 +23,8 @@ func (f *frame) battery() {
 		bStatCol = cRed
 	}
 	s.head(24, 520, 300, "batt", "АКБ", bStatCol)
-	// ⚙ — перевернуть карточку (настройки заряда на обороте)
-	s.p(`<g data-flip="batt" style="cursor:pointer"><rect x="104" y="530" width="24" height="20" rx="5" fill="transparent"/>`)
-	s.t(116, 545, 13, cSub, "middle", "⚙")
-	s.p(`</g>`)
+	// клик по иконке батарейки / слову «АКБ» переворачивает карточку (настройки заряда)
+	s.p(`<rect x="28" y="524" width="100" height="32" rx="6" fill="transparent" style="cursor:pointer" data-flip="batt"/>`)
 	// температура — рядом со значком статуса (не отдельной строкой)
 	btemp := st.Num("sensor.deye_sun_30k_battery_temperature")
 	btc := cGrn
