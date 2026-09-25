@@ -53,7 +53,7 @@ func (f *frame) batteryBack() {
 	if st.Available("sensor.energy_schema_charge_setpoint") {
 		sp = fmt.Sprintf("%.0f А (%s)", st.Num("sensor.energy_schema_charge_setpoint"), st.Attr("sensor.energy_schema_charge_setpoint", "mode"))
 	}
-	s.t(174, 776, 10, cSub, "middle", "уставка "+sp+" · reg108 = "+st.State("number.deye_sun_30k_battery_max_charging_current")+" · reg128 = "+st.State("number.deye_sun_30k_battery_grid_charging_current"))
+	s.t(174, 776, 10, cSub, "middle", "ограничение "+sp+" · reg108 = "+st.State("number.deye_sun_30k_battery_max_charging_current")+" · reg128 = "+st.State("number.deye_sun_30k_battery_grid_charging_current"))
 	s.t(174, 790, 10, cSub, "middle", "следующий 100 %: "+st.State("sensor.energy_schema_charge_next_full")+" · SOC "+fmt.Sprintf("%.0f%%", st.Num("sensor.deye_sun_30k_battery")))
 	s.p(`</g>`)
 }

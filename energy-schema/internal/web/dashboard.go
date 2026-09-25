@@ -26,13 +26,19 @@ var dashBMSRows = []map[string]any{
 // секцию, где карточка «Батарея», если её ещё нет (маркер — переключатель авто).
 const dashChargeMarker = "input_boolean.energy_schema_charge_auto"
 
+const (
+	dashSetpointEntity  = "sensor.energy_schema_charge_setpoint"
+	dashSetpointName    = "Текущее ограничение тока заряда"
+	dashSetpointOldName = "Уставка тока"
+)
+
 var dashChargeCard = map[string]any{
 	"type":               "entities",
 	"show_header_toggle": false,
 	"title":              "Заряд АКБ",
 	"entities": []any{
 		map[string]any{"entity": dashChargeMarker, "name": "Авто-регулятор"},
-		map[string]any{"entity": "sensor.energy_schema_charge_setpoint", "name": "Уставка тока"},
+		map[string]any{"entity": dashSetpointEntity, "name": dashSetpointName},
 		map[string]any{"entity": "input_number.energy_schema_charge_max_a", "name": "Общий лимит, А"},
 		map[string]any{"entity": "input_number.energy_schema_charge_grid_a", "name": "Лимит от сети, А"},
 		map[string]any{"entity": "input_number.energy_schema_charge_taper_soc", "name": "Снижать ток с, %"},
@@ -53,6 +59,12 @@ func patchChargeCard(node any) (bool, error) {
 	changed := false
 	// общий переключатель в заголовке включал бы ВСЕ тумблеры сразу (в т.ч.
 	// «Полный заряд сейчас») — убираем
+	// строка уставки со старым названием — переименовать (своё имя пользователя не трогаем)
+	for _, e := range card["entities"].([]any) {
+		if m, ok := e.(map[string]any); ok && m["entity"] == dashSetpointEntity && m["name"] == dashSetpointOldName {
+			m["name"], changed = dashSetpointName, true
+		}
+	}
 	if card["show_header_toggle"] != false {
 		card["show_header_toggle"], changed = false, true
 	}

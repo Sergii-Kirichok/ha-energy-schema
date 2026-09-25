@@ -178,7 +178,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if !auto {
 		mode = "off"
 	}
-	attrs := map[string]any{"friendly_name": "Заряд: уставка", "unit_of_measurement": "A", "state_class": "measurement",
+	attrs := map[string]any{"friendly_name": "Текущее ограничение тока заряда", "unit_of_measurement": "A", "state_class": "measurement",
 		"icon": "mdi:current-dc", "mode": mode, "soc": soc, "full_due": fullDue, "auto": auto}
 	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", amps), attrs)
 	nf := "—"

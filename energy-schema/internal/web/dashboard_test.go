@@ -182,3 +182,16 @@ func TestPatchChargeCardDisablesHeaderToggle(t *testing.T) {
 		t.Error("template must disable the header toggle")
 	}
 }
+
+func TestPatchChargeCardRenamesSetpoint(t *testing.T) {
+	src := `{"views":[{"cards":[{"type":"entities","show_header_toggle":false,"entities":[
+	  {"entity":"input_boolean.energy_schema_charge_auto"},
+	  {"entity":"sensor.energy_schema_charge_setpoint","name":"Уставка тока"}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	_, _ = patchChargeCard(cfg)
+	b, _ := json.Marshal(cfg)
+	if !strings.Contains(string(b), `"name":"Текущее ограничение тока заряда"`) || strings.Contains(string(b), "Уставка тока") {
+		t.Errorf("not renamed: %s", b)
+	}
+}
