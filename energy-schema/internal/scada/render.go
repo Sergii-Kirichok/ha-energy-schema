@@ -263,6 +263,7 @@ func Render(st State, cfg config.Config) string {
 	f.flows()
 	f.row1()
 	f.row2()
+	f.avr3()
 	f.battery()
 	f.sun()
 	f.generator()

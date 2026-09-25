@@ -68,6 +68,25 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 		_ = s.simSet("sim_avr_switches_today", fmt.Sprintf("%.0f", s.store.Num("sensor.sim_avr_switches_today")+1))
 		log.Printf("control: avr_src -> %s", val)
 		_, _ = w.Write([]byte("ok"))
+	case "avr3_src": // АВР ген.: Дом от АВР дома ↔ от генератора — только в РУЧНОМ
+		if s.store.State("sensor.sim_avr3_mode") != "manual" {
+			http.Error(w, "АВР ген. в авто — переключение недоступно", http.StatusConflict)
+			return
+		}
+		if s.store.State("sensor.sim_avr3_link") != "ok" {
+			http.Error(w, "нет связи с АВР ген. (RS-485)", http.StatusConflict)
+			return
+		}
+		if val != "main" && val != "gen" {
+			http.Error(w, "недопустимый вход", http.StatusBadRequest)
+			return
+		}
+		if err := s.simSet("sim_avr3_pos", val); err != nil {
+			http.Error(w, "нет связи с устройством: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		log.Printf("control: avr3_src -> %s", val)
+		_, _ = w.Write([]byte("ok"))
 	case "contactor": // переключение ввода контактора Ввод1↔Ввод2 (sim_contactor off/on)
 		if s.store.State("sensor.sim_contactor_link") == "lost" {
 			http.Error(w, "нет связи с АВР вводов (RS-485)", http.StatusConflict)

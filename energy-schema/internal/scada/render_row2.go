@@ -166,7 +166,7 @@ func (f *frame) row2() {
 	s.t(720, 462, 11, genSigCol, "middle", "G")
 
 	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
-	s.box(800, 300, 200, 175)
+	s.box(770, 300, 200, 175)
 	avrLink := st.State("sensor.sim_avr_link") == "ok" && !emuStale
 	avrLinkCol := cGrn
 	if avrStuck {
@@ -175,7 +175,7 @@ func (f *frame) row2() {
 	if !avrLink {
 		avrLinkCol = cRed
 	}
-	s.head(800, 300, 200, "sw", "АВР дома", avrLinkCol)
+	s.head(770, 300, 200, "sw", "АВР дома", avrLinkCol)
 	// температура в шкафу — у значка статуса
 	atemp := st.Num("sensor.sim_avr_temp")
 	atc := cGrn
@@ -184,7 +184,7 @@ func (f *frame) row2() {
 	} else if atemp >= 35 {
 		atc = cOrg
 	}
-	s.t(966, 327, 12, atc, "end", fmt.Sprintf("%.0f°C", atemp))
+	s.t(936, 327, 12, atc, "end", fmt.Sprintf("%.0f°C", atemp))
 	// режим работы — пилюля (важно: можем ли МЫ им управлять)
 	avrMode := st.State("sensor.sim_avr_mode")
 	modeCol, modeTxt := cGrn, "АВТО — переключается сам"
@@ -194,71 +194,71 @@ func (f *frame) row2() {
 	if !avrLink {
 		modeCol, modeTxt = cRed, "НЕТ СВЯЗИ (RS-485)"
 	}
-	s.p(`<rect x="812" y="340" width="176" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, modeCol, modeCol)
-	s.t(900, 357, 11, modeCol, "middle", modeTxt)
+	s.p(`<rect x="782" y="340" width="176" height="26" rx="13" fill="%s" fill-opacity="0.15" stroke="%s" stroke-width="1.5"/>`, modeCol, modeCol)
+	s.t(870, 357, 11, modeCol, "middle", modeTxt)
 	// селектор источника: через что сейчас питается Дом (инвертор / резерв = прямой Ввод 1)
 	avrRow := func(y float64, name, key, col string) {
 		if avrPos == key {
-			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
+			s.p(`<rect x="782" y="%g" width="176" height="24" rx="6" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`, y, col, col)
 		} else {
-			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="none" stroke="%s" stroke-width="1"/>`, y, cBrd)
+			s.p(`<rect x="782" y="%g" width="176" height="24" rx="6" fill="none" stroke="%s" stroke-width="1"/>`, y, cBrd)
 		}
 		tc := cSub
 		if avrPos == key {
 			tc = col
 		}
-		s.t(822, y+16, 12, tc, "start", name)
+		s.t(792, y+16, 12, tc, "start", name)
 		if avrPos == key {
-			s.t(980, y+16, 12, col, "end", "→ Дом")
+			s.t(950, y+16, 12, col, "end", "→ Дом")
 		} else if avrMode == "manual" {
 			// в ручном режиме неактивный источник кликабелен: тап → переключить
-			s.t(980, y+16, 11, cSub, "end", "тап →")
-			s.p(`<rect x="812" y="%g" width="176" height="24" rx="6" fill="transparent" style="cursor:pointer" data-act="avr_src" data-val="%s"/>`, y, key)
+			s.t(950, y+16, 11, cSub, "end", "тап →")
+			s.p(`<rect x="782" y="%g" width="176" height="24" rx="6" fill="transparent" style="cursor:pointer" data-act="avr_src" data-val="%s"/>`, y, key)
 		}
 	}
 	avrRow(376, "Инвертор", "inverter", cGrn)
 	avrRow(404, "Резерв · "+cfg.In1Name, "reserve", cOrg)
 	// статистика переключений / тревога залипания (когда питание не ушло на резерв)
 	if avrStuck {
-		s.t(900, 444, 11, cOrg, "middle", "⚠ залип — инвертор кормит")
+		s.t(870, 444, 11, cOrg, "middle", "⚠ залип — инвертор кормит")
 	} else {
-		s.t(900, 444, 11, cTxt, "middle", fmt.Sprintf("всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
+		s.t(870, 444, 11, cTxt, "middle", fmt.Sprintf("всего %.0f / сегодня %.0f", st.Num("sensor.sim_avr_switches"), st.Num("sensor.sim_avr_switches_today")))
 	}
 	// низ: связь RS-485 (как у контактора)
 	if avrLink {
-		s.t(812, 464, 10, cSub, "start", "RS-485 ✓")
+		s.t(782, 464, 10, cSub, "start", "RS-485 ✓")
 	} else {
-		s.t(812, 464, 10, cRed, "start", "RS-485 ✕")
+		s.t(782, 464, 10, cRed, "start", "RS-485 ✕")
 	}
 
 	// Дом — гейдж
-	s.box(1140, 290, 280, 190)
-	s.head(1140, 290, 280, "home", "Дом", "")
+	s.box(1190, 290, 230, 190)
+	s.head(1190, 290, 230, "home", "Дом", "")
 	// потребление за последние 24 ч (среднее × 24) — в правом верхнем углу
 	if av24, ok := st.Avg24h("sensor.deye_sun_30k_load_power"); ok {
 		s.t(1404, 314, 12, cSub, "end", fmt.Sprintf("24ч: %.0f кВт·ч", av24*24/1000))
 	}
 	// шкала до 45 кВт: 33 — длительный максимум инвертора, 33–45 — перегруз (10 с)
 	hMax := invPeakKW
-	s.gauge(1280, 410, 78, load, hMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.PVMax, cRed}, {hMax, cRed2}}, kw(load*1000), "потребление")
+	s.gauge(1305, 410, 68, load, hMax, []band{{cfg.HomeT1, cGrn}, {cfg.HomeT2, cAmb}, {cfg.HomeT3, cOrg}, {cfg.PVMax, cRed}, {hMax, cRed2}}, kw(load*1000), "потребление")
 	// тики: концы 0/45 + переходы зон (3 пропускаем — сливается с 5 на сжатой шкале)
 	for _, tk := range []float64{0, cfg.HomeT2, cfg.HomeT3, cfg.PVMax, hMax} {
-		s.gaugeTick(1280, 410, 78, tk, hMax, fmt.Sprintf("%.0f", tk))
+		s.gaugeTick(1305, 410, 68, tk, hMax, fmt.Sprintf("%.0f", tk))
 	}
 	lpe := "sensor.deye_sun_30k_load_power"
 	// красная капля + выноска — пик потребления за 24 ч; синяя — минимум за 24 ч
 	if pl := st.Max24h(lpe); pl > 50 {
 		a := gAng(pl/1000, hMax)
-		s.markerMax(1280, 410, 78, a, 78*0.12, cRed)
-		s.markerLabel(1280, 410, 78, a, fmt.Sprintf("%.1f", pl/1000), cRed)
+		s.markerMax(1305, 410, 68, a, 68*0.12, cRed)
+		s.markerLabel(1305, 410, 68, a, fmt.Sprintf("%.1f", pl/1000), cRed)
 	}
 	// синяя капля + выноска со значением — СРЕДНЕЕ за 24 ч
 	av, okAv := st.Avg24h(lpe)
 	if okAv {
 		aa := gAng(av/1000, hMax)
-		s.markerMax(1280, 410, 78, aa, 78*0.12, cBlu)
-		s.markerLabel(1280, 410, 78, aa, fmt.Sprintf("%.1f", av/1000), cBlu)
+		s.markerMax(1305, 410, 68, aa, 68*0.12, cBlu)
+		s.markerLabel(1305, 410, 68, aa, fmt.Sprintf("%.1f", av/1000), cBlu)
 	}
 	// итог за 24 ч одной строкой — крупнее, среднее/макс через слэш
-	s.t(1280, 465, 14, cTxt, "middle", fmt.Sprintf("24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
+	s.t(1305, 465, 12, cTxt, "middle", fmt.Sprintf("24ч · средн/макс: %.1f / %.1f кВт", av/1000, st.Max24h(lpe)/1000))
 }

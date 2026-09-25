@@ -147,3 +147,21 @@ func TestBatteryBackFace(t *testing.T) {
 		t.Error("back face must render placeholders without helpers")
 	}
 }
+
+func TestAvr3Card(t *testing.T) {
+	m := map[string]string{"sensor.sim_avr3_pos": "gen", "sensor.sim_avr3_mode": "manual", "sensor.sim_avr3_link": "ok"}
+	svg := Render(storeFrom(m), config.Default())
+	for _, want := range []string{"АВР ген.", "От АВР дома", "Генератор", `data-act="avr3_src" data-val="main"`, "РУЧНОЙ"} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("avr3 card lacks %q", want)
+		}
+	}
+	if strings.Contains(svg, `data-val="gen"`) && strings.Contains(svg, `data-act="avr3_src" data-val="gen"`) {
+		t.Error("active input must not be clickable")
+	}
+	// без сущностей: нет связи, кнопок нет
+	svg = Render(storeFrom(map[string]string{}), config.Default())
+	if !strings.Contains(svg, "НЕТ СВЯЗИ") || strings.Contains(svg, `data-act="avr3_src"`) {
+		t.Error("offline avr3 must show НЕТ СВЯЗИ and no buttons")
+	}
+}
