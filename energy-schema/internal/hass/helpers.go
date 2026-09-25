@@ -96,9 +96,9 @@ func (c *Client) EnsureHelper(h Helper) (bool, error) {
 const inputNumberMode = "slider"
 
 // EnsureNumberMode switches an existing input_number helper (object id `id`)
-// to inputNumberMode if its current mode differs. Partial update via WS
-// input_number/update keeps min/max/step and the value.
-func (c *Client) EnsureNumberMode(id, current string) (bool, error) {
+// to inputNumberMode if its current mode differs. HA validates input_number/update
+// against the full schema, so all fields are sent (name = object id, as created).
+func (c *Client) EnsureNumberMode(h Helper, current string) (bool, error) {
 	if current == inputNumberMode {
 		return false, nil
 	}
@@ -107,8 +107,13 @@ func (c *Client) EnsureNumberMode(id, current string) (bool, error) {
 		return false, err
 	}
 	defer w.close()
-	if err := w.call(1, map[string]interface{}{"type": "input_number/update", "input_number_id": id, "mode": inputNumberMode}, nil); err != nil {
-		return false, fmt.Errorf("mode %s: %w", id, err)
+	msg := map[string]interface{}{"type": "input_number/update", "input_number_id": h.ID, "name": h.ID,
+		"min": h.Min, "max": h.Max, "step": h.Step, "mode": inputNumberMode, "icon": h.Icon}
+	if h.Unit != "" {
+		msg["unit_of_measurement"] = h.Unit
+	}
+	if err := w.call(1, msg, nil); err != nil {
+		return false, fmt.Errorf("mode %s: %w", h.ID, err)
 	}
 	return true, nil
 }

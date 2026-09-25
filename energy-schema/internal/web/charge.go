@@ -113,7 +113,7 @@ func (s *Server) ensureChargeHelpers() {
 		if cur == "" {
 			continue
 		}
-		if ch, err := s.client.EnsureNumberMode(h.ID, cur); err != nil {
+		if ch, err := s.client.EnsureNumberMode(h, cur); err != nil {
 			log.Printf("charge: %v", err)
 		} else if ch {
 			log.Printf("charge: input_number.%s → slider", h.ID)
