@@ -23,9 +23,10 @@ const (
 	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeFile       = "/data/charge.json"
 	chargeMinA       = 1.0
-	chargeCellCapA   = 5.0  // при разбалансе ячеек — не выше этого…
-	chargeCellCapSOC = 70.0 // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
-	parallelReg      = 110  // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
+	chargeCellCapA   = 5.0              // при разбалансе ячеек — не выше этого…
+	chargeCellCapSOC = 70.0             // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
+	chargeTickEvery  = 10 * time.Second // ползунки/тумблер отражаются в инверторе за ≤10 с
+	parallelReg      = 110              // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
 var chargeHelpers = []hass.Helper{
@@ -140,7 +141,7 @@ func (s *Server) loopCharge() {
 	lastMax, lastGrid := -1.0, -1.0
 	for {
 		s.chargeTick(&st, &lastMax, &lastGrid)
-		time.Sleep(time.Minute)
+		time.Sleep(chargeTickEvery)
 	}
 }
 
@@ -176,29 +177,28 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	amps, mode := chargeSetpoint(in)
 	if !auto {
-		mode = "off"
+		// ручной режим: без спада и удержания — просто «Общий лимит». Иначе
+		// в инверторе навсегда остался бы последний авто-ответ (например, 0 = стоп)
+		amps, mode = in.MaxA, "manual"
 	}
-	attrs := map[string]any{"friendly_name": "Текущее ограничение тока заряда", "unit_of_measurement": "A", "state_class": "measurement",
-		"icon": "mdi:current-dc", "mode": mode, "soc": soc, "full_due": fullDue, "auto": auto}
-	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", amps), attrs)
 	nf := "—"
 	if !st.LastFull.IsZero() {
 		nf = nextFull.Format("2006-01-02")
 	}
 	_ = s.client.SetState("sensor.energy_schema_charge_next_full", nf, map[string]any{"friendly_name": "Заряд: следующий 100 %",
 		"icon": "mdi:calendar-check", "last_full": st.LastFull.Format(time.RFC3339)})
-	if !auto {
-		return
-	}
-	// множитель регистр→факт: при «Parallel Bat&Bat2»=1 инвертор удваивает лимит.
-	// Читаем каждый тик; при ошибке чтения держим прошлое значение, а без него
-	// не пишем вовсе (иначе можно случайно дать вдвое больший ток).
-	if regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, parallelReg, 1); err == nil {
+	// 108..110 одним чтением: фактический лимит в инверторе и множитель каналов
+	// («Parallel Bat&Bat2»=1 → ×2). Без известного множителя не пишем вовсе
+	// (иначе можно случайно дать вдвое больший ток).
+	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 108, 3)
+	if err == nil {
 		st.Factor = 1 + float64(regs[parallelReg]&1)
+		*lastMax = float64(regs[108]) // сверяемся с инвертором, а не с памятью
 	} else if st.Factor == 0 {
-		log.Println("charge: parallel flag:", err)
+		log.Println("charge: read 108..110:", err)
 		return
 	}
+	defer func() { s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto) }()
 	grid := num("input_number.energy_schema_charge_grid_a")
 	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
 	// самопроверка «0 = стоп»: не документировано, что Deye трактует 0 именно
@@ -268,4 +268,17 @@ func zeroVerdict(since time.Duration, chargingA float64, testable bool) string {
 		return "ok"
 	}
 	return "wait"
+}
+
+// publishLimit — сенсор «Текущее ограничение тока заряда»: ФАКТИЧЕСКОЕ значение
+// регистра 108 (прочитанное/записанное) × множитель каналов; расчёт регулятора
+// и режим — в атрибутах.
+func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc float64, fullDue, auto bool) {
+	if factor < 1 {
+		factor = 1
+	}
+	attrs := map[string]any{"friendly_name": "Текущее ограничение тока заряда", "unit_of_measurement": "A",
+		"state_class": "measurement", "icon": "mdi:current-dc", "mode": mode, "target_a": target,
+		"reg108": reg108, "channels": factor, "soc": soc, "full_due": fullDue, "auto": auto}
+	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", reg108*factor), attrs)
 }
