@@ -120,6 +120,7 @@ func (s *Server) Run() error {
 	go s.loopPVHistory()
 	go s.loopBMS()
 	go s.loopCharge()
+	go s.loopGridRows()
 	if s.cfg.BMSDashboard != "" {
 		go s.ensureDashboard(s.cfg.BMSDashboard)
 	}
