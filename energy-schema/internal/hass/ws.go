@@ -173,25 +173,24 @@ func (w *wsConn) readMessage() ([]byte, error) {
 	}
 }
 
-// DailyProduction returns recent whole-day energy totals (kWh, oldest→newest,
-// at most `days` of them) for a cumulative total_increasing energy sensor,
-// read from HA long-term statistics. The oldest stats row carries the running
-// baseline (change == lifetime sum) and is dropped; HA omits the partial today.
-func (c *Client) DailyProduction(entity string, days int) ([]float64, error) {
+// wsAuth dials the HA WebSocket API and completes the auth handshake
+// (auth_required -> auth -> auth_ok). Caller closes the connection.
+func (c *Client) wsAuth() (*wsConn, error) {
 	w, err := wsDial(c.APIBase)
 	if err != nil {
 		return nil, err
 	}
-	defer w.close()
-	// handshake: auth_required -> auth -> auth_ok
 	if _, err = w.readMessage(); err != nil {
+		w.close()
 		return nil, err
 	}
 	if err = w.writeJSON(map[string]string{"type": "auth", "access_token": c.Token}); err != nil {
+		w.close()
 		return nil, err
 	}
 	authResp, err := w.readMessage()
 	if err != nil {
+		w.close()
 		return nil, err
 	}
 	var auth struct {
@@ -199,39 +198,70 @@ func (c *Client) DailyProduction(entity string, days int) ([]float64, error) {
 	}
 	_ = json.Unmarshal(authResp, &auth)
 	if auth.Type != "auth_ok" {
+		w.close()
 		return nil, fmt.Errorf("ws auth failed: %s", auth.Type)
 	}
+	return w, nil
+}
+
+// call sends one request with the given id, waits for its result and decodes
+// it into out (which should carry a `result` field). A failed result becomes
+// an error with HA's message.
+func (w *wsConn) call(id int, msg map[string]interface{}, out interface{}) error {
+	msg["id"] = id
+	if err := w.writeJSON(msg); err != nil {
+		return err
+	}
+	var hdr struct {
+		ID      int  `json:"id"`
+		Success bool `json:"success"`
+		Error   struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	for {
+		raw, err := w.readMessage()
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &hdr); err != nil || hdr.ID != id {
+			continue
+		}
+		if !hdr.Success {
+			return fmt.Errorf("ws request failed: %s", hdr.Error.Message)
+		}
+		if out == nil {
+			return nil
+		}
+		return json.Unmarshal(raw, out)
+	}
+}
+
+// DailyProduction returns recent whole-day energy totals (kWh, oldest→newest,
+// at most `days` of them) for a cumulative total_increasing energy sensor,
+// read from HA long-term statistics. The oldest stats row carries the running
+// baseline (change == lifetime sum) and is dropped; HA omits the partial today.
+func (c *Client) DailyProduction(entity string, days int) ([]float64, error) {
+	w, err := c.wsAuth()
+	if err != nil {
+		return nil, err
+	}
+	defer w.close()
 	start := time.Now().AddDate(0, 0, -(days + 2)).UTC().Format("2006-01-02T15:04:05")
-	if err = w.writeJSON(map[string]interface{}{
-		"id":            1,
+	var resp struct {
+		Result map[string][]struct {
+			Start  float64  `json:"start"`
+			Change *float64 `json:"change"`
+		} `json:"result"`
+	}
+	if err = w.call(1, map[string]interface{}{
 		"type":          "recorder/statistics_during_period",
 		"start_time":    start,
 		"statistic_ids": []string{entity},
 		"period":        "day",
 		"types":         []string{"change"},
-	}); err != nil {
-		return nil, err
-	}
-	// read until our id=1 result arrives
-	var resp struct {
-		ID      int  `json:"id"`
-		Success bool `json:"success"`
-		Result  map[string][]struct {
-			Start  float64  `json:"start"`
-			Change *float64 `json:"change"`
-		} `json:"result"`
-	}
-	for {
-		msg, err := w.readMessage()
-		if err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(msg, &resp); err == nil && resp.ID == 1 {
-			break
-		}
-	}
-	if !resp.Success {
-		return nil, fmt.Errorf("statistics request failed for %s", entity)
+	}, &resp); err != nil {
+		return nil, fmt.Errorf("statistics for %s: %w", entity, err)
 	}
 	rows := resp.Result[entity]
 	out := make([]float64, 0, len(rows))

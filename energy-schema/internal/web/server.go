@@ -119,6 +119,9 @@ func (s *Server) Run() error {
 	go s.loopForecast()
 	go s.loopPVHistory()
 	go s.loopBMS()
+	if s.cfg.BMSDashboard != "" {
+		go s.ensureDashboard(s.cfg.BMSDashboard)
+	}
 	// прогноз генерации (геометрия + Open-Meteo) — если заданы стринги и координаты
 	if len(s.cfg.PVStrings) > 0 {
 		if lat, lon, elev, err := s.client.Location(); err != nil {

@@ -36,6 +36,9 @@ type Config struct {
 	PVStrings []PVString
 	// PVACLimitKW — длительный потолок выдачи инвертора (клип прогноза на сумме).
 	PVACLimitKW float64
+	// BMSDashboard — url_path дашборда HA, в карточку «Батарея» которого аддон
+	// при старте дописывает строки BMS (SOH, ячейки, баланс, циклы). "" = не трогать.
+	BMSDashboard string
 }
 
 // PVString описывает один физический стринг панелей. Azimuth — КОМПАСНЫЙ
@@ -51,14 +54,15 @@ type PVString struct {
 // Default returns the built-in defaults applied before options are loaded.
 func Default() Config {
 	return Config{
-		Refresh:  3,
-		APIBase:  "http://supervisor/core/api",
-		Title:    "Энергосистема",
-		In1Name:  "Рыбхоз",
-		In2Name:  "Зелёный",
-		PVLabels: [3]string{"Поле 1", "Поле 2", "Поле 3"},
-		BattCap:  60.0,
-		HomeMax:  30.0, HomeT1: 3.0, HomeT2: 5.0, HomeT3: 25.0,
+		Refresh:      3,
+		APIBase:      "http://supervisor/core/api",
+		BMSDashboard: "home-energy",
+		Title:        "Энергосистема",
+		In1Name:      "Рыбхоз",
+		In2Name:      "Зелёный",
+		PVLabels:     [3]string{"Поле 1", "Поле 2", "Поле 3"},
+		BattCap:      60.0,
+		HomeMax:      30.0, HomeT1: 3.0, HomeT2: 5.0, HomeT3: 25.0,
 		PVMax: 33.0, PVT1: 5.0, PVT2: 20.0, PVT3: 25.0,
 		PVDayClearKWh: 100.0,
 	}
@@ -86,6 +90,7 @@ type options struct {
 	PvT3           float64  `json:"pv_t3"`
 	PvDayClear     float64  `json:"pv_day_clear_kwh"`
 	ControlUsers   []string `json:"control_users"`
+	BMSDashboard   *string  `json:"bms_dashboard"` // nil = default; "" = off
 	PVStrings      []struct {
 		Name         string  `json:"name"`
 		Field        string  `json:"field"`
@@ -164,6 +169,9 @@ func (c *Config) apply(o options) {
 		c.PVDayClearKWh = o.PvDayClear
 	}
 	c.ControlUsers = o.ControlUsers
+	if o.BMSDashboard != nil {
+		c.BMSDashboard = *o.BMSDashboard
+	}
 	for _, s := range o.PVStrings {
 		if s.KWp <= 0 { // строка без мощности — пропускаем
 			continue

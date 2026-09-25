@@ -2,42 +2,11 @@ package web
 
 import (
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
 	"energy-schema/internal/hass"
 )
-
-// BMS SOH: интеграция Solarman считает sensor.*_battery_soh по накопленному
-// заряду с номиналом 48 В — для HV-батареи (630 В) это даёт ~92 % вместо 97 %
-// от BMS. Настоящий SOH отдаёт регистр 10006 (Deye battery read-only block,
-// «Battery SOH», 1 %). Читаем его через сервис solarman.read_holding_registers
-// и публикуем как виртуальную сущность; рендер предпочитает её.
-const (
-	bmsDeviceEntity = "sensor.deye_sun_30k_battery" // любая сущность устройства Solarman
-	bmsSOHRegister  = 10006
-	bmsSOHEntity    = "sensor.energy_schema_bms_soh"
-)
-
-func (s *Server) loopBMS() {
-	last := -1
-	for {
-		regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, bmsSOHRegister, 1)
-		if err != nil {
-			log.Println("bms soh:", err)
-		} else if v := regs[bmsSOHRegister]; v >= 1 && v <= 100 {
-			s.store.SetVirtual(bmsSOHEntity, strconv.Itoa(v))
-			if v != last {
-				log.Printf("bms soh: %d%% (reg %d)", v, bmsSOHRegister)
-				last = v
-			}
-		} else {
-			log.Printf("bms soh: reg %d out of range: %v", bmsSOHRegister, regs)
-		}
-		time.Sleep(10 * time.Minute)
-	}
-}
 
 // weatherEntity is the HA weather entity used for the autonomy forecast.
 const weatherEntity = "weather.forecast_home_assistant"

@@ -36,6 +36,7 @@ options:
   pv_day_clear_kwh: 100
   control_users: []
   pv_ac_limit_kw: 33
+  bms_dashboard: "home-energy"
   pv_strings:
     - name: "Поле 1"
       field: "Поле 1"
@@ -72,6 +73,7 @@ schema:
   pv_t3: float?
   pv_day_clear_kwh: float?
   pv_ac_limit_kw: float?
+  bms_dashboard: str?
   control_users:
     - str?
   pv_strings:
