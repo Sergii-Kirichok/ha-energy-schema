@@ -49,10 +49,12 @@ type chargeInput struct {
 
 // chargeSetpoint возвращает ток заряда (целые амперы, ≥1) и режим для сенсора.
 func chargeSetpoint(in chargeInput) (float64, string) {
+	// Полный заряд — не «тянуть к 100 % большим током», а добрать минимальным
+	// после цели на ночь: медленный хвост и есть балансировка ячеек.
 	target := in.TargetSOC
 	mode := "night"
 	if in.FullDue {
-		target, mode = 100, "full"
+		mode = "full"
 	}
 	var a float64
 	switch {
@@ -61,6 +63,8 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 	case in.SOC < target:
 		a = in.MaxA * (target - in.SOC) / (target - in.TaperSOC)
 		mode += "/taper"
+	case in.FullDue && in.SOC < 100:
+		a, mode = chargeMinA, "full/trickle"
 	default:
 		a, mode = chargeMinA, mode+"/hold"
 	}
