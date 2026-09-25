@@ -70,7 +70,7 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	case "contactor": // переключение ввода контактора Ввод1↔Ввод2 (sim_contactor off/on)
 		if s.store.State("sensor.sim_contactor_link") == "lost" {
-			http.Error(w, "нет связи с контактором (RS-485)", http.StatusConflict)
+			http.Error(w, "нет связи с АВР вводов (RS-485)", http.StatusConflict)
 			return
 		}
 		v := ""

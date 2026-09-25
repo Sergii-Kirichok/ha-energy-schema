@@ -16,14 +16,14 @@ func (f *frame) row2() {
 	if !ctLink {
 		ctDot = cRed
 	}
-	s.head(24, 300, 240, "sw", "Контактор", ctDot)
+	s.head(24, 300, 240, "sw", "АВР вводов", ctDot)
 	// крупный статус: состояние реле → какой ввод в работе
 	if !ctLink {
 		s.t(144, 348, 14, cRed, "middle", "НЕТ СВЯЗИ (485)")
 	} else if contOn {
-		s.t(144, 348, 16, cBlu, "middle", "ВКЛ → Ввод 2")
+		s.t(144, 348, 15, cBlu, "middle", "→ Ввод 2 · "+cfg.In2Name)
 	} else {
-		s.t(144, 348, 16, cGrn, "middle", "ВЫКЛ → Ввод 1")
+		s.t(144, 348, 15, cGrn, "middle", "→ Ввод 1 · "+cfg.In1Name)
 	}
 	// какой ввод сейчас активен (подсветка) + индикатор «живости» линии + при каком реле
 	selRow := func(y float64, name, note, col, liveCol, key string, active bool) {
@@ -175,7 +175,7 @@ func (f *frame) row2() {
 	if !avrLink {
 		avrLinkCol = cRed
 	}
-	s.head(800, 300, 200, "sw", "АВР", avrLinkCol)
+	s.head(800, 300, 200, "sw", "АВР дома", avrLinkCol)
 	// температура в шкафу — у значка статуса
 	atemp := st.Num("sensor.sim_avr_temp")
 	atc := cGrn
