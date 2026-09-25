@@ -44,7 +44,26 @@ var dashChargeCard = map[string]any{
 // patchChargeCard appends dashChargeCard next to the battery card unless a card
 // with the marker entity already exists anywhere in the dashboard.
 func patchChargeCard(node any) (bool, error) {
-	if findCardWith(node, dashChargeMarker) != nil {
+	return appendCardOnce(node, findCardWith(node, dashChargeMarker) != nil, dashChargeCard)
+}
+
+// Разбег ячеек цветом: entities-строку раскрасить нативно нельзя (card-mod не
+// стоит), поэтому рядом — gauge с зонами зелёный/жёлтый/красный (0/30/100 мВ).
+var dashDeltaGauge = map[string]any{
+	"type": "gauge", "entity": "sensor.energy_schema_bms_cell_delta", "name": "Разбег ячеек",
+	"unit": "mV", "min": 0, "max": 150, "needle": true,
+	"severity": map[string]any{"green": 0, "yellow": cellDeltaOKmV, "red": cellDeltaWarnmV},
+}
+
+func patchDeltaGauge(node any) (bool, error) {
+	// маркер — именно gauge на этой сущности (строка в списке не считается)
+	return appendCardOnce(node, findOwnEntityCard(node, "gauge", "sensor.energy_schema_bms_cell_delta") != nil, dashDeltaGauge)
+}
+
+// appendCardOnce appends card to the cards list holding the battery card
+// unless `present` says it is already there.
+func appendCardOnce(node any, present bool, card map[string]any) (bool, error) {
+	if present {
 		return false, nil
 	}
 	cards := findCardsHolding(node, findEntitiesCard(node))
@@ -52,7 +71,7 @@ func patchChargeCard(node any) (bool, error) {
 		return false, fmt.Errorf("no cards list holding the battery card")
 	}
 	holder, key := cards[0].(map[string]any), cards[1].(string)
-	holder[key] = append(holder[key].([]any), dashChargeCard)
+	holder[key] = append(holder[key].([]any), card)
 	return true, nil
 }
 
@@ -103,10 +122,12 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
 	}
-	if c2, err := patchChargeCard(cfg); err != nil {
-		log.Printf("dashboard %s: charge card: %v", urlPath, err)
-	} else {
-		changed = changed || c2
+	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta gauge": patchDeltaGauge} {
+		if c2, err := patch(cfg); err != nil {
+			log.Printf("dashboard %s: %s: %v", urlPath, name, err)
+		} else {
+			changed = changed || c2
+		}
 	}
 	if !changed {
 		return
@@ -201,6 +222,29 @@ func findCardWith(node any, entity string) map[string]any {
 	case []any:
 		for _, child := range v {
 			if c := findCardWith(child, entity); c != nil {
+				return c
+			}
+		}
+	}
+	return nil
+}
+
+// findOwnEntityCard returns the first card of the given type whose own
+// `entity` is entity (gauge, tile, ...).
+func findOwnEntityCard(node any, typ, entity string) map[string]any {
+	switch v := node.(type) {
+	case map[string]any:
+		if v["type"] == typ && v["entity"] == entity {
+			return v
+		}
+		for _, child := range v {
+			if c := findOwnEntityCard(child, typ, entity); c != nil {
+				return c
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if c := findOwnEntityCard(child, typ, entity); c != nil {
 				return c
 			}
 		}

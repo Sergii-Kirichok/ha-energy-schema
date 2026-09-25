@@ -71,3 +71,21 @@ func TestPatchChargeCard(t *testing.T) {
 		t.Errorf("marshal: %v %s", err, b)
 	}
 }
+
+func TestPatchDeltaGauge(t *testing.T) {
+	src := `{"views":[{"sections":[{"cards":[
+	  {"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"},{"entity":"sensor.energy_schema_bms_cell_delta"}]}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	// the delta ROW in the entities card must not count as the gauge
+	if changed, err := patchDeltaGauge(cfg); err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if changed, _ := patchDeltaGauge(cfg); changed {
+		t.Error("gauge must be added once")
+	}
+	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
+	if len(cards) != 2 || cards[1].(map[string]any)["type"] != "gauge" {
+		t.Errorf("cards = %v", cards)
+	}
+}

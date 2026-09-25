@@ -23,8 +23,9 @@ const (
 	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeFile       = "/data/charge.json"
 	chargeMinA       = 1.0
-	chargeCellCapA   = 5.0 // при разбалансе ячеек — не выше этого
-	parallelReg      = 110 // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
+	chargeCellCapA   = 5.0  // при разбалансе ячеек — не выше этого…
+	chargeCellCapSOC = 70.0 // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
+	parallelReg      = 110  // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
 var chargeHelpers = []hass.Helper{
@@ -60,7 +61,7 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 	default:
 		a, mode = chargeMinA, mode+"/hold"
 	}
-	if in.CellLevel == "bad" && a > chargeCellCapA {
+	if in.CellLevel == "bad" && in.SOC >= chargeCellCapSOC && a > chargeCellCapA {
 		a, mode = chargeCellCapA, mode+"/cells"
 	}
 	return math.Max(chargeMinA, math.Round(a)), mode
