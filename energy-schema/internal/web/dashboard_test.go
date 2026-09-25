@@ -144,3 +144,28 @@ func TestPatchDeltaCleanupAndPowerRow(t *testing.T) {
 		t.Errorf("power row not switched: %s", b)
 	}
 }
+
+func TestPatchChargeCardAddsMissingRows(t *testing.T) {
+	src := `{"views":[{"cards":[{"type":"entities","title":"Заряд АКБ","entities":[
+	  {"entity":"input_boolean.energy_schema_charge_auto"},
+	  {"entity":"input_number.energy_schema_charge_full_days"},
+	  {"entity":"sensor.energy_schema_charge_next_full"}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	if changed, err := patchChargeCard(cfg); err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if changed, _ := patchChargeCard(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+	ents := findCardWith(cfg, dashChargeMarker)["entities"].([]any)
+	want := dashChargeCard["entities"].([]any)
+	if len(ents) != len(want) {
+		t.Fatalf("len %d, want %d", len(ents), len(want))
+	}
+	for i := range want {
+		if entityID(ents[i]) != entityID(want[i]) {
+			t.Errorf("row %d = %s, want %s", i, entityID(ents[i]), entityID(want[i]))
+		}
+	}
+}

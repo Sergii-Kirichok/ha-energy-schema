@@ -100,6 +100,25 @@ func (s *Server) ensureChargeHelpers() {
 			log.Printf("charge: created %s.%s", h.Domain, h.ID)
 		}
 	}
+	// уже созданные раньше в режиме box — перевести на компактный slider;
+	// режим читаем из атрибутов состояния (store наполняется первым опросом)
+	for i := 0; i < 30 && !s.store.Available(chargeFullNowEntity); i++ {
+		time.Sleep(time.Second)
+	}
+	for _, h := range chargeHelpers {
+		if h.Domain != "input_number" {
+			continue
+		}
+		cur := s.store.Attr("input_number."+h.ID, "mode")
+		if cur == "" {
+			continue
+		}
+		if ch, err := s.client.EnsureNumberMode(h.ID, cur); err != nil {
+			log.Printf("charge: %v", err)
+		} else if ch {
+			log.Printf("charge: input_number.%s → slider", h.ID)
+		}
+	}
 }
 
 // loopCharge — раз в минуту: читает хелперы и SOC, пишет лимиты в инвертор

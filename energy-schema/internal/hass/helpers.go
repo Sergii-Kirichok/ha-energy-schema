@@ -73,7 +73,7 @@ func (c *Client) EnsureHelper(h Helper) (bool, error) {
 	msg := map[string]interface{}{"type": h.Domain + "/create", "name": h.ID, "icon": h.Icon}
 	switch h.Domain {
 	case "input_number":
-		msg["min"], msg["max"], msg["step"], msg["initial"], msg["mode"] = h.Min, h.Max, h.Step, h.Initial, "box"
+		msg["min"], msg["max"], msg["step"], msg["initial"], msg["mode"] = h.Min, h.Max, h.Step, h.Initial, inputNumberMode
 		if h.Unit != "" {
 			msg["unit_of_measurement"] = h.Unit
 		}
@@ -87,6 +87,28 @@ func (c *Client) EnsureHelper(h Helper) (bool, error) {
 	if err := w.call(2, map[string]interface{}{"type": "config/entity_registry/update",
 		"entity_id": entity, "name": strings.TrimSpace(h.Name)}, nil); err != nil {
 		return true, fmt.Errorf("rename %s: %w", entity, err)
+	}
+	return true, nil
+}
+
+// inputNumberMode — режим отображения input_number: "slider" — строка обычной
+// высоты (у "box" поле ввода высокое и в entities-карточке не ужимается).
+const inputNumberMode = "slider"
+
+// EnsureNumberMode switches an existing input_number helper (object id `id`)
+// to inputNumberMode if its current mode differs. Partial update via WS
+// input_number/update keeps min/max/step and the value.
+func (c *Client) EnsureNumberMode(id, current string) (bool, error) {
+	if current == inputNumberMode {
+		return false, nil
+	}
+	w, err := c.wsAuth()
+	if err != nil {
+		return false, err
+	}
+	defer w.close()
+	if err := w.call(1, map[string]interface{}{"type": "input_number/update", "input_number_id": id, "mode": inputNumberMode}, nil); err != nil {
+		return false, fmt.Errorf("mode %s: %w", id, err)
 	}
 	return true, nil
 }

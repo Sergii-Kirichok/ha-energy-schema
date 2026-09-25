@@ -45,7 +45,41 @@ var dashChargeCard = map[string]any{
 // patchChargeCard appends dashChargeCard next to the battery card unless a card
 // with the marker entity already exists anywhere in the dashboard.
 func patchChargeCard(node any) (bool, error) {
-	return appendCardOnce(node, findCardWith(node, dashChargeMarker) != nil, dashChargeCard)
+	card := findCardWith(node, dashChargeMarker)
+	if card == nil {
+		return appendCardOnce(node, false, dashChargeCard)
+	}
+	// карточка есть — дорисовать строки, появившиеся в новых версиях, на их
+	// место по шаблону (строки пользователя и порядок сохраняются)
+	ents, _ := card["entities"].([]any)
+	have := map[string]bool{}
+	for _, e := range ents {
+		have[entityID(e)] = true
+	}
+	tmpl := dashChargeCard["entities"].([]any)
+	changed := false
+	for i, r := range tmpl {
+		id := entityID(r)
+		if have[id] {
+			continue
+		}
+		pos := 0 // сразу после ближайшей предыдущей строки шаблона, что уже есть
+	prev:
+		for k := i - 1; k >= 0; k-- {
+			for j, e := range ents {
+				if entityID(e) == entityID(tmpl[k]) {
+					pos = j + 1
+					break prev
+				}
+			}
+		}
+		ents = append(ents[:pos], append([]any{r}, ents[pos:]...)...)
+		have[id], changed = true, true
+	}
+	if changed {
+		card["entities"] = ents
+	}
+	return changed, nil
 }
 
 // appendCardOnce appends card to the cards list holding the battery card
