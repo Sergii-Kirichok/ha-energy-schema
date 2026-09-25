@@ -24,10 +24,11 @@ const (
 	chargeFile       = "/data/charge.json"
 	chargeMinA       = 1.0
 	chargeCellCapA   = 5.0 // при разбалансе ячеек — не выше этого
+	parallelReg      = 110 // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
 var chargeHelpers = []hass.Helper{
-	{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync"},
+	{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
 	{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: 185, Step: 1, Initial: 25, Unit: "A", Icon: "mdi:current-dc"},
 	{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 0, Max: 185, Step: 1, Initial: 5, Unit: "A", Icon: "mdi:transmission-tower"},
 	{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
@@ -67,6 +68,7 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 
 type chargeState struct {
 	LastFull time.Time `json:"last_full"`
+	Factor   float64   `json:"-"` // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
 }
 
 func loadChargeState(path string) chargeState {
@@ -141,21 +143,40 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if !auto {
 		return
 	}
+	// множитель регистр→факт: при «Parallel Bat&Bat2»=1 инвертор удваивает лимит.
+	// Читаем каждый тик; при ошибке чтения держим прошлое значение, а без него
+	// не пишем вовсе (иначе можно случайно дать вдвое больший ток).
+	if regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, parallelReg, 1); err == nil {
+		st.Factor = 1 + float64(regs[parallelReg]&1)
+	} else if st.Factor == 0 {
+		log.Println("charge: parallel flag:", err)
+		return
+	}
 	grid := num("input_number.energy_schema_charge_grid_a")
-	if amps != *lastMax {
-		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeMaxEntity, "value": amps}); err != nil {
+	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
+	if maxReg != *lastMax {
+		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeMaxEntity, "value": maxReg}); err != nil {
 			log.Println("charge: set max:", err)
 		} else {
-			log.Printf("charge: max %.0f A (soc %.0f%%, %s)", amps, soc, mode)
-			*lastMax = amps
+			log.Printf("charge: max %.0f A → reg108=%.0f (x%.0f), soc %.0f%%, %s", amps, maxReg, st.Factor, soc, mode)
+			*lastMax = maxReg
 		}
 	}
-	if grid != *lastGrid && grid >= 0 {
-		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": grid}); err != nil {
+	if gridReg != *lastGrid {
+		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": gridReg}); err != nil {
 			log.Println("charge: set grid:", err)
 		} else {
-			log.Printf("charge: grid %.0f A", grid)
-			*lastGrid = grid
+			log.Printf("charge: grid %.0f A → reg128=%.0f", grid, gridReg)
+			*lastGrid = gridReg
 		}
 	}
+}
+
+// regValue — значение регистра для желаемого фактического тока: делим на
+// множитель, округляем, не ниже 1 (0 у Deye = «не заряжать», не хотим).
+func regValue(amps, factor float64) float64 {
+	if factor < 1 {
+		factor = 1
+	}
+	return math.Max(1, math.Round(amps/factor))
 }

@@ -71,11 +71,14 @@ func (c *Client) EnsureHelper(h Helper) (bool, error) {
 	}
 	defer w.close()
 	msg := map[string]interface{}{"type": h.Domain + "/create", "name": h.ID, "icon": h.Icon}
-	if h.Domain == "input_number" {
+	switch h.Domain {
+	case "input_number":
 		msg["min"], msg["max"], msg["step"], msg["initial"], msg["mode"] = h.Min, h.Max, h.Step, h.Initial, "box"
 		if h.Unit != "" {
 			msg["unit_of_measurement"] = h.Unit
 		}
+	case "input_boolean":
+		msg["initial"] = h.Initial != 0
 	}
 	if err := w.call(1, msg, nil); err != nil {
 		return false, fmt.Errorf("create %s: %w", entity, err)

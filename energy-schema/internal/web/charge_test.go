@@ -47,3 +47,14 @@ func TestChargeStatePersist(t *testing.T) {
 		t.Errorf("reloaded %v, want %v", st.LastFull, when)
 	}
 }
+
+func TestRegValue(t *testing.T) {
+	cases := []struct{ amps, factor, want float64 }{
+		{25, 2, 13}, {16, 2, 8}, {1, 2, 1}, {0, 2, 1}, {5, 1, 5}, {5, 0, 5}, {3, 2, 2},
+	}
+	for _, c := range cases {
+		if got := regValue(c.amps, c.factor); got != c.want {
+			t.Errorf("regValue(%v,%v) = %v, want %v", c.amps, c.factor, got, c.want)
+		}
+	}
+}
