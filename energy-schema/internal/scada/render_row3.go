@@ -12,7 +12,10 @@ func (f *frame) battery() {
 	bp, load, pvtot := f.bp, f.load, f.pvtot
 
 	// ===================== ROW 3 =====================
-	// Батарея
+	// Батарея. Две стороны: лицевая (f-front) и оборот с настройками заряда
+	// (f-back, render_batt_back.go); переворот — клик по ⚙/↩, состояние
+	// хранит клиент (localStorage), см. index_html.go.
+	s.p(`<g id="card-batt"><g class="face f-front">`)
 	s.box(24, 520, 300, 280)
 	bAlarm := st.On("binary_sensor.deye_sun_30k_battery_fault") || st.On("binary_sensor.deye_sun_30k_battery_alarm")
 	bStatCol := cGrn
@@ -20,6 +23,10 @@ func (f *frame) battery() {
 		bStatCol = cRed
 	}
 	s.head(24, 520, 300, "batt", "АКБ", bStatCol)
+	// ⚙ — перевернуть карточку (настройки заряда на обороте)
+	s.p(`<g data-flip="batt" style="cursor:pointer"><rect x="104" y="530" width="24" height="20" rx="5" fill="transparent"/>`)
+	s.t(116, 545, 13, cSub, "middle", "⚙")
+	s.p(`</g>`)
 	// температура — рядом со значком статуса (не отдельной строкой)
 	btemp := st.Num("sensor.deye_sun_30k_battery_temperature")
 	btc := cGrn
@@ -149,6 +156,9 @@ func (f *frame) battery() {
 		s.t(174, 776, 9, cSub, "middle", fmt.Sprintf("прогноз по факту: %d дн · ясный ~%.0f · средн %.0f кВт·ч/сут", n, clearDay, avg))
 	}
 	s.t(174, 790, 9, cSub, "middle", fmt.Sprintf("ёмкость %.0f · SOH %.0f%% → %.0f кВт·ч · отключ. %.0f%%", capNom, soh, capKWh, cutoff))
+	s.p(`</g>`)
+	f.batteryBack()
+	s.p(`</g>`)
 	f.clearDay = clearDay
 }
 

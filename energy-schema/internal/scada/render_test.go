@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,5 +120,30 @@ func TestRenderGolden(t *testing.T) {
 	}
 	if got != string(want) {
 		t.Errorf("SVG output changed: got %d bytes, want %d bytes", len(got), len(want))
+	}
+}
+
+func TestBatteryBackFace(t *testing.T) {
+	m := map[string]string{
+		"sensor.deye_sun_30k_battery":             "62",
+		"input_boolean.energy_schema_charge_auto": "on",
+		"input_number.energy_schema_charge_max_a": "25",
+		"sensor.energy_schema_charge_setpoint":    "25",
+		"sensor.energy_schema_charge_next_full":   "2026-10-09",
+	}
+	svg := Render(storeFrom(m), config.Default())
+	for _, want := range []string{
+		`<g id="card-batt"><g class="face f-front">`, `class="face f-back"`, `data-flip="batt"`,
+		`data-set="auto:toggle"`, `data-set="max_a:+5"`, `data-set="max_a:-5"`, `data-set="full_now:toggle"`,
+		">25 А<", ">ВКЛ<", "следующий 100 %: 2026-10-09",
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("back face lacks %q", want)
+		}
+	}
+	// без хелперов — прочерки, но кнопки на месте
+	svg = Render(storeFrom(map[string]string{}), config.Default())
+	if !strings.Contains(svg, `data-set="grid_a:+1"`) || !strings.Contains(svg, ">—<") {
+		t.Error("back face must render placeholders without helpers")
 	}
 }

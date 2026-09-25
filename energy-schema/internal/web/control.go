@@ -89,6 +89,14 @@ func (s *Server) handleControl(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("control: contactor -> %s", val)
 		_, _ = w.Write([]byte("ok"))
+	case "param": // быстрые настройки с оборота карточки АКБ (хелперы регулятора заряда)
+		msg, err := s.quickParam(val)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		log.Printf("control: param %s", msg)
+		_, _ = w.Write([]byte("ok"))
 	case "gen_start", "gen_stop", "gen_heater": // управление генератором — только в АВТО
 		if s.store.State("sensor.sim_gen_mode") != "auto" {
 			http.Error(w, "генератор в ручном режиме — управление недоступно", http.StatusConflict)

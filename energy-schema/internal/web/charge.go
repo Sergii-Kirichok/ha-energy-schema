@@ -35,7 +35,10 @@ var chargeHelpers = []hass.Helper{
 	{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
 	{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 	{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: 60, Step: 1, Initial: 14, Unit: "д", Icon: "mdi:calendar-refresh"},
+	{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
 }
+
+const chargeFullNowEntity = "input_boolean.energy_schema_charge_full_now"
 
 // chargeInput — всё, что нужно закону регулирования (чистая функция, тестируется).
 type chargeInput struct {
@@ -121,6 +124,13 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	nextFull := st.LastFull.Add(time.Duration(fullDays*24) * time.Hour)
 	fullDue := fullDays > 0 && (st.LastFull.IsZero() || !time.Now().Before(nextFull))
+	// внеплановый полный заряд по кнопке; при 100 % кнопка гасится сама
+	if s.store.On(chargeFullNowEntity) {
+		fullDue = true
+		if soc >= 100 {
+			_ = s.client.CallService("input_boolean", "turn_off", map[string]any{"entity_id": chargeFullNowEntity})
+		}
+	}
 	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
 		TaperSOC: num("input_number.energy_schema_charge_taper_soc"), TargetSOC: num("input_number.energy_schema_charge_target_soc"),
 		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}

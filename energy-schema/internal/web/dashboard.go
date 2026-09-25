@@ -37,6 +37,7 @@ var dashChargeCard = map[string]any{
 		map[string]any{"entity": "input_number.energy_schema_charge_taper_soc", "name": "Снижать ток с, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_target_soc", "name": "Цель на ночь, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_full_days", "name": "Полный заряд раз в, дней"},
+		map[string]any{"entity": "input_boolean.energy_schema_charge_full_now", "name": "Полный заряд сейчас"},
 		map[string]any{"entity": "sensor.energy_schema_charge_next_full", "name": "Следующий 100 %"},
 	},
 }
