@@ -71,6 +71,10 @@ func (s *Store) InitDayBoundary() {
 	s.mu.Unlock()
 }
 
+// nowFn is the clock Replace stamps polls with; tests override it to drive the
+// midnight rollover and the poll-gap guard deterministically.
+var nowFn = time.Now
+
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
 	return &Store{cur: map[string]Entity{}, virt: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}, dayEnergy: map[string]float64{}}
@@ -90,7 +94,7 @@ func FromStates(m map[string]string) map[string]Entity {
 // tracks each numeric entity's peak for the current calendar day (reset at midnight).
 func (s *Store) Replace(m map[string]Entity) {
 	s.mu.Lock()
-	now := time.Now()
+	now := nowFn()
 	ymd := now.Format("2006-01-02")
 	if ymd != s.dayYMD {
 		s.dayMax = map[string]float64{}
