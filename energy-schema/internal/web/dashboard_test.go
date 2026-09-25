@@ -22,11 +22,17 @@ func TestPatchBatteryCard(t *testing.T) {
 	}
 	card := findEntitiesCard(cfg)
 	ents := card["entities"].([]any)
-	if len(ents) != 3+len(dashBMSRows) {
+	// Solarman SOH row is REPLACED by ours (not kept), others inserted after it
+	if len(ents) != 2+len(dashBMSRows) {
 		t.Fatalf("len = %d", len(ents))
 	}
-	if entityID(ents[1]) != dashAnchorEntity || entityID(ents[2]) != bmsSOHEntity || entityID(ents[len(ents)-1]) != "sensor.deye_sun_30k_battery_voltage" {
+	if entityID(ents[1]) != bmsSOHEntity || entityID(ents[2]) != "sensor.energy_schema_bms_cell_max" || entityID(ents[len(ents)-1]) != "sensor.deye_sun_30k_battery_voltage" {
 		t.Errorf("order wrong: %v", ents)
+	}
+	for _, e := range ents {
+		if entityID(e) == dashAnchorEntity {
+			t.Error("computed Solarman SOH row must be gone")
+		}
 	}
 	// idempotent
 	if changed, err := patchBatteryCard(cfg); err != nil || changed {

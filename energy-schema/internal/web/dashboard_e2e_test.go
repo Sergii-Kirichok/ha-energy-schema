@@ -54,12 +54,12 @@ func TestEnsureDashboardE2E(t *testing.T) {
 		t.Fatalf("saves = %d, want 1", saves)
 	}
 	ents := findEntitiesCard(cfg)["entities"].([]any)
-	if len(ents) != 3+len(dashBMSRows) || entityID(ents[1]) != dashAnchorEntity {
+	if len(ents) != 2+len(dashBMSRows) || entityID(ents[1]) != bmsSOHEntity {
 		t.Fatalf("entities = %v", ents)
 	}
 	for i, r := range dashBMSRows {
-		if entityID(ents[2+i]) != r["entity"] {
-			t.Errorf("row %d = %v, want %v", i, ents[2+i], r["entity"])
+		if entityID(ents[1+i]) != r["entity"] {
+			t.Errorf("row %d = %v, want %v", i, ents[1+i], r["entity"])
 		}
 	}
 	if entityID(ents[len(ents)-1]) != "sensor.deye_sun_30k_battery_voltage" {

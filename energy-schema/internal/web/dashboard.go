@@ -14,7 +14,7 @@ import (
 const dashAnchorEntity = "sensor.deye_sun_30k_battery_soh"
 
 var dashBMSRows = []map[string]any{
-	{"entity": bmsSOHEntity, "name": "Здоровье (SOH, BMS)"},
+	{"entity": bmsSOHEntity, "name": "Здоровье (SOH)"},
 	{"entity": "sensor.energy_schema_bms_cell_max", "name": "Ячейка макс"},
 	{"entity": "sensor.energy_schema_bms_cell_min", "name": "Ячейка мин"},
 	{"entity": "sensor.energy_schema_bms_cell_delta", "name": "Разбег ячеек"},
@@ -56,26 +56,35 @@ func (s *Server) ensureDashboard(urlPath string) {
 func patchBatteryCard(node any) (bool, error) {
 	card := findEntitiesCard(node)
 	if card == nil {
-		return false, fmt.Errorf("no entities card with %s found", dashAnchorEntity)
+		return false, fmt.Errorf("no entities card with %s or %s found", dashAnchorEntity, bmsSOHEntity)
 	}
 	ents, _ := card["entities"].([]any)
 	have := map[string]bool{}
-	anchor := -1
+	anchor, changed := -1, false
 	for i, e := range ents {
 		id := entityID(e)
 		have[id] = true
 		if id == dashAnchorEntity && anchor < 0 {
+			// расчётный SOH Solarman (92 % при 97 % от BMS) заменяем нашей строкой
+			// на том же месте — две строки «здоровье» только путают
+			ents[i] = dashBMSRows[0]
+			have[bmsSOHEntity] = true
+			anchor, changed = i, true
+		} else if id == bmsSOHEntity && anchor < 0 {
 			anchor = i
 		}
 	}
 	var add []any
-	for _, r := range dashBMSRows {
+	for _, r := range dashBMSRows[1:] {
 		if !have[r["entity"].(string)] {
 			add = append(add, r)
 		}
 	}
 	if len(add) == 0 {
-		return false, nil
+		if changed {
+			card["entities"] = ents
+		}
+		return changed, nil
 	}
 	out := append([]any{}, ents[:anchor+1]...)
 	out = append(out, add...)
@@ -101,7 +110,7 @@ func findEntitiesCard(node any) map[string]any {
 		if v["type"] == "entities" {
 			if ents, ok := v["entities"].([]any); ok {
 				for _, e := range ents {
-					if entityID(e) == dashAnchorEntity {
+					if id := entityID(e); id == dashAnchorEntity || id == bmsSOHEntity {
 						return v
 					}
 				}
