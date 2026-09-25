@@ -45,3 +45,30 @@ func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc f
 		"reg108": reg108, "channels": factor, "soc": soc, "full_due": fullDue, "auto": auto}
 	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", reg108*factor), attrs)
 }
+
+// Пороги ночного режима по генерации PV, Вт. Разрыв — гистерезис, чтобы
+// вечерние облака не дёргали регистр туда-обратно.
+const (
+	nightBelowW = 300.0
+	dayAboveW   = 800.0
+)
+
+// nightHyst — ночь, если PV < 300 Вт; снова день, когда PV > 800 Вт.
+func nightHyst(pvW float64, wasNight bool) bool {
+	if wasNight {
+		return pvW <= dayAboveW
+	}
+	return pvW < nightBelowW
+}
+
+// pvBucket — грубая корзина генерации для отпечатка входов регулятора:
+// смена корзины = событие (переход день/ночь), дрожание внутри — нет.
+func pvBucket(pvW float64) string {
+	switch {
+	case pvW < nightBelowW:
+		return "n"
+	case pvW > dayAboveW:
+		return "d"
+	}
+	return "m"
+}

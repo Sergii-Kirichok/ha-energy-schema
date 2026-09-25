@@ -114,3 +114,26 @@ func TestChargeSignature(t *testing.T) {
 		t.Error("SOC change must change the signature")
 	}
 }
+
+func TestNightMode(t *testing.T) {
+	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 100, Night: true}
+	if a, mode := chargeSetpoint(in); a != 25 || mode != "night-ready" {
+		t.Errorf("night = %.0f %q, want 25 night-ready", a, mode)
+	}
+	steps := []struct {
+		pv        float64
+		wasNight  bool
+		wantNight bool
+	}{
+		{1000, false, false}, {500, false, false}, {200, false, true}, // вечер: <300 → ночь
+		{500, true, true}, {800, true, true}, {900, true, false}, // утро: >800 → день
+	}
+	for _, c := range steps {
+		if got := nightHyst(c.pv, c.wasNight); got != c.wantNight {
+			t.Errorf("nightHyst(%.0f,%v) = %v", c.pv, c.wasNight, got)
+		}
+	}
+	if pvBucket(100) != "n" || pvBucket(500) != "m" || pvBucket(2000) != "d" {
+		t.Error("pvBucket")
+	}
+}

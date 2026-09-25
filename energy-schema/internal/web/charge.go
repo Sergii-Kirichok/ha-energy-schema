@@ -46,10 +46,16 @@ type chargeInput struct {
 	SOC, MaxA, TaperSOC, TargetSOC float64
 	FullDue                        bool
 	CellLevel                      string // "ok" | "warn" | "bad" (см. cellVerdict)
+	Night                          bool   // нет генерации — стоим на полном токе к утру
 }
 
 // chargeSetpoint возвращает ток заряда (целые амперы, ≥1) и режим для сенсора.
 func chargeSetpoint(in chargeInput) (float64, string) {
+	// ночью ток не нужен, а утро должно начаться с полного лимита даже без
+	// связи с HA — поэтому на ночь пишем «Общий лимит», а не 0/спад
+	if in.Night {
+		return math.Max(chargeMinA, math.Round(in.MaxA)), "night-ready"
+	}
 	// Полный заряд — не «тянуть к 100 % большим током», а добрать минимальным
 	// после цели на ночь: медленный хвост и есть балансировка ячеек.
 	target := in.TargetSOC
@@ -83,6 +89,7 @@ type chargeState struct {
 	Factor     float64   `json:"-"`           // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
 	ZeroBroken bool      `json:"zero_broken"` // проверено: Deye не останавливает заряд по 108=0
 	ZeroSince  time.Time `json:"-"`           // когда записали 0 (для самопроверки)
+	Night      bool      `json:"-"`           // ночной режим (гистерезис по генерации)
 }
 
 func loadChargeState(path string) chargeState {
@@ -153,7 +160,8 @@ func (s *Server) loopCharge() {
 
 // chargeSignature — всё, от чего зависит уставка: хелперы, SOC, баланс ячеек.
 func (s *Server) chargeSignature() string {
-	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level")
+	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level") +
+		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"))
 	for _, h := range chargeHelpers {
 		sig += "|" + s.store.State(h.Domain+"."+h.ID)
 	}
@@ -186,6 +194,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
 		TaperSOC: num("input_number.energy_schema_charge_taper_soc"), TargetSOC: num("input_number.energy_schema_charge_target_soc"),
 		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
+	st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night)
+	in.Night = st.Night
 	auto := s.store.On("input_boolean.energy_schema_charge_auto")
 	if in.MaxA <= 0 || in.TargetSOC <= 0 {
 		return // хелперы ещё не созданы / не прочитаны
