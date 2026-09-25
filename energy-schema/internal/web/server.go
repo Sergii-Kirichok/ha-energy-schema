@@ -118,6 +118,7 @@ func (s *Server) Run() error {
 	go s.loopAnim()
 	go s.loopForecast()
 	go s.loopPVHistory()
+	go s.loopBMS()
 	// прогноз генерации (геометрия + Open-Meteo) — если заданы стринги и координаты
 	if len(s.cfg.PVStrings) > 0 {
 		if lat, lon, elev, err := s.client.Location(); err != nil {

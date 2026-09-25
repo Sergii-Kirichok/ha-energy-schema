@@ -61,7 +61,7 @@ func (f *frame) battery() {
 	s.t(54, 596, 11, cSub, "middle", "ток")
 	s.t(54, 616, 15, cTxt, "middle", fmt.Sprintf("%.1f А", st.Num("sensor.deye_sun_30k_battery_current")))
 	s.t(294, 596, 11, cSub, "middle", "SOH")
-	s.t(294, 616, 15, cTxt, "middle", fmt.Sprintf("%.0f%%", st.Num("sensor.deye_sun_30k_battery_soh")))
+	s.t(294, 616, 15, cTxt, "middle", fmt.Sprintf("%.0f%%", batterySOH(st)))
 
 	// заряд/разряд — визуально (пилюля со стрелкой); покой = без стрелки
 	if bAlarm {
@@ -92,7 +92,7 @@ func (f *frame) battery() {
 	// занижает (≈50), Ah×«живое» напряжение завышает (≈64) — поэтому берём
 	// номинал из конфига (реальные 60 кВт·ч) и корректируем на здоровье батареи.
 	capNom := cfg.BattCap
-	soh := st.Num("sensor.deye_sun_30k_battery_soh")
+	soh := batterySOH(st)
 	if soh <= 0 || soh > 100 {
 		soh = 100
 	}
@@ -254,4 +254,14 @@ func (f *frame) sun() {
 	s.t(382, 779, 10, cSub, "start", "0")
 	s.barTicks(380, 779, 520, pvInputMaxKW, []float64{cfg.PVT1, cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 5 · 20 · 25 · 33
 	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", pvInputMaxKW))
+}
+
+// batterySOH prefers the real BMS value (register 10006, published by the
+// add-on as sensor.energy_schema_bms_soh) over the Solarman-computed sensor,
+// which is off for HV packs (assumes 48 V nominal when counting cycles).
+func batterySOH(st State) float64 {
+	if st.Available("sensor.energy_schema_bms_soh") {
+		return st.Num("sensor.energy_schema_bms_soh")
+	}
+	return st.Num("sensor.deye_sun_30k_battery_soh")
 }

@@ -42,6 +42,7 @@ func parseFloatOK(s string) (float64, bool) {
 type Store struct {
 	mu        sync.RWMutex
 	cur       map[string]Entity
+	virt      map[string]Entity // значения, которые аддон вычислил сам (не из /states); переживают Replace
 	lastGood  map[string]Entity
 	forecast  []ForecastDay
 	hourly    []ForecastDay // почасовой прогноз (несёт cloud_coverage)
@@ -72,7 +73,7 @@ func (s *Store) InitDayBoundary() {
 
 // NewStore returns an empty Store ready for use.
 func NewStore() *Store {
-	return &Store{cur: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}, dayEnergy: map[string]float64{}}
+	return &Store{cur: map[string]Entity{}, virt: map[string]Entity{}, lastGood: map[string]Entity{}, dayMax: map[string]float64{}, roll: map[string]*rollMax{}, dayEnergy: map[string]float64{}}
 }
 
 // FromStates wraps a plain id->state map into entities (zero timestamps).
@@ -133,9 +134,20 @@ func (s *Store) ReplaceStates(m map[string]string) { s.Replace(FromStates(m)) }
 
 func (s *Store) state(e string) string {
 	s.mu.RLock()
-	v := s.cur[e].State
+	ent, ok := s.cur[e]
+	if !ok {
+		ent = s.virt[e]
+	}
 	s.mu.RUnlock()
-	return v
+	return ent.State
+}
+
+// SetVirtual publishes an add-on-computed value under a pseudo entity id so the
+// renderer reads it like any HA sensor. Real HA entities always take precedence.
+func (s *Store) SetVirtual(entity, state string) {
+	s.mu.Lock()
+	s.virt[entity] = Entity{State: state, LastChanged: time.Now()}
+	s.mu.Unlock()
 }
 
 // State returns the raw current state string for an entity ("" if unknown).
