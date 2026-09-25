@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"energy-schema/internal/config"
 )
 
 // regValue — значение регистра для желаемого фактического тока: делим на
@@ -46,28 +48,22 @@ func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc f
 	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", reg108*factor), attrs)
 }
 
-// Пороги ночного режима по генерации PV, Вт. Разрыв — гистерезис, чтобы
-// вечерние облака не дёргали регистр туда-обратно.
-const (
-	nightBelowW = 1000.0 // ниже — солнце не покрывает даже фоновую нагрузку (~1–2 кВт)
-	dayAboveW   = 1500.0
-)
-
-// nightHyst — ночь, если PV < 1 кВт; снова день, когда PV > 1,5 кВт.
-func nightHyst(pvW float64, wasNight bool) bool {
+// nightHyst — ночь, если PV ниже NightBelowW; снова день, когда PV выше
+// DayAboveW (разрыв — гистерезис против вечерних облаков).
+func nightHyst(pvW float64, wasNight bool, t config.ChargeTuning) bool {
 	if wasNight {
-		return pvW <= dayAboveW
+		return pvW <= t.DayAboveW
 	}
-	return pvW < nightBelowW
+	return pvW < t.NightBelowW
 }
 
 // pvBucket — грубая корзина генерации для отпечатка входов регулятора:
 // смена корзины = событие (переход день/ночь), дрожание внутри — нет.
-func pvBucket(pvW float64) string {
+func pvBucket(pvW float64, t config.ChargeTuning) string {
 	switch {
-	case pvW < nightBelowW:
+	case pvW < t.NightBelowW:
 		return "n"
-	case pvW > dayAboveW:
+	case pvW > t.DayAboveW:
 		return "d"
 	}
 	return "m"

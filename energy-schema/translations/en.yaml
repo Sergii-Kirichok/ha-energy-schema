@@ -1,0 +1,25 @@
+configuration:
+  charge_max_a_limit:
+    name: "Charge: total limit slider max, A"
+    description: "Upper bound of the «Общий лимит» slider. Default 30 A."
+  charge_grid_a_limit:
+    name: "Charge: grid limit slider max, A"
+    description: "Upper bound of the grid-charge slider. Default 15 A."
+  charge_full_days_max:
+    name: "Charge: full-charge period max, days"
+    description: "Upper bound of the full-charge period slider. Default 30."
+  charge_night_below_w:
+    name: "Charge: night mode below, W"
+    description: "PV below this → the full limit is written so the morning starts charging even without HA. Default 1000."
+  charge_day_above_w:
+    name: "Charge: day mode above, W"
+    description: "Back to the day logic above this PV power. Must exceed the night threshold (else +500). Default 1500."
+  charge_cell_cap_a:
+    name: "Charge: current cap on cell imbalance, A"
+    description: "Cap when the cell delta exceeds 100 mV. Default 5 A."
+  charge_cell_cap_soc:
+    name: "Charge: imbalance cap from SOC, %"
+    description: "Below this SOC imbalance does not cut the current. Default 70."
+  charge_zero_on_target:
+    name: "Charge: stop at the night target"
+    description: "On — write 0 (stop) at the target, off — 1 (minimum). Default on."

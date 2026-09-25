@@ -39,6 +39,8 @@ type Config struct {
 	// BMSDashboard — url_path дашборда HA, в карточку «Батарея» которого аддон
 	// при старте дописывает строки BMS (SOH, ячейки, баланс, циклы). "" = не трогать.
 	BMSDashboard string
+	// Charge — глубокие настройки регулятора заряда (config/charge.go).
+	Charge ChargeTuning
 }
 
 // PVString описывает один физический стринг панелей. Azimuth — КОМПАСНЫЙ
@@ -57,6 +59,7 @@ func Default() Config {
 		Refresh:      3,
 		APIBase:      "http://supervisor/core/api",
 		BMSDashboard: "home-energy",
+		Charge:       DefaultCharge(),
 		Title:        "Энергосистема",
 		In1Name:      "Рыбхоз",
 		In2Name:      "Зелёный",
@@ -101,6 +104,7 @@ type options struct {
 		Controllable bool    `json:"controllable"`
 	} `json:"pv_strings"`
 	PVACLimit float64 `json:"pv_ac_limit_kw"`
+	chargeOptions
 }
 
 // Load returns Default() with the options file and supervisorToken applied.
@@ -169,6 +173,7 @@ func (c *Config) apply(o options) {
 		c.PVDayClearKWh = o.PvDayClear
 	}
 	c.ControlUsers = o.ControlUsers
+	c.Charge.apply(o.chargeOptions)
 	if o.BMSDashboard != nil {
 		c.BMSDashboard = *o.BMSDashboard
 	}

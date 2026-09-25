@@ -28,3 +28,11 @@ func QuickParamByKey(key string) *QuickParam {
 	}
 	return nil
 }
+
+// SetQuickMax — потолок кнопки «+» для параметра (из глубоких настроек аддона).
+// Вызывается один раз при старте, до запуска рендера и обработчиков.
+func SetQuickMax(key string, max float64) {
+	if q := QuickParamByKey(key); q != nil && max > q.Min {
+		q.Max = max
+	}
+}

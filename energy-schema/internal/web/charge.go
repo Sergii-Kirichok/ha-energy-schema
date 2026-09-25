@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
 )
 
@@ -22,21 +23,23 @@ const (
 	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeFile       = "/data/charge.json"
 	chargeMinA       = 1.0
-	chargeCellCapA   = 5.0             // при разбалансе ячеек — не выше этого…
-	chargeCellCapSOC = 70.0            // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
 	chargeWatchEvery = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
 	chargeIdleEvery  = time.Minute     // сверка с инвертором, если ничего не менялось
 	parallelReg      = 110             // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
-var chargeHelpers = []hass.Helper{
-	{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
-	{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: 30, Step: 1, Initial: 25, Unit: "A", Icon: "mdi:current-dc"},
-	{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 1, Max: 15, Step: 1, Initial: 5, Unit: "A", Icon: "mdi:transmission-tower"},
-	{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
-	{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
-	{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: 30, Step: 1, Initial: 14, Unit: "д", Icon: "mdi:calendar-refresh"},
-	{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+// chargeHelpers — хелперы HA регулятора; потолки ползунков — из глубоких
+// настроек аддона (config.ChargeTuning).
+func chargeHelpers(t config.ChargeTuning) []hass.Helper {
+	return []hass.Helper{
+		{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
+		{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: t.MaxALimit, Step: 1, Initial: math.Min(25, t.MaxALimit), Unit: "A", Icon: "mdi:current-dc"},
+		{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 1, Max: t.GridALimit, Step: 1, Initial: math.Min(5, t.GridALimit), Unit: "A", Icon: "mdi:transmission-tower"},
+		{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
+		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
+		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
+		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+	}
 }
 
 const chargeFullNowEntity = "input_boolean.energy_schema_charge_full_now"
@@ -47,6 +50,7 @@ type chargeInput struct {
 	FullDue                        bool
 	CellLevel                      string // "ok" | "warn" | "bad" (см. cellVerdict)
 	Night                          bool   // нет генерации — стоим на полном токе к утру
+	Tune                           config.ChargeTuning
 }
 
 // chargeSetpoint возвращает ток заряда (целые амперы, ≥1) и режим для сенсора.
@@ -74,9 +78,12 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 		a, mode = chargeMinA, "full/trickle"
 	default:
 		a, mode = 0, mode+"/hold" // 0 = стоп заряда: даже 1 в регистре (×2 канала) набивает до 100 % за день
+		if !in.Tune.ZeroOnTarget {
+			a = chargeMinA
+		}
 	}
-	if in.CellLevel == "bad" && in.SOC >= chargeCellCapSOC && a > chargeCellCapA {
-		a, mode = chargeCellCapA, mode+"/cells"
+	if in.CellLevel == "bad" && in.SOC >= in.Tune.CellCapSOC && a > in.Tune.CellCapA {
+		a, mode = in.Tune.CellCapA, mode+"/cells"
 	}
 	if a <= 0 {
 		return 0, mode
@@ -106,7 +113,7 @@ func (st chargeState) save(path string) {
 }
 
 func (s *Server) ensureChargeHelpers() {
-	for _, h := range chargeHelpers {
+	for _, h := range chargeHelpers(s.cfg.Charge) {
 		if created, err := s.client.EnsureHelper(h); err != nil {
 			log.Printf("charge: helper %s.%s: %v", h.Domain, h.ID, err)
 		} else if created {
@@ -118,7 +125,7 @@ func (s *Server) ensureChargeHelpers() {
 	for i := 0; i < 30 && !s.store.Available(chargeFullNowEntity); i++ {
 		time.Sleep(time.Second)
 	}
-	for _, h := range chargeHelpers {
+	for _, h := range chargeHelpers(s.cfg.Charge) {
 		if h.Domain != "input_number" {
 			continue
 		}
@@ -161,8 +168,8 @@ func (s *Server) loopCharge() {
 // chargeSignature — всё, от чего зависит уставка: хелперы, SOC, баланс ячеек.
 func (s *Server) chargeSignature() string {
 	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level") +
-		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"))
-	for _, h := range chargeHelpers {
+		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"), s.cfg.Charge)
+	for _, h := range chargeHelpers(s.cfg.Charge) {
 		sig += "|" + s.store.State(h.Domain+"."+h.ID)
 	}
 	return sig
@@ -194,7 +201,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
 		TaperSOC: num("input_number.energy_schema_charge_taper_soc"), TargetSOC: num("input_number.energy_schema_charge_target_soc"),
 		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
-	st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night)
+	st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night, s.cfg.Charge)
+	in.Tune = s.cfg.Charge
 	in.Night = st.Night
 	auto := s.store.On("input_boolean.energy_schema_charge_auto")
 	if in.MaxA <= 0 || in.TargetSOC <= 0 {

@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
 )
 
 func TestChargeSetpoint(t *testing.T) {
-	base := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, CellLevel: "ok"}
+	base := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, CellLevel: "ok", Tune: config.DefaultCharge()}
 	cases := []struct {
 		name string
 		mod  func(*chargeInput)
@@ -64,7 +65,7 @@ func TestRegValue(t *testing.T) {
 }
 
 func TestHoldWritesZero(t *testing.T) {
-	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 91}
+	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 91, Tune: config.DefaultCharge()}
 	if a, mode := chargeSetpoint(in); a != 0 || mode != "night/hold" {
 		t.Errorf("hold = %.0f %q, want 0 night/hold", a, mode)
 	}
@@ -116,7 +117,7 @@ func TestChargeSignature(t *testing.T) {
 }
 
 func TestNightMode(t *testing.T) {
-	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 100, Night: true}
+	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 100, Night: true, Tune: config.DefaultCharge()}
 	if a, mode := chargeSetpoint(in); a != 25 || mode != "night-ready" {
 		t.Errorf("night = %.0f %q, want 25 night-ready", a, mode)
 	}
@@ -129,11 +130,20 @@ func TestNightMode(t *testing.T) {
 		{1200, true, true}, {1500, true, true}, {1600, true, false}, // утро: >1,5 кВт → день
 	}
 	for _, c := range steps {
-		if got := nightHyst(c.pv, c.wasNight); got != c.wantNight {
+		if got := nightHyst(c.pv, c.wasNight, config.DefaultCharge()); got != c.wantNight {
 			t.Errorf("nightHyst(%.0f,%v) = %v", c.pv, c.wasNight, got)
 		}
 	}
-	if pvBucket(900) != "n" || pvBucket(1200) != "m" || pvBucket(2000) != "d" {
+	if d := config.DefaultCharge(); pvBucket(900, d) != "n" || pvBucket(1200, d) != "m" || pvBucket(2000, d) != "d" {
 		t.Error("pvBucket")
+	}
+}
+
+func TestZeroOnTargetOff(t *testing.T) {
+	tune := config.DefaultCharge()
+	tune.ZeroOnTarget = false
+	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 95, Tune: tune}
+	if a, mode := chargeSetpoint(in); a != 1 || mode != "night/hold" {
+		t.Errorf("zero_on_target=false: %.0f %q, want 1 night/hold", a, mode)
 	}
 }

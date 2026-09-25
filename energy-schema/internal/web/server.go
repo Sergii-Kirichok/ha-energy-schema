@@ -33,6 +33,9 @@ type Server struct {
 
 // New builds a Server.
 func New(cfg config.Config, store *hass.Store, client *hass.Client) *Server {
+	scada.SetQuickMax("max_a", cfg.Charge.MaxALimit)
+	scada.SetQuickMax("grid_a", cfg.Charge.GridALimit)
+	scada.SetQuickMax("full_days", cfg.Charge.FullDaysMax)
 	return &Server{cfg: cfg, store: store, client: client}
 }
 

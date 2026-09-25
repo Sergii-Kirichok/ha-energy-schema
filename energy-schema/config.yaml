@@ -74,6 +74,14 @@ schema:
   pv_day_clear_kwh: float?
   pv_ac_limit_kw: float?
   bms_dashboard: str?
+  charge_max_a_limit: float(1,185)?
+  charge_grid_a_limit: float(1,185)?
+  charge_full_days_max: int(1,90)?
+  charge_night_below_w: int(0,20000)?
+  charge_day_above_w: int(0,20000)?
+  charge_cell_cap_a: float(1,185)?
+  charge_cell_cap_soc: int(0,100)?
+  charge_zero_on_target: bool?
   control_users:
     - str?
   pv_strings:

@@ -92,3 +92,23 @@ func TestLoadOptionsOverlay(t *testing.T) {
 		t.Errorf("PVT2 = %v", c.PVT2)
 	}
 }
+
+func TestChargeTuningOptions(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "options.json")
+	if err := os.WriteFile(p, []byte(`{"charge_max_a_limit":60,"charge_night_below_w":800,"charge_day_above_w":700,"charge_zero_on_target":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := Load(p, "")
+	if c.Charge.MaxALimit != 60 || c.Charge.GridALimit != 15 || c.Charge.NightBelowW != 800 {
+		t.Errorf("charge = %+v", c.Charge)
+	}
+	if c.Charge.DayAboveW != 1300 {
+		t.Errorf("day threshold must be forced above night: %v", c.Charge.DayAboveW)
+	}
+	if c.Charge.ZeroOnTarget {
+		t.Error("zero_on_target=false must be honoured")
+	}
+	if d := Default().Charge; d.MaxALimit != 30 || !d.ZeroOnTarget {
+		t.Errorf("defaults = %+v", d)
+	}
+}
