@@ -66,17 +66,22 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 	case in.FullDue && in.SOC < 100:
 		a, mode = chargeMinA, "full/trickle"
 	default:
-		a, mode = chargeMinA, mode+"/hold"
+		a, mode = 0, mode+"/hold" // 0 = стоп заряда: даже 1 в регистре (×2 канала) набивает до 100 % за день
 	}
 	if in.CellLevel == "bad" && in.SOC >= chargeCellCapSOC && a > chargeCellCapA {
 		a, mode = chargeCellCapA, mode+"/cells"
+	}
+	if a <= 0 {
+		return 0, mode
 	}
 	return math.Max(chargeMinA, math.Round(a)), mode
 }
 
 type chargeState struct {
-	LastFull time.Time `json:"last_full"`
-	Factor   float64   `json:"-"` // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	LastFull   time.Time `json:"last_full"`
+	Factor     float64   `json:"-"`           // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	ZeroBroken bool      `json:"zero_broken"` // проверено: Deye не останавливает заряд по 108=0
+	ZeroSince  time.Time `json:"-"`           // когда записали 0 (для самопроверки)
 }
 
 func loadChargeState(path string) chargeState {
@@ -196,11 +201,35 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	grid := num("input_number.energy_schema_charge_grid_a")
 	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
+	// самопроверка «0 = стоп»: не документировано, что Deye трактует 0 именно
+	// так. Если после записи 0 заряд не прекратился — откат на 1 и запоминаем.
+	if maxReg == 0 && st.ZeroBroken {
+		maxReg, mode = 1, mode+"/zero-unsupported"
+	}
+	if maxReg == 0 && *lastMax == 0 && !st.ZeroSince.IsZero() {
+		chargingA := -num("sensor.deye_sun_30k_battery_current") // «−» = заряд
+		// проверка честная только когда батарее есть что брать: не полная и есть излишек PV
+		surplusW := num("sensor.deye_sun_30k_pv_power") - num("sensor.deye_sun_30k_load_power")
+		testable := soc < 99 && surplusW > 1500
+		switch zeroVerdict(time.Since(st.ZeroSince), chargingA, testable) {
+		case "broken":
+			st.ZeroBroken = true
+			st.save(chargeFile)
+			log.Printf("charge: reg108=0 did NOT stop charging (%.1f A after %s) — falling back to 1", chargingA, time.Since(st.ZeroSince).Round(time.Second))
+			maxReg = 1
+		case "ok":
+			log.Printf("charge: reg108=0 honoured — charging %.1f A", chargingA)
+			st.ZeroSince = time.Time{} // проверено, больше не смотрим
+		}
+	}
 	if maxReg != *lastMax {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeMaxEntity, "value": maxReg}); err != nil {
 			log.Println("charge: set max:", err)
 		} else {
 			log.Printf("charge: max %.0f A → reg108=%.0f (x%.0f), soc %.0f%%, %s", amps, maxReg, st.Factor, soc, mode)
+			if maxReg == 0 && !st.ZeroBroken {
+				st.ZeroSince = time.Now()
+			}
 			*lastMax = maxReg
 		}
 	}
@@ -220,5 +249,23 @@ func regValue(amps, factor float64) float64 {
 	if factor < 1 {
 		factor = 1
 	}
+	if amps <= 0 {
+		return 0 // «стоп заряда»
+	}
 	return math.Max(1, math.Round(amps/factor))
+}
+
+// zeroVerdict — итог самопроверки «108 = 0 останавливает заряд»: ждём 2 мин
+// (инвертор применяет не сразу) и только при testable (SOC<99, излишек PV);
+// дальше заряд > 3 А → не работает, ≤ 1 А → ок.
+func zeroVerdict(since time.Duration, chargingA float64, testable bool) string {
+	switch {
+	case since < 2*time.Minute || !testable:
+		return "wait"
+	case chargingA > 3:
+		return "broken"
+	case chargingA <= 1:
+		return "ok"
+	}
+	return "wait"
 }

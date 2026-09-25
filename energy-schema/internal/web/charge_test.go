@@ -18,11 +18,11 @@ func TestChargeSetpoint(t *testing.T) {
 		{"at taper start -> max", func(c *chargeInput) { c.SOC = 80 }, 25, "night/taper"},
 		{"midway 85 -> half", func(c *chargeInput) { c.SOC = 85 }, 13, "night/taper"},
 		{"89 -> near min", func(c *chargeInput) { c.SOC = 89 }, 3, "night/taper"},
-		{"at target -> hold 1A", func(c *chargeInput) { c.SOC = 90 }, 1, "night/hold"},
-		{"above target -> hold 1A", func(c *chargeInput) { c.SOC = 97 }, 1, "night/hold"},
+		{"at target -> hold 0", func(c *chargeInput) { c.SOC = 90 }, 0, "night/hold"},
+		{"above target -> hold 0", func(c *chargeInput) { c.SOC = 97 }, 0, "night/hold"},
 		{"full due 85 -> normal taper", func(c *chargeInput) { c.SOC = 85; c.FullDue = true }, 13, "full/taper"},
 		{"full due 90..99 -> trickle 1A", func(c *chargeInput) { c.SOC = 95; c.FullDue = true }, 1, "full/trickle"},
-		{"full due 100 -> hold", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 1, "full/hold"},
+		{"full due 100 -> hold 0", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 0, "full/hold"},
 		{"cells bad below 70% ignored", func(c *chargeInput) { c.SOC = 50; c.CellLevel = "bad" }, 25, "max"},
 		{"cells bad from 70% caps at 5", func(c *chargeInput) { c.SOC = 75; c.CellLevel = "bad" }, 5, "max/cells"},
 		{"cells bad below cap untouched", func(c *chargeInput) { c.SOC = 89; c.CellLevel = "bad" }, 3, "night/taper"},
@@ -52,11 +52,45 @@ func TestChargeStatePersist(t *testing.T) {
 
 func TestRegValue(t *testing.T) {
 	cases := []struct{ amps, factor, want float64 }{
-		{25, 2, 13}, {16, 2, 8}, {1, 2, 1}, {0, 2, 1}, {5, 1, 5}, {5, 0, 5}, {3, 2, 2},
+		{25, 2, 13}, {16, 2, 8}, {1, 2, 1}, {0, 2, 0}, {5, 1, 5}, {5, 0, 5}, {3, 2, 2},
 	}
 	for _, c := range cases {
 		if got := regValue(c.amps, c.factor); got != c.want {
 			t.Errorf("regValue(%v,%v) = %v, want %v", c.amps, c.factor, got, c.want)
+		}
+	}
+}
+
+func TestHoldWritesZero(t *testing.T) {
+	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 91}
+	if a, mode := chargeSetpoint(in); a != 0 || mode != "night/hold" {
+		t.Errorf("hold = %.0f %q, want 0 night/hold", a, mode)
+	}
+	if regValue(0, 2) != 0 {
+		t.Error("regValue(0) must pass 0 through")
+	}
+	in.FullDue = true
+	if a, _ := chargeSetpoint(in); a != 1 {
+		t.Errorf("full trickle must stay 1 A, got %.0f", a)
+	}
+}
+
+func TestZeroVerdict(t *testing.T) {
+	cases := []struct {
+		since   time.Duration
+		a       float64
+		ok      bool
+		verdict string
+	}{
+		{30 * time.Second, 20, true, "wait"},
+		{3 * time.Minute, 0, false, "wait"}, // батарея полная / нет солнца — не судим
+		{3 * time.Minute, 20, true, "broken"},
+		{3 * time.Minute, 0.1, true, "ok"},
+		{3 * time.Minute, 2, true, "wait"},
+	}
+	for _, c := range cases {
+		if v := zeroVerdict(c.since, c.a, c.ok); v != c.verdict {
+			t.Errorf("zeroVerdict(%v,%.1f) = %s, want %s", c.since, c.a, v, c.verdict)
 		}
 	}
 }
