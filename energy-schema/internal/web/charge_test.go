@@ -125,15 +125,15 @@ func TestNightMode(t *testing.T) {
 		wasNight  bool
 		wantNight bool
 	}{
-		{1000, false, false}, {500, false, false}, {200, false, true}, // вечер: <300 → ночь
-		{500, true, true}, {800, true, true}, {900, true, false}, // утро: >800 → день
+		{2000, false, false}, {1200, false, false}, {900, false, true}, // вечер: <1 кВт → ночь
+		{1200, true, true}, {1500, true, true}, {1600, true, false}, // утро: >1,5 кВт → день
 	}
 	for _, c := range steps {
 		if got := nightHyst(c.pv, c.wasNight); got != c.wantNight {
 			t.Errorf("nightHyst(%.0f,%v) = %v", c.pv, c.wasNight, got)
 		}
 	}
-	if pvBucket(100) != "n" || pvBucket(500) != "m" || pvBucket(2000) != "d" {
+	if pvBucket(900) != "n" || pvBucket(1200) != "m" || pvBucket(2000) != "d" {
 		t.Error("pvBucket")
 	}
 }

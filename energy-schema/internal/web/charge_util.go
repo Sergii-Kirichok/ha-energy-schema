@@ -49,11 +49,11 @@ func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc f
 // Пороги ночного режима по генерации PV, Вт. Разрыв — гистерезис, чтобы
 // вечерние облака не дёргали регистр туда-обратно.
 const (
-	nightBelowW = 300.0
-	dayAboveW   = 800.0
+	nightBelowW = 1000.0 // ниже — солнце не покрывает даже фоновую нагрузку (~1–2 кВт)
+	dayAboveW   = 1500.0
 )
 
-// nightHyst — ночь, если PV < 300 Вт; снова день, когда PV > 800 Вт.
+// nightHyst — ночь, если PV < 1 кВт; снова день, когда PV > 1,5 кВт.
 func nightHyst(pvW float64, wasNight bool) bool {
 	if wasNight {
 		return pvW <= dayAboveW
