@@ -11,6 +11,14 @@ const (
 	avr3LinkEntity = "sensor.sim_avr3_link" // "ok" = связь RS-485 есть
 )
 
+// Средний ряд: равные промежутки ~56 px между 5 карточками (АВР вводов 24,
+// Инвертор 320, АВР дома 717, АВР ген. 973, Дом 1190). genTrunkX — ствол линии
+// генератора: входит в центр АВР ген. и от узла на y=494 уходит к инвертору.
+const (
+	avr3X     = 973.0
+	genTrunkX = avr3X + 80
+)
+
 // avr3Pos — положение АВР ген.; неизвестное = "main" (штатный путь через АВР дома).
 func avr3Pos(st State) string {
 	if st.State(avr3PosEntity) == "gen" {
@@ -21,7 +29,7 @@ func avr3Pos(st State) string {
 
 func (f *frame) avr3() {
 	st, s := f.st, f.s
-	x, w := 1000.0, 160.0
+	x, w := avr3X, 160.0
 	link := st.State(avr3LinkEntity) == "ok" && !f.emuStale
 	col := cGrn
 	if !link {

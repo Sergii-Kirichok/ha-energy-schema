@@ -66,6 +66,7 @@ func (f *frame) row2() {
 	da := st.State("sensor.deye_sun_30k_device_alarm")
 	invState := st.State("sensor.deye_sun_30k_device_state")
 	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
+	s.p(`<g transform="translate(-80 0)">`) // инвертор: 400 → 320 (равные промежутки ряда)
 	s.box(400, 300, 340, 175)
 	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
 	if invProb {
@@ -165,6 +166,7 @@ func (f *frame) row2() {
 	s.p(`<circle cx="720" cy="458" r="9" fill="none" stroke="%s" stroke-width="2"/>`, genSigCol)
 	s.t(720, 462, 11, genSigCol, "middle", "G")
 
+	s.p(`</g><g transform="translate(-53 0)">`) // АВР дома: 770 → 717
 	// АВР — управление/связь по RS-485; видно, через что сейчас питается Дом
 	s.box(770, 300, 200, 175)
 	avrLink := st.State("sensor.sim_avr_link") == "ok" && !emuStale
@@ -231,6 +233,7 @@ func (f *frame) row2() {
 		s.t(782, 464, 10, cRed, "start", "RS-485 ✕")
 	}
 
+	s.p(`</g>`)
 	// Дом — гейдж
 	s.box(1190, 290, 230, 190)
 	s.head(1190, 290, 230, "home", "Дом", "")

@@ -52,11 +52,11 @@ func (f *frame) flows() {
 	// заводим к центру карточки контактора (x≈132, рядом с Ввод2 на 156)
 	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[contRyb], 3, false, 455, 275, 132, 275, 132, 300)
 	// шина -> АВР(резерв): активна только когда АВР в резерве. Падаем вертикально
-	// прямо с шины в точке x=875 (раньше шёл 985->905 по самой шине — наложение).
-	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 875, 275, 875, 300)
+	// прямо с шины в точке x=822 (раньше шёл 985->905 по самой шине — наложение).
+	s.flow(cGrn, map[bool]string{true: busSt, false: "off"}[avrPos == "reserve"], 3, false, 822, 275, 822, 300)
 	// точки на узлах шины стабилизаторов (соединение по правилам): выходы стабов и
 	// ответвления к контактору/АВР
-	for _, jx := range []float64{455, 720, 875} {
+	for _, jx := range []float64{455, 720, 822} {
 		s.dot(jx, 275, 3.5, cSub)
 	}
 	// Ввод2 -> Контактор: активна только когда контактор на Ввод2; выходим снизу
@@ -71,32 +71,37 @@ func (f *frame) flows() {
 	if contOn {
 		inCol = cBlu
 	}
-	s.flow(inCol, cSt, 2, false, 264, 380, 400, 380)
+	s.flow(inCol, cSt, 2, false, 264, 380, 320, 380)
 	// Инвертор -> АВР (осн.). Если АВР залип на резерве, а инвертор всё ещё кормит —
 	// рисуем оранжевым (поток есть там, где его быть не должно).
 	if avrStuck {
-		s.flow(cOrg, "on", 4, false, 740, 380, 770, 380)
+		s.flow(cOrg, "on", 4, false, 660, 380, 717, 380)
 	} else {
-		s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 740, 380, 770, 380)
+		s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 660, 380, 717, 380)
 	}
 	// АВР -> Дом
 	// АВР дома -> АВР ген. (вход 2) -> Дом; генератор -> АВР ген. (вход 1) напрямую,
 	// минуя инвертор: питание Дома, когда нет ни Ввода 1, ни инвертора
 	a3 := avr3Pos(st)
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[a3 != "gen"], 3, false, 970, 380, 1000, 380)
-	s.flow(cGrn, "on", 3, false, 1160, 380, 1190, 380)
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[a3 == "gen" && genRun], 3, false, 1110, 520, 1110, 475)
+	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[a3 != "gen"], 3, false, 917, 380, 973, 380)
+	s.flow(cGrn, "on", 3, false, 1133, 380, 1190, 380)
 	// Батарея <-> Инвертор
 	// Батарея <-> Инвертор: движение только при заряде/разряде; в покое (idle) — статичная линия.
 	// Горизонталь на одном уровне с линией генератора (y=494).
 	if math.Abs(bp) > 20 {
-		s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 494, 470, 494, 470, 475)
+		s.flow(cPur, "on", math.Abs(bp)/1000, bp < 0, 174, 520, 174, 494, 390, 494, 390, 475)
 	} else {
-		s.poly(cPur, 3, "", 174, 520, 174, 494, 470, 494, 470, 475)
+		s.poly(cPur, 3, "", 174, 520, 174, 494, 390, 494, 390, 475)
 	}
 	// PV -> Инвертор
-	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 540, 520, 540, 475)
+	s.flow(cAmb, map[bool]string{true: "on", false: "off"}[pvtot > 30], pvtot/1000, false, 460, 520, 460, 475)
 	// Генератор -> Инвертор: одна силовая линия. Управляющий сигнал отдельной линией
 	// не рисуем — он показан значком «G» в правом нижнем углу карточки инвертора.
-	s.flow(cGrn, map[bool]string{true: "on", false: "off"}[genRun], 2, false, 1060, 520, 1060, 494, 588, 494, 588, 475)
+	// одна общая линия от генератора: ствол вверх до узла на y=494, дальше
+	// ветка влево в инвертор (вход GEN) и ветка вверх в АВР ген. (вход 1)
+	genOn := map[bool]string{true: "on", false: "off"}
+	s.flow(cGrn, genOn[genRun], 2, false, genTrunkX, 520, genTrunkX, 494)
+	s.flow(cGrn, genOn[genRun], 2, false, genTrunkX, 494, 508, 494, 508, 475)
+	s.flow(cGrn, genOn[genRun && a3 == "gen"], 2, false, genTrunkX, 494, genTrunkX, 475)
+	s.dot(genTrunkX, 494, 3.5, cSub)
 }
