@@ -152,7 +152,7 @@ func (f *frame) row2() {
 			s.t(cx+rr+8, cy+12, 9, cSub, "start", fmt.Sprintf("реконнект %.0f с", rcTotal))
 		}
 	} else if !st.On("binary_sensor.deye_sun_30k_grid") {
-		s.t(414, 462, 10, cOrg, "start", "сеть отключена · островной режим")
+		s.t(414, 462, 10, cOrg, "start", "сеть отключена · автономный режим")
 	} else {
 		s.t(414, 462, 10, cSub, "start", fmt.Sprintf("сеть %.1f Гц · реконнект %.0f с", st.Num("sensor.deye_sun_30k_grid_frequency"), rcTotal))
 	}
