@@ -118,12 +118,14 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		return
 	}
 	fullDays := num("input_number.energy_schema_charge_full_days")
-	if soc >= 100 {
+	// первый запуск: отсчёт с сегодня, а не «полный заряд немедленно» — иначе
+	// регулятор молча тянет к 100 % в первый же день вместо цели на ночь
+	if soc >= 100 || st.LastFull.IsZero() {
 		st.LastFull = time.Now()
 		st.save(chargeFile)
 	}
 	nextFull := st.LastFull.Add(time.Duration(fullDays*24) * time.Hour)
-	fullDue := fullDays > 0 && (st.LastFull.IsZero() || !time.Now().Before(nextFull))
+	fullDue := fullDays > 0 && !time.Now().Before(nextFull)
 	// внеплановый полный заряд по кнопке; при 100 % кнопка гасится сама
 	if s.store.On(chargeFullNowEntity) {
 		fullDue = true
