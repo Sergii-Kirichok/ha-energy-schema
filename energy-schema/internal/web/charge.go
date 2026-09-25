@@ -30,7 +30,7 @@ const (
 
 var chargeHelpers = []hass.Helper{
 	{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
-	{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: 185, Step: 1, Initial: 25, Unit: "A", Icon: "mdi:current-dc"},
+	{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: 30, Step: 1, Initial: 25, Unit: "A", Icon: "mdi:current-dc"},
 	{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 0, Max: 185, Step: 1, Initial: 5, Unit: "A", Icon: "mdi:transmission-tower"},
 	{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
 	{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
@@ -109,14 +109,20 @@ func (s *Server) ensureChargeHelpers() {
 		if h.Domain != "input_number" {
 			continue
 		}
-		cur := s.store.Attr("input_number."+h.ID, "mode")
+		e := "input_number." + h.ID
+		cur := s.store.Attr(e, "mode")
 		if cur == "" {
 			continue
+		}
+		// границы из кода — источник правды: при расхождении (сузили диапазон
+		// в новой версии) хелпер обновляется так же, как при смене режима
+		if s.store.AttrNum(e, "min") != h.Min || s.store.AttrNum(e, "max") != h.Max || s.store.AttrNum(e, "step") != h.Step {
+			cur = "" // заставит EnsureNumberMode отправить полный набор полей
 		}
 		if ch, err := s.client.EnsureNumberMode(h, cur); err != nil {
 			log.Printf("charge: %v", err)
 		} else if ch {
-			log.Printf("charge: input_number.%s → slider", h.ID)
+			log.Printf("charge: input_number.%s → slider %g..%g", h.ID, h.Min, h.Max)
 		}
 	}
 }
