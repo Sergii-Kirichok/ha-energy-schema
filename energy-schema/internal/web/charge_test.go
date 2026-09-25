@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"energy-schema/internal/hass"
 )
 
 func TestChargeSetpoint(t *testing.T) {
@@ -92,5 +94,23 @@ func TestZeroVerdict(t *testing.T) {
 		if v := zeroVerdict(c.since, c.a, c.ok); v != c.verdict {
 			t.Errorf("zeroVerdict(%v,%.1f) = %s, want %s", c.since, c.a, v, c.verdict)
 		}
+	}
+}
+
+func TestChargeSignature(t *testing.T) {
+	s := &Server{store: hass.NewStore()}
+	s.store.ReplaceStates(map[string]string{"sensor.deye_sun_30k_battery": "85", "input_number.energy_schema_charge_max_a": "20"})
+	a := s.chargeSignature()
+	s.store.ReplaceStates(map[string]string{"sensor.deye_sun_30k_battery": "85", "input_number.energy_schema_charge_max_a": "20"})
+	if s.chargeSignature() != a {
+		t.Error("same inputs must give the same signature")
+	}
+	s.store.ReplaceStates(map[string]string{"sensor.deye_sun_30k_battery": "85", "input_number.energy_schema_charge_max_a": "19"})
+	if s.chargeSignature() == a {
+		t.Error("slider change must change the signature")
+	}
+	s.store.ReplaceStates(map[string]string{"sensor.deye_sun_30k_battery": "86", "input_number.energy_schema_charge_max_a": "19"})
+	if s.chargeSignature() == a {
+		t.Error("SOC change must change the signature")
 	}
 }

@@ -2,7 +2,6 @@ package web
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"math"
 	"os"
@@ -23,10 +22,11 @@ const (
 	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeFile       = "/data/charge.json"
 	chargeMinA       = 1.0
-	chargeCellCapA   = 5.0              // при разбалансе ячеек — не выше этого…
-	chargeCellCapSOC = 70.0             // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
-	chargeTickEvery  = 10 * time.Second // ползунки/тумблер отражаются в инверторе за ≤10 с
-	parallelReg      = 110              // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
+	chargeCellCapA   = 5.0             // при разбалансе ячеек — не выше этого…
+	chargeCellCapSOC = 70.0            // …но только от этого SOC: ниже батарея выравнивается сама, ток не режем
+	chargeWatchEvery = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
+	chargeIdleEvery  = time.Minute     // сверка с инвертором, если ничего не менялось
+	parallelReg      = 110             // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
 var chargeHelpers = []hass.Helper{
@@ -139,10 +139,25 @@ func (s *Server) loopCharge() {
 	s.ensureChargeHelpers()
 	st := loadChargeState(chargeFile)
 	lastMax, lastGrid := -1.0, -1.0
+	lastSig, lastRun := "", time.Time{}
 	for {
-		s.chargeTick(&st, &lastMax, &lastGrid)
-		time.Sleep(chargeTickEvery)
+		// событийно: отпечаток входов берётся из общего опроса HA (локально,
+		// инвертор не трогаем); к инвертору идём при изменении или раз в минуту
+		if sig := s.chargeSignature(); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
+			s.chargeTick(&st, &lastMax, &lastGrid)
+			lastSig, lastRun = sig, time.Now()
+		}
+		time.Sleep(chargeWatchEvery)
 	}
+}
+
+// chargeSignature — всё, от чего зависит уставка: хелперы, SOC, баланс ячеек.
+func (s *Server) chargeSignature() string {
+	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level")
+	for _, h := range chargeHelpers {
+		sig += "|" + s.store.State(h.Domain+"."+h.ID)
+	}
+	return sig
 }
 
 func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
@@ -241,44 +256,4 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			*lastGrid = gridReg
 		}
 	}
-}
-
-// regValue — значение регистра для желаемого фактического тока: делим на
-// множитель, округляем, не ниже 1 (0 у Deye = «не заряжать», не хотим).
-func regValue(amps, factor float64) float64 {
-	if factor < 1 {
-		factor = 1
-	}
-	if amps <= 0 {
-		return 0 // «стоп заряда»
-	}
-	return math.Max(1, math.Round(amps/factor))
-}
-
-// zeroVerdict — итог самопроверки «108 = 0 останавливает заряд»: ждём 2 мин
-// (инвертор применяет не сразу) и только при testable (SOC<99, излишек PV);
-// дальше заряд > 3 А → не работает, ≤ 1 А → ок.
-func zeroVerdict(since time.Duration, chargingA float64, testable bool) string {
-	switch {
-	case since < 2*time.Minute || !testable:
-		return "wait"
-	case chargingA > 3:
-		return "broken"
-	case chargingA <= 1:
-		return "ok"
-	}
-	return "wait"
-}
-
-// publishLimit — сенсор «Текущее ограничение тока заряда»: ФАКТИЧЕСКОЕ значение
-// регистра 108 (прочитанное/записанное) × множитель каналов; расчёт регулятора
-// и режим — в атрибутах.
-func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc float64, fullDue, auto bool) {
-	if factor < 1 {
-		factor = 1
-	}
-	attrs := map[string]any{"friendly_name": "Текущее ограничение тока заряда", "unit_of_measurement": "A",
-		"state_class": "measurement", "icon": "mdi:current-dc", "mode": mode, "target_a": target,
-		"reg108": reg108, "channels": factor, "soc": soc, "full_due": fullDue, "auto": auto}
-	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", reg108*factor), attrs)
 }
