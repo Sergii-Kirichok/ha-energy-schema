@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -43,5 +44,30 @@ func TestPatchBatteryCard(t *testing.T) {
 	_ = json.Unmarshal([]byte(`{"views":[]}`), &other)
 	if _, err := patchBatteryCard(other); err == nil {
 		t.Error("expected error without battery card")
+	}
+}
+
+func TestPatchChargeCard(t *testing.T) {
+	src := `{"views":[{"sections":[{"cards":[{"type":"markdown"}]},{"cards":[
+	  {"type":"gauge","entity":"sensor.x"},
+	  {"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"}]}]}]}]}`
+	var cfg any
+	if err := json.Unmarshal([]byte(src), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := patchChargeCard(cfg)
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	sec := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[1].(map[string]any)
+	cards := sec["cards"].([]any)
+	if len(cards) != 3 || cards[2].(map[string]any)["title"] != "Заряд АКБ" {
+		t.Fatalf("cards = %v", cards)
+	}
+	if changed, _ := patchChargeCard(cfg); changed {
+		t.Error("second patch must be a no-op")
+	}
+	if b, err := json.Marshal(cfg); err != nil || !strings.Contains(string(b), dashChargeMarker) {
+		t.Errorf("marshal: %v %s", err, b)
 	}
 }

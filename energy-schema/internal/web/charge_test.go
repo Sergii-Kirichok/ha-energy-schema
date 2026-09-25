@@ -1,0 +1,49 @@
+package web
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestChargeSetpoint(t *testing.T) {
+	base := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, CellLevel: "ok"}
+	cases := []struct {
+		name string
+		mod  func(*chargeInput)
+		amps float64
+		mode string
+	}{
+		{"below taper -> max", func(c *chargeInput) { c.SOC = 50 }, 25, "max"},
+		{"at taper start -> max", func(c *chargeInput) { c.SOC = 80 }, 25, "night/taper"},
+		{"midway 85 -> half", func(c *chargeInput) { c.SOC = 85 }, 13, "night/taper"},
+		{"89 -> near min", func(c *chargeInput) { c.SOC = 89 }, 3, "night/taper"},
+		{"at target -> hold 1A", func(c *chargeInput) { c.SOC = 90 }, 1, "night/hold"},
+		{"above target -> hold 1A", func(c *chargeInput) { c.SOC = 97 }, 1, "night/hold"},
+		{"full due 90 -> taper to 100", func(c *chargeInput) { c.SOC = 90; c.FullDue = true }, 13, "full/taper"},
+		{"full due 100 -> hold", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 1, "full/hold"},
+		{"cells bad caps at 5", func(c *chargeInput) { c.SOC = 50; c.CellLevel = "bad" }, 5, "max/cells"},
+		{"cells bad below cap untouched", func(c *chargeInput) { c.SOC = 89; c.CellLevel = "bad" }, 3, "night/taper"},
+		{"taper >= target -> max until target", func(c *chargeInput) { c.SOC = 85; c.TaperSOC = 95 }, 25, "max"},
+	}
+	for _, c := range cases {
+		in := base
+		c.mod(&in)
+		amps, mode := chargeSetpoint(in)
+		if amps != c.amps || mode != c.mode {
+			t.Errorf("%s: got %.0f A %q, want %.0f A %q", c.name, amps, mode, c.amps, c.mode)
+		}
+	}
+}
+
+func TestChargeStatePersist(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "charge.json")
+	if st := loadChargeState(p); !st.LastFull.IsZero() {
+		t.Fatal("missing file must give zero state")
+	}
+	when := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	(chargeState{LastFull: when}).save(p)
+	if st := loadChargeState(p); !st.LastFull.Equal(when) {
+		t.Errorf("reloaded %v, want %v", st.LastFull, when)
+	}
+}

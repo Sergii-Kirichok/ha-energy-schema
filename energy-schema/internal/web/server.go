@@ -119,6 +119,7 @@ func (s *Server) Run() error {
 	go s.loopForecast()
 	go s.loopPVHistory()
 	go s.loopBMS()
+	go s.loopCharge()
 	if s.cfg.BMSDashboard != "" {
 		go s.ensureDashboard(s.cfg.BMSDashboard)
 	}
