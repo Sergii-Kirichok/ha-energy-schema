@@ -23,28 +23,18 @@ func regValue(amps, factor float64) float64 {
 // zeroVerdict — итог самопроверки «108 = 0 останавливает заряд»: ждём 2 мин
 // (инвертор применяет не сразу) и только при testable (SOC<99, излишек PV);
 // дальше заряд > 3 А → не работает, ≤ 1 А → ок.
-func zeroVerdict(since time.Duration, chargingA float64, testable bool) string {
-	switch {
-	case since < 2*time.Minute || !testable:
-		return "wait"
-	case chargingA > 3:
-		return "broken"
-	case chargingA <= 1:
-		return "ok"
-	}
-	return "wait"
-}
 
 // publishLimit — сенсор «Текущее ограничение тока заряда»: ФАКТИЧЕСКОЕ значение
 // регистра 108 (прочитанное/записанное) × множитель каналов; расчёт регулятора
 // и режим — в атрибутах.
-func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc float64, fullDue, auto bool) {
+func (s *Server) publishLimit(factor, reg108, target float64, mode string, soc float64, fullDue, auto bool, floorA, holdAt float64) {
 	if factor < 1 {
 		factor = 1
 	}
 	attrs := map[string]any{"friendly_name": "Текущее ограничение тока заряда", "unit_of_measurement": "A",
 		"state_class": "measurement", "icon": "mdi:current-dc", "mode": mode, "target_a": target,
-		"reg108": reg108, "channels": factor, "soc": soc, "full_due": fullDue, "auto": auto}
+		"reg108": reg108, "channels": factor, "soc": soc, "full_due": fullDue, "auto": auto,
+		"zero_floor_a": floorA, "hold_from_soc": holdAt}
 	_ = s.client.SetState("sensor.energy_schema_charge_setpoint", fmt.Sprintf("%.0f", reg108*factor), attrs)
 }
 
@@ -67,4 +57,28 @@ func pvBucket(pvW float64, t config.ChargeTuning) string {
 		return "d"
 	}
 	return "m"
+}
+
+// zeroVerdict — итог самопроверки «108 = 0»: ждём 2 мин и только при testable
+// (SOC<99, излишек PV). Ток > 3 А → 0 = «без ограничения» (broken). Иначе —
+// «ok»: инвертор режет до остаточного тока (у Deye HV это ~1 А, не полный стоп);
+// этот остаток запоминается и учитывается в driftMargin.
+func zeroVerdict(since time.Duration, chargingA float64, testable bool) string {
+	switch {
+	case since < 2*time.Minute || !testable:
+		return "wait"
+	case chargingA > 3:
+		return "broken"
+	}
+	return "ok"
+}
+
+// driftMargin — на сколько % SOC батарея доберёт остаточным током floorA до
+// конца солнца (hoursLeft): на столько раньше начинаем удержание, чтобы к
+// вечеру выйти на цель, а не цель + хвост. Не больше 5 %.
+func driftMargin(floorA, battV, hoursLeft, capKWh float64) float64 {
+	if floorA <= 0 || battV <= 0 || hoursLeft <= 0 || capKWh <= 0 {
+		return 0
+	}
+	return math.Min(5, floorA*battV*hoursLeft/1000/capKWh*100)
 }

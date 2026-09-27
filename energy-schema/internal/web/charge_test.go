@@ -87,9 +87,10 @@ func TestZeroVerdict(t *testing.T) {
 	}{
 		{30 * time.Second, 20, true, "wait"},
 		{3 * time.Minute, 0, false, "wait"}, // батарея полная / нет солнца — не судим
+		{3 * time.Minute, 1.04, true, "ok"}, // остаток ~1 А (реальный Deye HV) — фиксируем, не ждём вечно
 		{3 * time.Minute, 20, true, "broken"},
 		{3 * time.Minute, 0.1, true, "ok"},
-		{3 * time.Minute, 2, true, "wait"},
+		{3 * time.Minute, 2, true, "ok"},
 	}
 	for _, c := range cases {
 		if v := zeroVerdict(c.since, c.a, c.ok); v != c.verdict {
@@ -145,5 +146,18 @@ func TestZeroOnTargetOff(t *testing.T) {
 	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 95, Tune: tune}
 	if a, mode := chargeSetpoint(in); a != 1 || mode != "night/hold" {
 		t.Errorf("zero_on_target=false: %.0f %q, want 1 night/hold", a, mode)
+	}
+}
+
+func TestDriftMargin(t *testing.T) {
+	// 1.04 А × 643 В × 4 ч = 2.67 кВт·ч = 4.5 % от 60 кВт·ч
+	if m := driftMargin(1.04, 643, 4, 60); m < 4.4 || m > 4.5 {
+		t.Errorf("margin = %.2f, want ~4.46", m)
+	}
+	if driftMargin(1.04, 643, 20, 60) != 5 {
+		t.Error("margin must be capped at 5 %")
+	}
+	if driftMargin(0, 643, 4, 60) != 0 || driftMargin(1, 643, -1, 60) != 0 {
+		t.Error("no floor / no sun left → no margin")
 	}
 }

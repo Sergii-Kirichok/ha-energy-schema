@@ -19,13 +19,14 @@ import (
 // поднимается до 100 %; любое достижение 100 % обнуляет отсчёт. Все параметры —
 // хелперы HA (input_number/input_boolean), регулятор включается переключателем.
 const (
-	chargeMaxEntity  = "number.deye_sun_30k_battery_max_charging_current"
-	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
-	chargeFile       = "/data/charge.json"
-	chargeMinA       = 1.0
-	chargeWatchEvery = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
-	chargeIdleEvery  = time.Minute     // сверка с инвертором, если ничего не менялось
-	parallelReg      = 110             // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
+	chargeMaxEntity      = "number.deye_sun_30k_battery_max_charging_current"
+	chargeGridEntity     = "number.deye_sun_30k_battery_grid_charging_current"
+	chargeFile           = "/data/charge.json"
+	chargeMinA           = 1.0
+	chargeZeroFloorGuess = 1.0             // остаток при 108=0 до первого измерения, А
+	chargeWatchEvery     = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
+	chargeIdleEvery      = time.Minute     // сверка с инвертором, если ничего не менялось
+	parallelReg          = 110             // «Parallel Bat&Bat2»: =1 → инвертор умножает лимиты 108/128 на 2 (проверено 25.09: 8 А → 15,8 А факт)
 )
 
 // chargeHelpers — хелперы HA регулятора; потолки ползунков — из глубоких
@@ -92,11 +93,13 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 }
 
 type chargeState struct {
-	LastFull   time.Time `json:"last_full"`
-	Factor     float64   `json:"-"`           // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
-	ZeroBroken bool      `json:"zero_broken"` // проверено: Deye не останавливает заряд по 108=0
-	ZeroSince  time.Time `json:"-"`           // когда записали 0 (для самопроверки)
-	Night      bool      `json:"-"`           // ночной режим (гистерезис по генерации)
+	LastFull    time.Time `json:"last_full"`
+	Factor      float64   `json:"-"`            // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	ZeroBroken  bool      `json:"zero_broken"`  // проверено: Deye не останавливает заряд по 108=0
+	ZeroFloorA  float64   `json:"zero_floor_a"` // остаточный ток заряда при 108=0 (измерен), А
+	ZeroChecked bool      `json:"zero_checked"` // остаток измерен самопроверкой
+	ZeroSince   time.Time `json:"-"`            // когда записали 0 (для самопроверки)
+	Night       bool      `json:"-"`            // ночной режим (гистерезис по генерации)
 }
 
 func loadChargeState(path string) chargeState {
@@ -203,6 +206,17 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
 	st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night, s.cfg.Charge)
 	in.Tune = s.cfg.Charge
+	// остаток тока при 108=0 доберёт ещё немного до вечера — удержание раньше на
+	// этот запас (панели ЮВ: полезное солнце заканчивается ~за час до заката)
+	floorA := st.ZeroFloorA
+	if !st.ZeroChecked && !st.ZeroBroken {
+		floorA = chargeZeroFloorGuess // ponytail: наблюдение 25–27.09 (1.04 А); заменится измеренным
+	}
+	margin := driftMargin(floorA, num("sensor.deye_sun_30k_battery_voltage"),
+		s.store.HoursUntil("sun.sun", "next_setting")-1, s.cfg.BattCap)
+	if !fullDue && in.TargetSOC-margin > in.TaperSOC {
+		in.TargetSOC -= margin
+	}
 	in.Night = st.Night
 	auto := s.store.On("input_boolean.energy_schema_charge_auto")
 	if in.MaxA <= 0 || in.TargetSOC <= 0 {
@@ -231,13 +245,20 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		log.Println("charge: read 108..110:", err)
 		return
 	}
-	defer func() { s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto) }()
+	defer func() {
+		s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto, st.ZeroFloorA, in.TargetSOC)
+	}()
 	grid := num("input_number.energy_schema_charge_grid_a")
 	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
 	// самопроверка «0 = стоп»: не документировано, что Deye трактует 0 именно
 	// так. Если после записи 0 заряд не прекратился — откат на 1 и запоминаем.
 	if maxReg == 0 && st.ZeroBroken {
 		maxReg, mode = 1, mode+"/zero-unsupported"
+	}
+	// 0 уже стоит в инверторе (например, после рестарта аддона), а остаток
+	// ещё не измерен — запускаем проверку и без новой записи
+	if maxReg == 0 && *lastMax == 0 && st.ZeroSince.IsZero() && !st.ZeroChecked && !st.ZeroBroken {
+		st.ZeroSince = time.Now()
 	}
 	if maxReg == 0 && *lastMax == 0 && !st.ZeroSince.IsZero() {
 		chargingA := -num("sensor.deye_sun_30k_battery_current") // «−» = заряд
@@ -251,7 +272,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			log.Printf("charge: reg108=0 did NOT stop charging (%.1f A after %s) — falling back to 1", chargingA, time.Since(st.ZeroSince).Round(time.Second))
 			maxReg = 1
 		case "ok":
-			log.Printf("charge: reg108=0 honoured — charging %.1f A", chargingA)
+			st.ZeroFloorA, st.ZeroChecked = math.Max(0, chargingA), true
+			st.save(chargeFile)
+			log.Printf("charge: reg108=0 honoured — residual %.2f A (inverter floor, not a full stop)", chargingA)
 			st.ZeroSince = time.Time{} // проверено, больше не смотрим
 		}
 	}
