@@ -1,8 +1,10 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"energy-schema/internal/config"
@@ -81,4 +83,27 @@ func driftMargin(floorA, battV, hoursLeft, capKWh float64) float64 {
 		return 0
 	}
 	return math.Min(5, floorA*battV*hoursLeft/1000/capKWh*100)
+}
+
+type chargeState struct {
+	LastFull    time.Time `json:"last_full"`
+	Factor      float64   `json:"-"`            // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	ZeroBroken  bool      `json:"zero_broken"`  // проверено: Deye не останавливает заряд по 108=0
+	ZeroFloorA  float64   `json:"zero_floor_a"` // остаточный ток заряда при 108=0 (измерен), А
+	ZeroChecked bool      `json:"zero_checked"` // остаток измерен самопроверкой
+	ZeroSince   time.Time `json:"-"`            // когда записали 0 (для самопроверки)
+	Night       bool      `json:"-"`            // ночной режим (гистерезис по генерации)
+}
+
+func loadChargeState(path string) chargeState {
+	var st chargeState
+	if b, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(b, &st)
+	}
+	return st
+}
+
+func (st chargeState) save(path string) {
+	b, _ := json.Marshal(st)
+	_ = os.WriteFile(path, b, 0o644)
 }

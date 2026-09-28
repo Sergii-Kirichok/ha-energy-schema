@@ -1,10 +1,8 @@
 package web
 
 import (
-	"encoding/json"
 	"log"
 	"math"
-	"os"
 	"time"
 
 	"energy-schema/internal/config"
@@ -69,8 +67,10 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 		mode = "full"
 	}
 	var a float64
+	// цель проверяется раньше порога снижения: «снижать с» ≥ цели значит «без
+	// спада», а не «полный ток всегда» (27–28.09 так дошли до 100 %)
 	switch {
-	case in.SOC < in.TaperSOC || in.TaperSOC >= target:
+	case in.SOC < target && (in.SOC < in.TaperSOC || in.TaperSOC >= target):
 		a, mode = in.MaxA, "max"
 	case in.SOC < target:
 		a = in.MaxA * (target - in.SOC) / (target - in.TaperSOC)
@@ -90,29 +90,6 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 		return 0, mode
 	}
 	return math.Max(chargeMinA, math.Round(a)), mode
-}
-
-type chargeState struct {
-	LastFull    time.Time `json:"last_full"`
-	Factor      float64   `json:"-"`            // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
-	ZeroBroken  bool      `json:"zero_broken"`  // проверено: Deye не останавливает заряд по 108=0
-	ZeroFloorA  float64   `json:"zero_floor_a"` // остаточный ток заряда при 108=0 (измерен), А
-	ZeroChecked bool      `json:"zero_checked"` // остаток измерен самопроверкой
-	ZeroSince   time.Time `json:"-"`            // когда записали 0 (для самопроверки)
-	Night       bool      `json:"-"`            // ночной режим (гистерезис по генерации)
-}
-
-func loadChargeState(path string) chargeState {
-	var st chargeState
-	if b, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(b, &st)
-	}
-	return st
-}
-
-func (st chargeState) save(path string) {
-	b, _ := json.Marshal(st)
-	_ = os.WriteFile(path, b, 0o644)
 }
 
 func (s *Server) ensureChargeHelpers() {

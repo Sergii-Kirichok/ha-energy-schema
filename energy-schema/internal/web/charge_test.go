@@ -30,6 +30,9 @@ func TestChargeSetpoint(t *testing.T) {
 		{"cells bad from 70% caps at 5", func(c *chargeInput) { c.SOC = 75; c.CellLevel = "bad" }, 5, "max/cells"},
 		{"cells bad below cap untouched", func(c *chargeInput) { c.SOC = 89; c.CellLevel = "bad" }, 3, "night/taper"},
 		{"taper >= target -> max until target", func(c *chargeInput) { c.SOC = 85; c.TaperSOC = 95 }, 25, "max"},
+		{"taper >= target -> hold at target", func(c *chargeInput) { c.SOC = 90; c.TaperSOC = 99 }, 0, "night/hold"},
+		{"taper >= target -> hold above target", func(c *chargeInput) { c.SOC = 97; c.TaperSOC = 99 }, 0, "night/hold"},
+		{"taper >= target, full due -> trickle", func(c *chargeInput) { c.SOC = 95; c.TaperSOC = 99; c.FullDue = true }, 1, "full/trickle"},
 	}
 	for _, c := range cases {
 		in := base
