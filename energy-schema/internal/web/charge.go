@@ -21,6 +21,7 @@ const (
 	chargeGridEntity     = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeFile           = "/data/charge.json"
 	chargeMinA           = 1.0
+	taperGap             = 10.0            // спад минимум за столько % до цели, даже если «снижать с» выше цели
 	chargeZeroFloorGuess = 1.0             // остаток при 108=0 до первого измерения, А
 	chargeWatchEvery     = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
 	chargeIdleEvery      = time.Minute     // сверка с инвертором, если ничего не менялось
@@ -67,10 +68,13 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 		mode = "full"
 	}
 	var a float64
-	// цель проверяется раньше порога снижения: «снижать с» ≥ цели значит «без
-	// спада», а не «полный ток всегда» (27–28.09 так дошли до 100 %)
+	// «снижать с» ≥ цели — ошибка настройки (30.09: 99 % при цели 90 → полный
+	// ток до цели без спада). Спад всё равно нужен: начинаем за taperGap до цели.
+	if in.TaperSOC >= target {
+		in.TaperSOC = target - taperGap
+	}
 	switch {
-	case in.SOC < target && (in.SOC < in.TaperSOC || in.TaperSOC >= target):
+	case in.SOC < in.TaperSOC:
 		a, mode = in.MaxA, "max"
 	case in.SOC < target:
 		a = in.MaxA * (target - in.SOC) / (target - in.TaperSOC)
