@@ -42,6 +42,10 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.presets button{background:transparent;border:1px dashed var(--brd);color:var(--sub);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px}
 .presets button:hover{color:var(--txt);border-color:var(--sub)}
 .foot{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;color:var(--dim);font-size:12px}
+.band{margin:2px 0 4px}.legend{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.st{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;flex:none;border:1px solid currentColor}
+.st.s-send{color:var(--amb)}.st.s-read{color:var(--blu);animation:spin 1s linear infinite}.st.s-ok{color:var(--grn)}.st.s-bad{color:var(--red)}.st.idle{visibility:hidden}
+@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1100px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:720px){.grid{grid-template-columns:1fr}.wrap{padding:12px}th:nth-child(5),td:nth-child(5){display:none}}
 </style></head><body><div class="wrap">
 
@@ -49,7 +53,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <button class="back">← Схема</button>
  <h1><svg width="26" height="26" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="4" fill="none" stroke="#e5e7eb" stroke-width="2"/><path d="M6 9h5M6 13h5M6 17h5M14 13c1.5-4 3-4 4.5 0s3 4 4.5 0" fill="none" stroke="#e5e7eb" stroke-width="1.8"/></svg>Инвертор · Deye SUN-30K-SG01HP3</h1>
  <span class="chip ok">Статус: норма</span><span class="chip hot">32.8 °C</span><span class="chip">сеть 50.0 Гц · 241 / 246 / 236 В</span><span class="chip ok">Modbus ✓</span>
- <span class="spacer"></span><span class="note">изменения пишутся в инвертор сразу · последнее: 07:47 «Заряд от сети» → выкл (регулятор)</span>
+ <span class="spacer"></span><span class="legend"><span class="st s-send">↑</span>отправка <span class="st s-read">⟳</span>вычитка <span class="st s-ok">✓</span>совпадает <span class="st s-bad">✕</span>расхождение</span>
 </div>
 
 <div class="grid">
@@ -73,14 +77,15 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="row"><span class="lbl">Ёмкость · BMS</span><span class="val" style="min-width:auto;color:var(--sub);font-size:13px">100 А·ч · PYLON · Lithium · ×2 канала</span></div>
  </div>
 
- <div class="card"><h2>Регулятор заряда <span style="color:var(--dim);font-size:12px">аддон</span><span class="dot"></span></h2>
-  <div class="row"><span class="lbl">Авто-регулятор</span><div class="sw on"></div></div>
-  <div class="row"><span class="lbl">Текущее ограничение</span><span class="val" style="color:var(--org)">0 А · удержание</span></div>
-  <div class="row"><span class="lbl">Общий лимит</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" А">20 А</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">Снижать ток с</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">80 %</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">Цель на ночь</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">90 %</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">Без заряда от сети днём</span><div class="sw on"></div></div>
-  <div class="row"><span class="lbl">Полный заряд раз в · следующий</span><span class="val" style="min-width:auto">14 д · 13.10</span></div>
+ <div class="card"><h2>Сеть · пороги отключения<span class="dot"></span></h2>
+  <div class="band"><svg id="bandV" viewBox="0 0 340 58" width="100%"></svg></div>
+  <div class="row"><span class="lbl">Отключать сеть, если U выше</span><button class="btn">−</button><span class="val" data-n="vhi" data-s="1" data-u=" В" data-warn>260 В</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">… или ниже</span><button class="btn">−</button><span class="val" data-n="vlo" data-s="1" data-u=" В" data-warn>190 В</span><button class="btn">+</button></div>
+  <div class="band"><svg id="bandF" viewBox="0 0 340 58" width="100%"></svg></div>
+  <div class="row"><span class="lbl">Отключать сеть, если f выше</span><button class="btn">−</button><span class="val" data-n="fhi" data-s="0.1" data-d="1" data-u=" Гц" data-warn>51.0 Гц</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">… или ниже</span><button class="btn">−</button><span class="val" data-n="flo" data-s="0.1" data-d="1" data-u=" Гц" data-warn>49.0 Гц</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Подключать обратно через</span><button class="btn">−</button><span class="val" data-n data-s="5" data-u=" с">70 с</span><button class="btn">+</button></div>
+  <div class="note" style="margin-top:6px">За порогами инвертор отключает сеть и уходит в автономный режим. ⚠ Требования сетевой компании — меняйте осознанно, каждое изменение подтверждается.</div>
  </div>
 
  <div class="card tou"><h2>Расписание (Time of Use)
@@ -89,7 +94,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
   <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span>
    <button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
-  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
+  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span>Каждое изменение: ↑ запись по Modbus → ⟳ чтение регистра → ✓ значение совпало (или ✕ и повтор)</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
  </div>
 </div></div>
 
@@ -111,16 +116,42 @@ function draw(){var X=40,W=1300,s='',ci=cur();
   tb+='<tr class="'+(i==ci?'cur':'')+'"><td>'+(i+1)+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
   '<td><div class="cell"><button class="btn" onclick="ss('+i+',-5)">−</button><span class="v">'+sl.soc+' %</span><button class="btn" onclick="ss('+i+',5)">+</button></div></td><td style="color:#9ca3af">'+sl.p+' кВт</td>'+
   '<td class="src">'+['none','grid','gen'].map(function(k){return '<button class="s-'+k+(sl.src==k?' on':'')+'" onclick="sr('+i+',\''+k+'\')">'+names[k]+'</button>'}).join('')+'</td></tr>'});
- document.getElementById('slots').innerHTML=tb}
-function mv(i,d){var lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));draw()}
-function ss(i,d){slots[i].soc=Math.min(100,Math.max(10,slots[i].soc+d));draw()}
-function sr(i,k){slots[i].src=k;draw()}
+ var tbody=document.getElementById('slots'),keep=[].map.call(tbody.rows,function(r){return r.cells[0].querySelector('.st')});
+ tbody.innerHTML=tb;keep.forEach(function(st,i){if(st&&tbody.rows[i])tbody.rows[i].cells[0].appendChild(st)})}
+
+
+
 var P={night:[[60,30,'grid'],[300,30,'grid'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,30,'grid']],none:[[60,25,'none'],[300,25,'none'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'none']],gen:[[60,25,'gen'],[300,25,'gen'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'gen']]};
-document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){slots[i].t=r[0];slots[i].soc=r[1];slots[i].src=r[2]});draw()}});
-var dd=document.getElementById('days');['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(d){var b=document.createElement('button');b.textContent=d;b.className='on';b.onclick=function(){b.classList.toggle('on')};dd.appendChild(b)});
-document.querySelectorAll('.seg').forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.onclick=function(){g.querySelectorAll('button').forEach(function(x){x.classList.remove('on')});b.classList.add('on')}})});
-document.querySelectorAll('.sw').forEach(function(s){s.onclick=function(){s.classList.toggle('on')}});
+// цикл записи: ↑ отправка (Modbus write) → ⟳ вычитка регистра → ✓ совпало / ✕ расхождение.
+// В макете имитация: «Фон из сети» на 3-й правке показывает расхождение и повтор.
+var tries=0;
+function sync(host,bad){var s=host.querySelector(':scope > .st');if(!s){s=document.createElement('span');s.className='st';host.appendChild(s)}
+ clearTimeout(s._t);s.className='st s-send';s.textContent='↑';s.title='отправлено в инвертор';
+ s._t=setTimeout(function(){s.className='st s-read';s.textContent='⟳';s.title='чтение регистра…';
+  s._t=setTimeout(function(){if(bad){s.className='st s-bad';s.textContent='✕';s.title='прочитано другое значение — повтор записи';
+    s._t=setTimeout(function(){sync(host,false)},1500)}else{var d=new Date();s.className='st s-ok';s.textContent='✓';
+    s.title='записано и прочитано '+d.toLocaleTimeString('ru')+' — совпадает'}},700)},500)}
+function rowOf(el){return el.closest('.row')||el.closest('td')}
+function vnum(k){var e=document.querySelector('[data-n="'+k+'"]');return parseFloat(e.textContent)}
+function band(id,lo,hi,dmin,dmax,marks,unit){var X=8,W=324,px=function(v){return X+W*(v-dmin)/(dmax-dmin)},s='';
+ s+='<rect x="'+X+'" y="16" width="'+W+'" height="8" rx="4" fill="#ef444433"/><rect x="'+px(lo)+'" y="16" width="'+(px(hi)-px(lo))+'" height="8" fill="#22c55e55"/>';
+ [lo,hi].forEach(function(v){s+='<line x1="'+px(v)+'" y1="12" x2="'+px(v)+'" y2="28" stroke="#e5e7eb" stroke-width="1.5"/><text x="'+px(v)+'" y="42" fill="#9aa1ad" font-size="11" text-anchor="middle">'+v+unit+'</text>'});
+ marks.forEach(function(m){var ok=m.v>lo&&m.v<hi;s+='<polygon points="'+(px(m.v)-5)+',4 '+(px(m.v)+5)+',4 '+px(m.v)+',13" fill="'+(ok?'#22c55e':'#ef4444')+'"/>'});
+ s+='<text x="'+(X+W/2)+'" y="55" fill="#e5e7eb" font-size="11" text-anchor="middle">сейчас: '+marks.map(function(m){return m.n+' '+m.v}).join(' · ')+'</text>';
+ document.getElementById(id).innerHTML=s}
+function bands(){band('bandV',vnum('vlo'),vnum('vhi'),170,280,[{n:'L1',v:241},{n:'L2',v:246},{n:'L3',v:236}],'');band('bandF',vnum('flo'),vnum('fhi'),47,53,[{n:'f',v:50.0}],'')}
+function mv(i,d){var lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
+function ss(i,d){slots[i].soc=Math.min(100,Math.max(10,slots[i].soc+d));draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
+function sr(i,k){slots[i].src=k;draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
+document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){slots[i].t=r[0];slots[i].soc=r[1];slots[i].src=r[2]});draw();
+ document.querySelectorAll('#slots tr').forEach(function(tr){sync(tr.firstChild)})}});
+var dd=document.getElementById('days');['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(d){var b=document.createElement('button');b.textContent=d;b.className='on';b.onclick=function(){b.classList.toggle('on');sync(dd)};dd.appendChild(b)});
+document.querySelectorAll('.seg').forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.onclick=function(){g.querySelectorAll('button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');sync(rowOf(g))}})});
+document.querySelectorAll('.sw').forEach(function(s){s.onclick=function(){s.classList.toggle('on');sync(rowOf(s))}});
 document.querySelectorAll('.row').forEach(function(r){var v=r.querySelector('[data-n]'),bs=r.querySelectorAll('.btn');if(!v||bs.length<2)return;
- function step(k){var n=parseFloat(v.textContent)+k*parseFloat(v.dataset.s);v.textContent=Math.max(0,n)+v.dataset.u}bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
-draw();
+ function step(k){var n=Math.max(0,parseFloat(v.textContent)+k*parseFloat(v.dataset.s));
+  if(v.dataset.warn!==undefined&&!confirm('Изменить порог защиты сети на '+n.toFixed(+(v.dataset.d||0))+v.dataset.u+'?'))return;
+  v.textContent=n.toFixed(+(v.dataset.d||0))+v.dataset.u;bands();sync(r,v.dataset.n==='zexp'&&++tries===3)}
+ bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
+draw();bands();
 </script></body></html>
