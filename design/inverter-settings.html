@@ -52,6 +52,8 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .slrow{position:relative;border-top:1px solid #23272f;padding:8px 0 2px}.slrow:first-of-type{border-top:0}.slh{display:flex;align-items:center;gap:8px;padding-right:26px}.slv{font-size:15px;color:var(--txt)}
 .slrow>.st{position:absolute;right:0;top:9px}.slrow.dirty{background:#f5b30010}.slrow.bad{background:#ef444426}.slrow.bad .slv{color:var(--red)}.knob{cursor:ew-resize;touch-action:none}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
+.tag.man{color:var(--amb);border-color:#f5b30066}.rev{background:transparent;border:1px solid var(--brd);color:var(--blu);border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer}
+.offnote{display:none;font-size:12px;color:var(--amb);margin-left:10px}.tou.off .offnote{display:inline}.tou.off svg,.tou.off .tblw,.tou.off .presets{opacity:.35;pointer-events:none}
 .row.bad,.slrow.bad{outline:1.5px solid var(--red);outline-offset:-1px;border-radius:6px}tr.bad{outline:1.5px solid var(--red);outline-offset:-2px}
 .badbox{border:1.5px solid var(--red);border-radius:5px;padding:0 6px;color:var(--red)}
 .row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef444426}.row.bad .val,tr.bad .v{color:var(--red)}
@@ -73,17 +75,18 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <div class="card"><h2>Режим работы<span class="dot"></span></h2>
   <div class="row"><span class="lbl">Режим</span><div class="seg" data-g="mode"><button>Продажа в сеть</button><button class="on">Ноль в нагрузку</button><button>Ноль по CT</button></div></div>
   <div class="row"><span class="lbl">Приоритет энергии</span><div class="seg" data-g="pat"><button>Сначала АКБ</button><button class="on">Сначала нагрузка</button></div></div>
-  <div class="row"><span class="lbl">Заряд от сети</span><span class="tag">авто: регулятор</span><div class="sw"></div></div>
+  <div class="row" data-auto><span class="lbl">Заряд от сети</span><span class="tag">авто: регулятор</span><button class="rev" hidden title="вернуть управление регулятору">↺ авто</button><div class="sw"></div></div>
   <div class="row"><span class="lbl">Заряд от генератора</span><div class="sw"></div></div>
+  <div class="row" id="touRow"><span class="lbl">Time of Use (расписание)</span><div class="sw on" id="touSw"></div></div>
   <div class="row"><span class="lbl">Фон из сети (ноль экспорта)</span><button class="btn">−</button><span class="val" data-n="zexp" data-s="10" data-u=" Вт">150 Вт</span><button class="btn">+</button></div>
   <div class="row dis"><span class="lbl">Отдача в сеть, макс</span><button class="btn">−</button><span class="val">30 кВт</span><button class="btn">+</button></div>
   <div class="note" style="margin-top:6px">Отдача в сеть — после подключения зелёного тарифа, только при АВР вводов на Ввод 2.</div>
  </div>
 
  <div class="card"><h2>Батарея<span class="dot"></span></h2>
-  <div class="row"><span class="lbl">Макс. ток заряда</span><span class="tag">авто: регулятор</span><span class="val">0 А</span></div>
+  <div class="row" data-auto><span class="lbl">Макс. ток заряда</span><span class="tag">авто: регулятор</span><button class="rev" hidden title="вернуть управление регулятору">↺ авто</button><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" А">0 А</span><button class="btn">+</button></div>
   <div class="row"><span class="lbl">Макс. ток разряда</span><button class="btn">−</button><span class="val" data-n data-s="5" data-u=" А">50 А</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">Ток заряда от сети</span><span class="tag">авто: регулятор</span><span class="val">2 А</span></div>
+  <div class="row" data-auto><span class="lbl">Ток заряда от сети</span><span class="tag">авто: регулятор</span><button class="rev" hidden title="вернуть управление регулятору">↺ авто</button><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" А">2 А</span><button class="btn">+</button></div>
   <div class="row"><span class="lbl">Отключение при</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">25 %</span><button class="btn">+</button></div>
   <div class="row"><span class="lbl">Низкий заряд</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">30 %</span><button class="btn">+</button></div>
   <div class="row"><span class="lbl">Перезапуск при</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">35 %</span><button class="btn">+</button></div>
@@ -97,7 +100,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="note" style="margin-top:6px">За порогами инвертор отключает сеть и уходит в автономный режим. ⚠ Требования сетевой компании — меняйте осознанно, каждое изменение подтверждается.</div>
  </div>
 
- <div class="card tou"><h2>Расписание (Time of Use)
+ <div class="card tou" id="touCard"><h2>Расписание (Time of Use)<span class="offnote">выключено — инвертор не применяет расписание</span>
    <div class="days" id="days"></div></h2>
   <svg id="tl" viewBox="0 0 1360 150" width="100%" style="display:block"></svg>
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
@@ -126,7 +129,7 @@ function draw(){var X=40,W=1300,s='',ci=cur();
   tb+='<tr class="'+c+'" title="'+(it?badTip(it):'')+'"><td>'+(i+1)+(it?icon(it):'')+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
   '<td><div class="cell"><button class="btn" onclick="ss('+i+',-5)">−</button><span class="v">'+sl.soc+' %</span><button class="btn" onclick="ss('+i+',5)">+</button></div></td><td style="color:#9ca3af">'+sl.p+' кВт</td>'+
   '<td class="src">'+['none','grid','gen'].map(function(k){return '<button class="s-'+k+(sl.src==k?' on':'')+'" onclick="sr('+i+',\''+k+'\')">'+names[k]+'</button>'}).join('')+'</td></tr>'});
- document.getElementById('slots').innerHTML=tb}
+ document.getElementById('slots').innerHTML=tb;var ts=document.getElementById('touSw');if(ts)document.getElementById('touCard').classList.toggle('off',!ts.classList.contains('on'))}
 var P={night:[[60,30,'grid'],[300,30,'grid'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,30,'grid']],none:[[60,25,'none'],[300,25,'none'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'none']],gen:[[60,25,'gen'],[300,25,'gen'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'gen']]};
 
 // ===== модель изменений: правки копятся, «Сохранить» пишет всё разом и сверяет =====
@@ -142,7 +145,9 @@ function icon(it){var c=stateCls(it);if(c==='bad')return '';
 function paint(it){if(it.slot!==undefined){draw();return}var h=it.host;['dirty','bad','ok'].forEach(function(c){h.classList.remove(c)});
  var c=stateCls(it);if(c)h.classList.add(c);h.title=badTip(it);var old=h.querySelector(':scope > .st');if(old)old.remove();var x=icon(it);if(x)h.insertAdjacentHTML('beforeend',x)}
 function track(host,get,set,extra){var it=Object.assign({host:host,get:get,set:set,orig:get(),st:''},extra||{});items.push(it);return it}
-function touched(it){if(it.st==='ok'||it.st==='bad')it.st='';paint(it);bar()}
+function touched(it){if(it.st==='ok'||it.st==='bad')it.st='';if(it.auto&&!it._rev)setMode(it.host,true);it._rev=false;paint(it);bar()}
+// поля регулятора: ручная правка = «вручную» (регулятор не трогает), «↺ авто» возвращает управление
+function setMode(h,man){h.dataset.mode=man?'man':'';var t=h.querySelector('.tag');t.textContent=man?'вручную':'авто: регулятор';t.classList.toggle('man',man);h.querySelector('.rev').hidden=!man}
 var sb=document.getElementById('save'),rb=document.getElementById('reread'),msg=document.getElementById('msg'),busy=false;
 function nd(){return items.filter(dirty).length}
 function bar(){if(busy)return;var n=nd();sb.disabled=!n;sb.className='act save'+(n?' hot':'');sb.textContent=n?'Сохранить · '+n:'Сохранить'}
@@ -213,5 +218,6 @@ document.querySelectorAll('.row').forEach(function(r){var v=r.querySelector('[da
  function step(k){var n=Math.max(0,parseFloat(v.textContent)+k*parseFloat(v.dataset.s));v.textContent=n.toFixed(+(v.dataset.d||0))+v.dataset.u;bands();touched(it)}
  bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
 ["V","F","R"].forEach(function(k){slIt[k]=track(document.getElementById("row"+k),function(){return slGet(k)},function(v){slSet(k,v)},{warn:!!SL[k].warn,name:SL[k].name})});
+items.filter(function(it){return it.host&&it.host.hasAttribute('data-auto')}).forEach(function(it){var g=it.get,s=it.set,h=it.host,av=g();it.auto=true; it.get=function(){return (h.dataset.mode==='man'?'вручную ':'авто ')+g()};it.set=function(v){setMode(h,v.indexOf('вручную')===0);s(v.replace(/^S+ /,''))};it.orig=it.get(); h.querySelector('.rev').onclick=function(){s(av);setMode(h,false);it._rev=true;touched(it)}});document.getElementById('touSw').addEventListener('click',function(){draw()});
 draw();bands();bar();
 </script></body></html>
