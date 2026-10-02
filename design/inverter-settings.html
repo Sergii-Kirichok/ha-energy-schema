@@ -54,10 +54,11 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
 .tag.man{color:var(--amb);border-color:#f5b30066}.rev{background:transparent;border:1px solid var(--brd);color:var(--blu);border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer}
 .offnote{display:none;font-size:12px;color:var(--amb);margin-left:10px}.tou.off .offnote{display:inline}.tou.off svg,.tou.off .tblw,.tou.off .presets{opacity:.35;pointer-events:none}
-.row.bad,.slrow.bad{outline:1.5px solid var(--red);outline-offset:-1px;border-radius:6px}tr.bad{outline:1.5px solid var(--red);outline-offset:-2px}
-.badbox{border:1.5px solid var(--red);border-radius:5px;padding:0 6px;color:var(--red)}
+.row.bad,.slrow.bad,.row.dirty,.slrow.dirty,.row.ok,.slrow.ok,.days.dirty{outline:1.5px solid var(--red);outline-offset:-1px;border-radius:6px}tr.bad,tr.dirty,tr.ok{outline:1.5px solid var(--red);outline-offset:-2px}
+.row.dirty,.slrow.dirty,tr.dirty,.days.dirty{outline-color:var(--org)}.row.ok,.slrow.ok,tr.ok{outline-color:#22c55e99}
+.badbox{border:1.5px solid var(--red);border-radius:5px;padding:0 6px;color:var(--red)}.dirtybox,.okbox{border:1.5px solid var(--org);border-radius:5px;padding:0 6px;color:var(--org)}.okbox{border-color:#22c55e99;color:var(--grn)}
 .row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef444426}.row.bad .val,tr.bad .v{color:var(--red)}
-.days.dirty{outline:1px dashed var(--amb);outline-offset:3px;border-radius:6px}
+
 .act{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
 .act:disabled{opacity:.5;cursor:default}.act.save.hot{color:#0f1115;background:var(--grn);border-color:var(--grn)}
 .act.s-send{color:var(--amb);border-color:var(--amb)}.act.s-read{color:var(--blu);border-color:var(--blu)}.act.s-ok{color:var(--grn);border-color:var(--grn)}.act.s-bad{color:var(--red);border-color:var(--red);background:#ef44441c}
@@ -106,7 +107,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
   <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span>
    <button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
-  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="st s-dirty">●</span> изменено, не сохранено · <span class="st s-ok">✓</span> записано и прочитано · <span class="badbox">рамка</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
+  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="dirtybox">рамка</span> изменено, не сохранено · <span class="okbox">рамка</span> записано и прочитано · <span class="badbox">рамка</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
  </div>
 </div></div>
 <span id="msg" hidden></span>
@@ -138,10 +139,9 @@ var items=[],slotIt=[],failOnce=true; // макет: «Фон из сети» п
 function dirty(it){return it.get()!==it.orig}
 function stateCls(it){return it.st==='bad'?'bad':dirty(it)?'dirty':it.st==='ok'?'ok':''}
 // расхождение — без значка: строка в красной рамке, подробности в подсказке строки
-function badTip(it){return it.st==='bad'?'записано '+it.get()+', в инверторе '+it.inv:''}
-function icon(it){var c=stateCls(it);if(c==='bad')return '';
- if(c==='dirty')return '<span class="st s-dirty" title="изменено, не сохранено (было '+it.orig+')">●</span>';
- if(c==='ok')return '<span class="st s-ok" title="сохранено и прочитано — совпадает">✓</span>';return ''}
+// состояние строки — только рамкой (оранжевая: изменено, красная: расхождение, зелёная: сохранено), без значков — ничего не сдвигается
+function badTip(it){var c=stateCls(it);return c==='bad'?'записано '+it.get()+', в инверторе '+it.inv:c==='dirty'?'изменено, не сохранено (было '+it.orig+')':c==='ok'?'сохранено и прочитано — совпадает':''}
+function icon(it){return ''}
 function paint(it){if(it.slot!==undefined){draw();return}var h=it.host;['dirty','bad','ok'].forEach(function(c){h.classList.remove(c)});
  var c=stateCls(it);if(c)h.classList.add(c);h.title=badTip(it);var old=h.querySelector(':scope > .st');if(old)old.remove();var x=icon(it);if(x)h.insertAdjacentHTML('beforeend',x)}
 function track(host,get,set,extra){var it=Object.assign({host:host,get:get,set:set,orig:get(),st:''},extra||{});items.push(it);return it}
