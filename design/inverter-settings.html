@@ -5,7 +5,7 @@
 :root{--bg:#0f1115;--box:#171a20;--brd:#2b2f38;--txt:#e5e7eb;--sub:#9ca3af;--grn:#22c55e;--amb:#f5b300;--org:#f59e0b;--red:#ef4444;--blu:#60a5fa;--pur:#a78bfa;--gry:#6b7280;--dim:#9aa1ad}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Arial,Helvetica,sans-serif}
 .wrap{max-width:1440px;margin:0 auto;padding:16px 20px 28px}
-.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
 .back{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 12px;cursor:pointer}
 .back:hover{color:var(--txt)}
 h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;gap:10px}
@@ -46,6 +46,12 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .st{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;flex:none;border:1px solid currentColor}
 .st.s-send{color:var(--amb)}.st.s-read{color:var(--blu);animation:spin 1s linear infinite}.st.s-ok{color:var(--grn)}.st.s-bad{color:var(--red)}.st.idle{visibility:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
+.st.s-dirty{color:var(--amb);border:0;font-size:12px}
+.row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef44441c}.row.bad{box-shadow:inset 3px 0 var(--red)}tr.bad td:first-child{box-shadow:inset 3px 0 var(--red)}
+.days.dirty{outline:1px dashed var(--amb);outline-offset:3px;border-radius:6px}
+.act{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
+.act:disabled{opacity:.5;cursor:default}.act.save.hot{color:#0f1115;background:var(--grn);border-color:var(--grn)}
+.act.s-send{color:var(--amb);border-color:var(--amb)}.act.s-read{color:var(--blu);border-color:var(--blu)}.act.s-ok{color:var(--grn);border-color:var(--grn)}.act.s-bad{color:var(--red);border-color:var(--red);background:#ef44441c}
 @media(max-width:1100px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:720px){.grid{grid-template-columns:1fr}.wrap{padding:12px}th:nth-child(5),td:nth-child(5){display:none}}
 </style></head><body><div class="wrap">
 
@@ -53,7 +59,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <button class="back">← Схема</button>
  <h1><svg width="26" height="26" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="4" fill="none" stroke="#e5e7eb" stroke-width="2"/><path d="M6 9h5M6 13h5M6 17h5M14 13c1.5-4 3-4 4.5 0s3 4 4.5 0" fill="none" stroke="#e5e7eb" stroke-width="1.8"/></svg>Инвертор · Deye SUN-30K-SG01HP3</h1>
  <span class="chip ok">Статус: норма</span><span class="chip hot">32.8 °C</span><span class="chip">сеть 50.0 Гц · 241 / 246 / 236 В</span><span class="chip ok">Modbus ✓</span>
- <span class="spacer"></span><span class="legend"><span class="st s-send">↑</span>отправка <span class="st s-read">⟳</span>вычитка <span class="st s-ok">✓</span>совпадает <span class="st s-bad">✕</span>расхождение</span>
+ <span class="spacer"></span><span id="msg" class="note"></span><button class="act" id="reread">⟳ Перечитать</button><button class="act save" id="save" disabled>Сохранить</button>
 </div>
 
 <div class="grid">
@@ -94,7 +100,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
   <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span>
    <button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
-  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span>Каждое изменение: ↑ запись по Modbus → ⟳ чтение регистра → ✓ значение совпало (или ✕ и повтор)</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
+  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="st s-dirty">●</span> изменено, не сохранено · <span class="st s-ok">✓</span> записано и прочитано · <span class="st s-bad">✕</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
  </div>
 </div></div>
 
@@ -112,26 +118,46 @@ function draw(){var X=40,W=1300,s='',ci=cur();
  s+='<polyline points="'+pts+'" fill="none" stroke="#e5e7eb" stroke-width="1.5"/>';
  var nx=X+W*now/1440;s+='<line x1="'+nx+'" y1="14" x2="'+nx+'" y2="118" stroke="#22c55e" stroke-width="2"/><polygon points="'+(nx-6)+',10 '+(nx+6)+',10 '+nx+',18" fill="#22c55e"/>';
  document.getElementById('tl').innerHTML=s;
- var tb='';slots.forEach(function(sl,i){var e=i+1<slots.length?slots[i+1].t:slots[0].t;
-  tb+='<tr class="'+(i==ci?'cur':'')+'"><td>'+(i+1)+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
+ var tb='';slots.forEach(function(sl,i){var e=i+1<slots.length?slots[i+1].t:slots[0].t,it=slotIt[i],c=(i==ci?'cur ':'')+(it?stateCls(it):'');
+  tb+='<tr class="'+c+'"><td>'+(i+1)+(it?icon(it):'')+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
   '<td><div class="cell"><button class="btn" onclick="ss('+i+',-5)">−</button><span class="v">'+sl.soc+' %</span><button class="btn" onclick="ss('+i+',5)">+</button></div></td><td style="color:#9ca3af">'+sl.p+' кВт</td>'+
   '<td class="src">'+['none','grid','gen'].map(function(k){return '<button class="s-'+k+(sl.src==k?' on':'')+'" onclick="sr('+i+',\''+k+'\')">'+names[k]+'</button>'}).join('')+'</td></tr>'});
- var tbody=document.getElementById('slots'),keep=[].map.call(tbody.rows,function(r){return r.cells[0].querySelector('.st')});
- tbody.innerHTML=tb;keep.forEach(function(st,i){if(st&&tbody.rows[i])tbody.rows[i].cells[0].appendChild(st)})}
-
-
-
+ document.getElementById('slots').innerHTML=tb}
 var P={night:[[60,30,'grid'],[300,30,'grid'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,30,'grid']],none:[[60,25,'none'],[300,25,'none'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'none']],gen:[[60,25,'gen'],[300,25,'gen'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'gen']]};
-// цикл записи: ↑ отправка (Modbus write) → ⟳ вычитка регистра → ✓ совпало / ✕ расхождение.
-// В макете имитация: «Фон из сети» на 3-й правке показывает расхождение и повтор.
-var tries=0;
-function sync(host,bad){var s=host.querySelector(':scope > .st');if(!s){s=document.createElement('span');s.className='st';host.appendChild(s)}
- clearTimeout(s._t);s.className='st s-send';s.textContent='↑';s.title='отправлено в инвертор';
- s._t=setTimeout(function(){s.className='st s-read';s.textContent='⟳';s.title='чтение регистра…';
-  s._t=setTimeout(function(){if(bad){s.className='st s-bad';s.textContent='✕';s.title='прочитано другое значение — повтор записи';
-    s._t=setTimeout(function(){sync(host,false)},1500)}else{var d=new Date();s.className='st s-ok';s.textContent='✓';
-    s.title='записано и прочитано '+d.toLocaleTimeString('ru')+' — совпадает'}},700)},500)}
-function rowOf(el){return el.closest('.row')||el.closest('td')}
+
+// ===== модель изменений: правки копятся, «Сохранить» пишет всё разом и сверяет =====
+// item: {host, get, set, orig — значение в инверторе, st: ''|'ok'|'bad', inv — прочитанное при расхождении}
+var items=[],slotIt=[],failOnce=true; // макет: «Фон из сети» при первом сохранении «не совпадёт»
+function dirty(it){return it.get()!==it.orig}
+function stateCls(it){return it.st==='bad'?'bad':dirty(it)?'dirty':it.st==='ok'?'ok':''}
+function icon(it){var c=stateCls(it);if(c==='bad')return '<span class="st s-bad" title="записано '+it.get()+', в инверторе '+it.inv+'">✕</span>';
+ if(c==='dirty')return '<span class="st s-dirty" title="изменено, не сохранено (было '+it.orig+')">●</span>';
+ if(c==='ok')return '<span class="st s-ok" title="сохранено и прочитано — совпадает">✓</span>';return ''}
+function paint(it){if(it.slot!==undefined){draw();return}var h=it.host;['dirty','bad','ok'].forEach(function(c){h.classList.remove(c)});
+ var c=stateCls(it);if(c)h.classList.add(c);var old=h.querySelector(':scope > .st');if(old)old.remove();var x=icon(it);if(x)h.insertAdjacentHTML('beforeend',x)}
+function track(host,get,set,extra){var it=Object.assign({host:host,get:get,set:set,orig:get(),st:''},extra||{});items.push(it);return it}
+function touched(it){if(it.st==='ok'||it.st==='bad')it.st='';paint(it);bar()}
+var sb=document.getElementById('save'),rb=document.getElementById('reread'),msg=document.getElementById('msg'),busy=false;
+function nd(){return items.filter(dirty).length}
+function bar(){if(busy)return;var n=nd();sb.disabled=!n;sb.className='act save'+(n?' hot':'');sb.textContent=n?'Сохранить · '+n:'Сохранить'}
+function tm(){return new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+function phase(btn,cls,txt){btn.className='act '+cls;btn.textContent=txt}
+sb.onclick=function(){var d=items.filter(dirty);if(!d.length)return;
+ var w=d.filter(function(it){return it.warn});if(w.length&&!confirm('Меняются пороги защиты сети ('+w.map(function(it){return it.name+' → '+it.get()}).join(', ')+'). Сохранить?'))return;
+ busy=true;sb.disabled=rb.disabled=true;phase(sb,'s-send','↑ Запись '+d.length+'…');msg.textContent='';
+ setTimeout(function(){phase(sb,'s-read','⟳ Проверка…');
+  setTimeout(function(){var bad=0;d.forEach(function(it){
+    if(it.fail&&failOnce){failOnce=false;it.st='bad';it.inv=it.orig;bad++}else{it.orig=it.get();it.st='ok'}paint(it)});
+   busy=false;rb.disabled=false;sb.disabled=!nd(); // при расхождении можно сразу повторить
+   if(bad){phase(sb,'s-bad','✕ Не совпало: '+bad);msg.textContent='подсвеченные строки — в инверторе другое значение; «Сохранить» ещё раз или «Перечитать»'}
+   else{phase(sb,'s-ok','✓ Сохранено '+tm());msg.textContent='все '+d.length+' значения прочитаны обратно и совпадают'}
+   setTimeout(function(){if(!busy){bar();items.forEach(function(it){if(it.st==='ok'){it.st='';paint(it)}})}},5000)},700)},600)};
+rb.onclick=function(){var n=nd();if(n&&!confirm('Несохранённые изменения ('+n+') будут заменены значениями из инвертора. Перечитать?'))return;
+ busy=true;sb.disabled=rb.disabled=true;phase(rb,'s-read','⟳ Чтение…');
+ setTimeout(function(){items.forEach(function(it){it.set(it.orig);it.st=''});draw();bands();items.forEach(paint);
+  busy=false;rb.disabled=false;phase(rb,'','⟳ Перечитать');bar();msg.textContent='прочитано из инвертора '+tm()+' · все значения актуальны'},800)};
+
+function rowOf(el){return el.closest('.row')}
 function vnum(k){var e=document.querySelector('[data-n="'+k+'"]');return parseFloat(e.textContent)}
 function band(id,lo,hi,dmin,dmax,marks,unit){var X=8,W=324,px=function(v){return X+W*(v-dmin)/(dmax-dmin)},s='';
  s+='<rect x="'+X+'" y="16" width="'+W+'" height="8" rx="4" fill="#ef444433"/><rect x="'+px(lo)+'" y="16" width="'+(px(hi)-px(lo))+'" height="8" fill="#22c55e55"/>';
@@ -140,18 +166,24 @@ function band(id,lo,hi,dmin,dmax,marks,unit){var X=8,W=324,px=function(v){return
  s+='<text x="'+(X+W/2)+'" y="55" fill="#e5e7eb" font-size="11" text-anchor="middle">сейчас: '+marks.map(function(m){return m.n+' '+m.v}).join(' · ')+'</text>';
  document.getElementById(id).innerHTML=s}
 function bands(){band('bandV',vnum('vlo'),vnum('vhi'),170,280,[{n:'L1',v:241},{n:'L2',v:246},{n:'L3',v:236}],'');band('bandF',vnum('flo'),vnum('fhi'),47,53,[{n:'f',v:50.0}],'')}
-function mv(i,d){var lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
-function ss(i,d){slots[i].soc=Math.min(100,Math.max(10,slots[i].soc+d));draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
-function sr(i,k){slots[i].src=k;draw();sync(document.querySelectorAll('#slots tr')[i].firstChild)}
-document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){slots[i].t=r[0];slots[i].soc=r[1];slots[i].src=r[2]});draw();
- document.querySelectorAll('#slots tr').forEach(function(tr){sync(tr.firstChild)})}});
-var dd=document.getElementById('days');['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(d){var b=document.createElement('button');b.textContent=d;b.className='on';b.onclick=function(){b.classList.toggle('on');sync(dd)};dd.appendChild(b)});
-document.querySelectorAll('.seg').forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.onclick=function(){g.querySelectorAll('button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');sync(rowOf(g))}})});
-document.querySelectorAll('.sw').forEach(function(s){s.onclick=function(){s.classList.toggle('on');sync(rowOf(s))}});
+function slotItem(i){return slotIt[i]||(slotIt[i]=track(null,function(){var s=slots[i];return hm(s.t)+' '+s.soc+'% '+names[s.src]},
+ function(v){var p=v.split(' ');slots[i].t=+p[0].slice(0,2)*60+ +p[0].slice(3);slots[i].soc=parseInt(p[1]);slots[i].src={'—':'none','Сеть':'grid','Ген':'gen'}[p[2]]},{slot:i}))}
+function mv(i,d){var it=slotItem(i),lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));touched(it)}
+function ss(i,d){var it=slotItem(i);slots[i].soc=Math.min(100,Math.max(10,slots[i].soc+d));touched(it)}
+function sr(i,k){var it=slotItem(i);slots[i].src=k;touched(it)}
+document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){var its=slots.map(function(_,i){return slotItem(i)});
+ P[b.dataset.p].forEach(function(r,i){slots[i].t=r[0];slots[i].soc=r[1];slots[i].src=r[2]});its.forEach(function(it){if(it.st)it.st=''});draw();bar()}});
+var dd=document.getElementById('days'),dayIt;['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(d){var b=document.createElement('button');b.textContent=d;b.className='on';
+ b.onclick=function(){b.classList.toggle('on');touched(dayIt)};dd.appendChild(b)});
+dayIt=track(dd,function(){return [].map.call(dd.children,function(b){return b.classList.contains('on')?b.textContent:''}).join('')},
+ function(v){[].forEach.call(dd.children,function(b){b.classList.toggle('on',v.indexOf(b.textContent)>=0)})});
+document.querySelectorAll('.seg').forEach(function(g){var bs=g.querySelectorAll('button'),it=track(rowOf(g),function(){return [].findIndex.call(bs,function(b){return b.classList.contains('on')})},
+ function(v){bs.forEach(function(b,i){b.classList.toggle('on',i==v)})});bs.forEach(function(b){b.onclick=function(){bs.forEach(function(x){x.classList.remove('on')});b.classList.add('on');touched(it)}})});
+document.querySelectorAll('.sw').forEach(function(s){var it=track(rowOf(s),function(){return s.classList.contains('on')},function(v){s.classList.toggle('on',v)});
+ s.onclick=function(){s.classList.toggle('on');touched(it)}});
 document.querySelectorAll('.row').forEach(function(r){var v=r.querySelector('[data-n]'),bs=r.querySelectorAll('.btn');if(!v||bs.length<2)return;
- function step(k){var n=Math.max(0,parseFloat(v.textContent)+k*parseFloat(v.dataset.s));
-  if(v.dataset.warn!==undefined&&!confirm('Изменить порог защиты сети на '+n.toFixed(+(v.dataset.d||0))+v.dataset.u+'?'))return;
-  v.textContent=n.toFixed(+(v.dataset.d||0))+v.dataset.u;bands();sync(r,v.dataset.n==='zexp'&&++tries===3)}
+ var it=track(r,function(){return v.textContent},function(x){v.textContent=x},{warn:v.dataset.warn!==undefined,fail:v.dataset.n==='zexp',name:r.querySelector('.lbl').textContent});
+ function step(k){var n=Math.max(0,parseFloat(v.textContent)+k*parseFloat(v.dataset.s));v.textContent=n.toFixed(+(v.dataset.d||0))+v.dataset.u;bands();touched(it)}
  bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
-draw();bands();
+draw();bands();bar();
 </script></body></html>
