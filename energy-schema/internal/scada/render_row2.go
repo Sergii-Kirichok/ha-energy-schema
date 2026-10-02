@@ -73,6 +73,8 @@ func (f *frame) row2() {
 		hc = cRed
 	}
 	s.head(400, 300, 340, "inv", "Инвертор", hc)
+	// клик по значку / слову «Инвертор» — страница настроек инвертора
+	s.p(`<rect x="404" y="304" width="120" height="32" rx="6" fill="transparent" style="cursor:pointer" data-nav="inverter"/>`)
 	// температура инвертора — в шапке
 	temp := st.Num("sensor.deye_sun_30k_temperature")
 	tc := cGrn

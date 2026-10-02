@@ -263,7 +263,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			st.ZeroSince = time.Time{} // проверено, больше не смотрим
 		}
 	}
-	if maxReg != *lastMax {
+	if maxReg != *lastMax && !s.ovr.get("max_charge") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeMaxEntity, "value": maxReg}); err != nil {
 			log.Println("charge: set max:", err)
 		} else {
@@ -274,7 +274,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			*lastMax = maxReg
 		}
 	}
-	if gridReg != *lastGrid {
+	if gridReg != *lastGrid && !s.ovr.get("grid_a") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": gridReg}); err != nil {
 			log.Println("charge: set grid:", err)
 		} else {

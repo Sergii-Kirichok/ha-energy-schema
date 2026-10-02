@@ -29,6 +29,7 @@ type Server struct {
 	store  *hass.Store
 	client *hass.Client
 	solar  *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
+	ovr    *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
 }
 
 // New builds a Server.
@@ -36,7 +37,7 @@ func New(cfg config.Config, store *hass.Store, client *hass.Client) *Server {
 	scada.SetQuickMax("max_a", cfg.Charge.MaxALimit)
 	scada.SetQuickMax("grid_a", cfg.Charge.GridALimit)
 	scada.SetQuickMax("full_days", cfg.Charge.FullDaysMax)
-	return &Server{cfg: cfg, store: store, client: client}
+	return &Server{cfg: cfg, store: store, client: client, ovr: loadOverrides(overridesFile)}
 }
 
 func (s *Server) render() string { return scada.Render(s.store, s.cfg) }
@@ -155,6 +156,9 @@ func (s *Server) Run() error {
 	go s.loopPersist()
 	http.HandleFunc("/schematic.svg", s.handleSVG)
 	http.HandleFunc("/control", s.handleControl)
+	http.HandleFunc("/inverter", s.handleInverterPage)
+	http.HandleFunc("/inverter/state", s.inverterState)
+	http.HandleFunc("/inverter/save", s.inverterSave)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)
 	return http.ListenAndServe(listen, nil)
