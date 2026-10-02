@@ -35,7 +35,7 @@ h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;ga
 .days button.on{color:var(--grn);border-color:#22c55e88}
 svg text{font-family:Arial,Helvetica,sans-serif}
 table{width:100%;border-collapse:collapse;margin-top:6px}th{color:var(--dim);font-weight:normal;font-size:12px;text-align:left;padding:6px 8px}
-td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{background:#60a5fa12}tr.cur td:first-child{box-shadow:inset 3px 0 var(--blu)}
+td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{background:#60a5fa12}
 .cell{display:flex;align-items:center;gap:6px}.cell .v{min-width:52px;text-align:center}
 .src{white-space:nowrap}.src button{background:transparent;border:1px solid var(--brd);color:var(--sub);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;margin-right:4px}
 .src button.on.s-grid{color:var(--blu);border-color:#60a5fa88}.src button.on.s-gen{color:var(--org);border-color:#f59e0b88}.src button.on.s-none{color:var(--txt);border-color:var(--sub)}
@@ -47,7 +47,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .st.s-send{color:var(--amb)}.st.s-read{color:var(--blu);animation:spin 1s linear infinite}.st.s-ok{color:var(--grn)}.st.s-bad{color:var(--red)}.st.idle{visibility:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
-.row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef44441c}.row.bad{box-shadow:inset 3px 0 var(--red)}tr.bad td:first-child{box-shadow:inset 3px 0 var(--red)}
+.row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef444426}.row.bad .val,tr.bad .v{color:var(--red)}
 .days.dirty{outline:1px dashed var(--amb);outline-offset:3px;border-radius:6px}
 .act{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
 .act:disabled{opacity:.5;cursor:default}.act.save.hot{color:#0f1115;background:var(--grn);border-color:var(--grn)}
