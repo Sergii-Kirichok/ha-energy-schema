@@ -3,9 +3,9 @@ package web
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -14,10 +14,10 @@ var inverterHTML []byte
 
 const overridesFile = "/data/overrides.json"
 
-// readInverter читает все поля страницы; factor — число каналов АКБ (рег. 110).
-func (s *Server) readInverter() (map[string]float64, float64, error) {
+// readRaw читает все блоки регистров страницы; factor — число каналов АКБ (рег. 110).
+func (s *Server) readRaw() (map[int]int, float64, error) {
 	raw := map[int]int{}
-	for _, b := range invBlocks {
+	for _, b := range append(invBlocks, [2]int{parallelReg, 1}) {
 		r, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, b[0], b[1])
 		if err != nil {
 			return nil, 0, err
@@ -26,18 +26,67 @@ func (s *Server) readInverter() (map[string]float64, float64, error) {
 			raw[k] = v
 		}
 	}
-	r, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, parallelReg, 1)
-	if err != nil {
-		return nil, 0, err
-	}
-	factor := 1 + float64(r[parallelReg]&1)
+	return raw, 1 + float64(raw[parallelReg]&1), nil
+}
+
+func decodeAll(raw map[int]int, factor float64) map[string]float64 {
 	out := map[string]float64{}
 	for _, f := range invFields {
 		if v, ok := raw[f.Reg]; ok {
 			out[f.Key] = f.decode(v, factor)
 		}
 	}
-	return out, factor, nil
+	return out
+}
+
+// readInverter — значения полей страницы.
+func (s *Server) readInverter() (map[string]float64, float64, error) {
+	raw, factor, err := s.readRaw()
+	if err != nil {
+		return nil, 0, err
+	}
+	return decodeAll(raw, factor), factor, nil
+}
+
+// touBlock — слоты расписания (время, мощность, напряжение, SOC, источник)
+// пишутся одним запросом целиком, как это делает штатная программа Deye.
+var touBlock = [2]int{148, 30}
+
+// invVerifyDelays — паузы перед повторными чтениями при сверке (≈10 с всего).
+var invVerifyDelays = []time.Duration{1500 * time.Millisecond, 2500 * time.Millisecond, 3 * time.Second, 3 * time.Second}
+
+// writeRuns группирует изменённые регистры в непрерывные куски (каждый — один
+// запрос функцией 16). Если затронут любой слот, блок расписания пишется
+// целиком: неизменённые регистры берутся из текущих значений base.
+func writeRuns(changed, base map[int]int) [][]int {
+	regs := map[int]int{}
+	for r, v := range changed {
+		regs[r] = v
+	}
+	for r := range changed {
+		if r >= touBlock[0] && r < touBlock[0]+touBlock[1] {
+			for a := touBlock[0]; a < touBlock[0]+touBlock[1]; a++ {
+				if _, ok := regs[a]; !ok {
+					regs[a] = base[a]
+				}
+			}
+			break
+		}
+	}
+	addrs := make([]int, 0, len(regs))
+	for a := range regs {
+		addrs = append(addrs, a)
+	}
+	sort.Ints(addrs)
+	var runs [][]int // [start, v0, v1, ...]
+	for _, a := range addrs {
+		if n := len(runs); n > 0 && runs[n-1][0]+len(runs[n-1])-1 == a {
+			runs[n-1] = append(runs[n-1], regs[a])
+			continue
+		}
+		runs = append(runs, []int{a, regs[a]})
+	}
+	return runs
 }
 
 // guard — те же правила, что у /control: POST с той же страницы и права управления.
@@ -104,7 +153,7 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	cur, factor, err := s.readInverter()
+	baseRaw, factor, err := s.readRaw()
 	if err != nil {
 		http.Error(w, "нет связи с инвертором: "+err.Error(), http.StatusBadGateway)
 		return
@@ -114,14 +163,10 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		manual[k] = v
 	}
 	next := map[string]float64{}
-	for k, v := range cur {
+	for k, v := range decodeAll(baseRaw, factor) {
 		next[k] = v
 	}
-	type wr struct {
-		f   invField
-		raw int
-	}
-	var writes []wr
+	var writes []invWrite
 	for k, v := range req.Values {
 		f := invField0(k)
 		if f == nil {
@@ -137,39 +182,67 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		next[k] = v
-		writes = append(writes, wr{*f, raw})
+		writes = append(writes, invWrite{*f, raw})
 	}
 	if err := validatePair(next); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	s.ovr.set(req.Manual)
-	res := map[string]invResult{}
+	changed := map[int]int{}
 	for _, x := range writes {
-		if err := s.client.WriteHoldingRegister(bmsDeviceEntity, x.f.Reg, x.raw); err != nil {
-			res[x.f.Key] = invResult{Want: req.Values[x.f.Key], Error: err.Error()}
+		changed[x.f.Reg] = x.raw
+	}
+	var werr string
+	for _, run := range writeRuns(changed, baseRaw) {
+		if err := s.client.WriteHoldingRegisters(bmsDeviceEntity, run[0], run[1:]); err != nil {
+			werr = err.Error()
+		}
+		log.Printf("inverter: write %d..%d = %v", run[0], run[0]+len(run)-2, run[1:])
+	}
+	// инвертор применяет запись с задержкой (до нескольких секунд): перечитываем,
+	// пока всё не совпадёт или не выйдет время
+	var after map[int]int
+	for _, d := range invVerifyDelays {
+		time.Sleep(d)
+		if after, _, err = s.readRaw(); err != nil {
+			continue
+		}
+		if allMatch(writes, after) {
+			break
 		}
 	}
-	time.Sleep(time.Second) // инвертору нужно время применить значение
-	after, _, err := s.readInverter()
-	if err != nil {
+	if after == nil {
 		http.Error(w, "записано, но перечитать не удалось: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	ok := true
+	res, ok := map[string]invResult{}, true
 	for _, x := range writes {
-		k := x.f.Key
-		r := res[k]
-		r.Want, r.Read = req.Values[k], after[k]
-		r.OK = r.Error == "" && fmt.Sprint(x.f.decode(x.raw, factor)) == fmt.Sprint(after[k])
+		k, got := x.f.Key, after[x.f.Reg]
+		r := invResult{Want: req.Values[k], Read: x.f.decode(got, factor), OK: got == x.raw, Error: werr}
 		ok = ok && r.OK
 		res[k] = r
-		log.Printf("inverter: %s reg %d ← %d, read %v (%v)", k, x.f.Reg, x.raw, after[k], map[bool]string{true: "ok", false: "MISMATCH"}[r.OK])
+		log.Printf("inverter: %s reg %d ← %d, read %d (%v)", k, x.f.Reg, x.raw, got, map[bool]string{true: "ok", false: "MISMATCH"}[r.OK])
 	}
-	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": after, "manual": s.ovr.snapshot(), "ts": time.Now().Format("15:04:05")})
+	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": decodeAll(after, factor), "manual": s.ovr.snapshot(), "ts": time.Now().Format("15:04:05")})
+}
+
+func allMatch(writes []invWrite, raw map[int]int) bool {
+	for _, x := range writes {
+		if raw[x.f.Reg] != x.raw {
+			return false
+		}
+	}
+	return true
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// invWrite — поле и сырое значение регистра к записи.
+type invWrite struct {
+	f   invField
+	raw int
 }

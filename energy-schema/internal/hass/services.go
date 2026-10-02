@@ -84,13 +84,15 @@ func (c *Client) deviceID(entity string) (string, error) {
 	return dev, nil
 }
 
-// WriteHoldingRegister writes one raw Modbus holding register through the
-// solarman.write_holding_register service (function code 6). Callers own
-// validation — the inverter accepts whatever is written.
-func (c *Client) WriteHoldingRegister(deviceEntity string, reg, value int) error {
+// WriteHoldingRegisters writes consecutive raw Modbus holding registers from
+// reg through the solarman.write_multiple_holding_registers service (function
+// code 16). Deye ignores function 6 (write_holding_register) silently — no
+// error, value unchanged (checked 02.10) — so only code 16 is used.
+// Callers own validation: the inverter accepts whatever is written.
+func (c *Client) WriteHoldingRegisters(deviceEntity string, reg int, values []int) error {
 	dev, err := c.deviceID(deviceEntity)
 	if err != nil {
 		return err
 	}
-	return c.CallService("solarman", "write_holding_register", map[string]any{"device": dev, "register": reg, "value": value})
+	return c.CallService("solarman", "write_multiple_holding_registers", map[string]any{"device": dev, "register": reg, "values": values})
 }
