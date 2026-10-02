@@ -4,7 +4,7 @@
 <style>
 :root{--bg:#0f1115;--box:#171a20;--brd:#2b2f38;--txt:#e5e7eb;--sub:#9ca3af;--grn:#22c55e;--amb:#f5b300;--org:#f59e0b;--red:#ef4444;--blu:#60a5fa;--pur:#a78bfa;--gry:#6b7280;--dim:#9aa1ad}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Arial,Helvetica,sans-serif}
-.wrap{max-width:1440px;margin:0 auto;padding:16px 20px 96px}
+.wrap{max-width:1440px;margin:0 auto;padding:16px 20px 28px}
 .actbar{position:fixed;right:20px;bottom:20px;z-index:10;display:flex;align-items:center;gap:10px;background:var(--box);border:1px solid var(--brd);border-radius:12px;padding:10px 12px;box-shadow:0 8px 24px #000a;max-width:calc(100% - 40px)}
 .actbar #msg:empty{display:none}.actbar #msg{max-width:340px}
 .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -48,6 +48,9 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .st{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;flex:none;border:1px solid currentColor}
 .st.s-send{color:var(--amb)}.st.s-read{color:var(--blu);animation:spin 1s linear infinite}.st.s-ok{color:var(--grn)}.st.s-bad{color:var(--red)}.st.idle{visibility:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
+.slh .now{font-size:12px;color:var(--dim);margin-left:auto}.slh .slv{margin-left:12px}
+.slrow{position:relative;border-top:1px solid #23272f;padding:8px 0 2px}.slrow:first-of-type{border-top:0}.slh{display:flex;align-items:center;gap:8px;padding-right:26px}.slv{font-size:15px;color:var(--txt)}
+.slrow>.st{position:absolute;right:0;top:9px}.slrow.dirty{background:#f5b30010}.slrow.bad{background:#ef444426}.slrow.bad .slv{color:var(--red)}.knob{cursor:ew-resize;touch-action:none}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
 .row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef444426}.row.bad .val,tr.bad .v{color:var(--red)}
 .days.dirty{outline:1px dashed var(--amb);outline-offset:3px;border-radius:6px}
@@ -61,7 +64,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <button class="back">← Схема</button>
  <h1><svg width="26" height="26" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="4" fill="none" stroke="#e5e7eb" stroke-width="2"/><path d="M6 9h5M6 13h5M6 17h5M14 13c1.5-4 3-4 4.5 0s3 4 4.5 0" fill="none" stroke="#e5e7eb" stroke-width="1.8"/></svg>Инвертор · Deye SUN-30K-SG01HP3</h1>
  <span class="chip ok">Статус: норма</span><span class="chip hot">32.8 °C</span><span class="chip">сеть 50.0 Гц · 241 / 246 / 236 В</span><span class="chip ok">Modbus ✓</span>
- <span class="spacer"></span>
+ <span class="spacer"></span><button class="act" id="reread">⟳ Перечитать</button><button class="act save" id="save" disabled>Сохранить</button>
 </div>
 
 <div class="grid">
@@ -86,13 +89,9 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  </div>
 
  <div class="card"><h2>Сеть · пороги отключения<span class="dot"></span></h2>
-  <div class="band"><svg id="bandV" viewBox="0 0 340 58" width="100%"></svg></div>
-  <div class="row"><span class="lbl">Отключать сеть, если U выше</span><button class="btn">−</button><span class="val" data-n="vhi" data-s="1" data-u=" В" data-warn>260 В</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">… или ниже</span><button class="btn">−</button><span class="val" data-n="vlo" data-s="1" data-u=" В" data-warn>190 В</span><button class="btn">+</button></div>
-  <div class="band"><svg id="bandF" viewBox="0 0 340 58" width="100%"></svg></div>
-  <div class="row"><span class="lbl">Отключать сеть, если f выше</span><button class="btn">−</button><span class="val" data-n="fhi" data-s="0.1" data-d="1" data-u=" Гц" data-warn>51.0 Гц</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">… или ниже</span><button class="btn">−</button><span class="val" data-n="flo" data-s="0.1" data-d="1" data-u=" Гц" data-warn>49.0 Гц</span><button class="btn">+</button></div>
-  <div class="row"><span class="lbl">Подключать обратно через</span><button class="btn">−</button><span class="val" data-n data-s="5" data-u=" с">70 с</span><button class="btn">+</button></div>
+  <div class="slrow" id="rowV"><div class="slh"><span class="lbl">Напряжение сети</span><span class="now">сейчас 241 · 246 · 236</span><span class="slv" id="vV"></span></div><svg id="slV" viewBox="0 0 340 58" width="100%"></svg></div>
+  <div class="slrow" id="rowF"><div class="slh"><span class="lbl">Частота сети</span><span class="now">сейчас 50.0</span><span class="slv" id="vF"></span></div><svg id="slF" viewBox="0 0 340 58" width="100%"></svg></div>
+  <div class="slrow" id="rowR"><div class="slh"><span class="lbl">Обратное подключение через</span><span class="slv" id="vR"></span></div><svg id="slR" viewBox="0 0 340 58" width="100%"></svg></div>
   <div class="note" style="margin-top:6px">За порогами инвертор отключает сеть и уходит в автономный режим. ⚠ Требования сетевой компании — меняйте осознанно, каждое изменение подтверждается.</div>
  </div>
 
@@ -105,7 +104,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="st s-dirty">●</span> изменено, не сохранено · <span class="st s-ok">✓</span> записано и прочитано · <span class="st s-bad">✕</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
  </div>
 </div></div>
-<div class="actbar"><span id="msg" class="note"></span><button class="act" id="reread">⟳ Перечитать</button><button class="act save" id="save" disabled>Сохранить</button></div>
+<span id="msg" hidden></span>
 
 <script>
 var slots=[{t:60,soc:40,src:'grid',p:30},{t:300,soc:30,src:'grid',p:30},{t:540,soc:35,src:'grid',p:30},{t:840,soc:40,src:'grid',p:30},{t:960,soc:45,src:'grid',p:30},{t:1260,soc:50,src:'grid',p:30}];
@@ -161,14 +160,35 @@ rb.onclick=function(){var n=nd();if(n&&!confirm('Несохранённые из
   busy=false;rb.disabled=false;phase(rb,'','⟳ Перечитать');bar();msg.textContent='прочитано из инвертора '+tm()+' · все значения актуальны'},800)};
 
 function rowOf(el){return el.closest('.row')}
-function vnum(k){var e=document.querySelector('[data-n="'+k+'"]');return parseFloat(e.textContent)}
-function band(id,lo,hi,dmin,dmax,marks,unit){var X=8,W=324,px=function(v){return X+W*(v-dmin)/(dmax-dmin)},s='';
- s+='<rect x="'+X+'" y="16" width="'+W+'" height="8" rx="4" fill="#ef444433"/><rect x="'+px(lo)+'" y="16" width="'+(px(hi)-px(lo))+'" height="8" fill="#22c55e55"/>';
- [lo,hi].forEach(function(v){s+='<line x1="'+px(v)+'" y1="12" x2="'+px(v)+'" y2="28" stroke="#e5e7eb" stroke-width="1.5"/><text x="'+px(v)+'" y="42" fill="#9aa1ad" font-size="11" text-anchor="middle">'+v+unit+'</text>'});
- marks.forEach(function(m){var ok=m.v>lo&&m.v<hi;s+='<polygon points="'+(px(m.v)-5)+',4 '+(px(m.v)+5)+',4 '+px(m.v)+',13" fill="'+(ok?'#22c55e':'#ef4444')+'"/>'});
- s+='<text x="'+(X+W/2)+'" y="55" fill="#e5e7eb" font-size="11" text-anchor="middle">сейчас: '+marks.map(function(m){return m.n+' '+m.v}).join(' · ')+'</text>';
- document.getElementById(id).innerHTML=s}
-function bands(){band('bandV',vnum('vlo'),vnum('vhi'),170,280,[{n:'L1',v:241},{n:'L2',v:246},{n:'L3',v:236}],'');band('bandF',vnum('flo'),vnum('fhi'),47,53,[{n:'f',v:50.0}],'')}
+// ===== пороги сети: перетаскиваемые ползунки на шкалах (два бегунка — диапазон, один — значение) =====
+var SL={
+ V:{name:'Пороги напряжения',lo:190,hi:260,min:170,max:280,step:1,d:0,u:' В',warn:1,marks:[{n:'L1',v:241},{n:'L2',v:246},{n:'L3',v:236}]},
+ F:{name:'Пороги частоты',lo:49,hi:51,min:47,max:53,step:0.1,d:1,u:' Гц',warn:1,marks:[{n:'f',v:50.0}]},
+ R:{name:'Подключать обратно через',v:70,min:0,max:300,step:5,d:0,u:' с'}};
+var SX=10,SW=320;
+function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
+function fmt(b,v){return (+v).toFixed(b.d)}
+function slRender(k){var b=SL[k],s='',two=b.lo!==undefined,y=26;
+ s+='<rect x="'+SX+'" y="'+(y-4)+'" width="'+SW+'" height="8" rx="4" fill="'+(two?'#ef444433':'#2b2f38')+'"/>';
+ var a=two?b.lo:b.min,c=two?b.hi:b.v;s+='<rect x="'+sx(b,a)+'" y="'+(y-4)+'" width="'+(sx(b,c)-sx(b,a))+'" height="8" fill="'+(two?'#22c55e55':'#60a5fa88')+'"/>';
+ (b.marks||[]).forEach(function(m){var ok=m.v>b.lo&&m.v<b.hi;s+='<polygon points="'+(sx(b,m.v)-5)+',6 '+(sx(b,m.v)+5)+',6 '+sx(b,m.v)+',15" fill="'+(ok?'#22c55e':'#ef4444')+'"/>'});
+ (two?[['lo',b.lo],['hi',b.hi]]:[['v',b.v]]).forEach(function(h){var x=sx(b,h[1]);
+  s+='<g class="knob" data-k="'+k+'" data-h="'+h[0]+'"><circle cx="'+x+'" cy="'+y+'" r="13" fill="transparent"/><circle cx="'+x+'" cy="'+y+'" r="8" fill="#e5e7eb" stroke="#0f1115" stroke-width="2"/></g>'+
+   '<text x="'+x+'" y="'+(y+24)+'" fill="#e5e7eb" font-size="12" text-anchor="middle">'+fmt(b,h[1])+b.u.trim()+'</text>'});
+
+ document.getElementById('sl'+k).innerHTML=s;document.getElementById('v'+k).textContent=slGet(k)}
+
+function bands(){slRender('V');slRender('F');slRender('R')}
+function slGet(k){var b=SL[k];return b.lo!==undefined?fmt(b,b.lo)+'–'+fmt(b,b.hi)+b.u:fmt(b,b.v)+b.u}
+function slSet(k,v){var b=SL[k],n=v.match(/[\d.]+/g).map(Number);if(b.lo!==undefined){b.lo=n[0];b.hi=n[1]}else b.v=n[0];slRender(k)}
+var drag=null;
+document.addEventListener('pointerdown',function(e){var g=e.target.closest('.knob');if(!g)return;drag={k:g.dataset.k,h:g.dataset.h,svg:g.ownerSVGElement};e.preventDefault()});
+document.addEventListener('pointermove',function(e){if(!drag)return;var b=SL[drag.k],r=drag.svg.getBoundingClientRect(),x=(e.clientX-r.left)*340/r.width;
+ var v=b.min+(x-SX)/SW*(b.max-b.min);v=Math.round(v/b.step)*b.step;var gap=b.step*2;
+ if(drag.h==='lo')v=Math.min(b.hi-gap,v);if(drag.h==='hi')v=Math.max(b.lo+gap,v);v=+Math.min(b.max,Math.max(b.min,v)).toFixed(b.d);
+ if(b[drag.h]!==v){b[drag.h]=v;slRender(drag.k);touched(slIt[drag.k])}});
+document.addEventListener('pointerup',function(){drag=null});
+var slIt={};
 function slotItem(i){return slotIt[i]||(slotIt[i]=track(null,function(){var s=slots[i];return hm(s.t)+' '+s.soc+'% '+names[s.src]},
  function(v){var p=v.split(' ');slots[i].t=+p[0].slice(0,2)*60+ +p[0].slice(3);slots[i].soc=parseInt(p[1]);slots[i].src={'—':'none','Сеть':'grid','Ген':'gen'}[p[2]]},{slot:i}))}
 function mv(i,d){var it=slotItem(i),lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));touched(it)}
@@ -188,5 +208,6 @@ document.querySelectorAll('.row').forEach(function(r){var v=r.querySelector('[da
  var it=track(r,function(){return v.textContent},function(x){v.textContent=x},{warn:v.dataset.warn!==undefined,fail:v.dataset.n==='zexp',name:r.querySelector('.lbl').textContent});
  function step(k){var n=Math.max(0,parseFloat(v.textContent)+k*parseFloat(v.dataset.s));v.textContent=n.toFixed(+(v.dataset.d||0))+v.dataset.u;bands();touched(it)}
  bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
+["V","F","R"].forEach(function(k){slIt[k]=track(document.getElementById("row"+k),function(){return slGet(k)},function(v){slSet(k,v)},{warn:!!SL[k].warn,name:SL[k].name})});
 draw();bands();bar();
 </script></body></html>
