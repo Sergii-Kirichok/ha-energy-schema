@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-10-02T04:51:00.824Z",
+        "reason": "Claude decision: user asked for the inverter page 'в текущем стиле'; the add-on schematic SVG is rendered in Arial,Helvetica (internal/scada/render.go:257), so the settings page must match it"
+      }
+    ]
+  }
+}
