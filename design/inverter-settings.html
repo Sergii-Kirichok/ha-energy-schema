@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Инвертор — настройки (макет)</title>
+<style>
+:root{--bg:#0f1115;--box:#171a20;--brd:#2b2f38;--txt:#e5e7eb;--sub:#9ca3af;--grn:#22c55e;--amb:#f5b300;--org:#f59e0b;--red:#ef4444;--blu:#60a5fa;--pur:#a78bfa;--gry:#6b7280;--dim:#9aa1ad}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Arial,Helvetica,sans-serif}
+.wrap{max-width:1440px;margin:0 auto;padding:16px 20px 28px}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.back{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 12px;cursor:pointer}
+.back:hover{color:var(--txt)}
+h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;gap:10px}
+.chip{border:1px solid var(--brd);border-radius:13px;padding:3px 10px;font-size:12px;color:var(--sub)}
+.chip.ok{color:var(--grn);border-color:#22c55e66}.chip.hot{color:var(--grn)}
+.spacer{flex:1}.note{font-size:12px;color:var(--dim)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--box);border:1px solid var(--brd);border-radius:12px;padding:14px 16px}
+.card h2{font-size:15px;font-weight:normal;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.card h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--grn);margin-left:auto}
+.row{display:flex;align-items:center;gap:8px 10px;min-height:34px;border-top:1px solid #23272f;flex-wrap:wrap;padding:4px 0}
+.card{min-width:0}.tblw{overflow-x:auto}
+.row:first-of-type{border-top:0}.row .lbl{flex:1;color:var(--sub);font-size:13px}
+.row .val{min-width:62px;text-align:right;font-size:15px}
+.tag{font-size:10px;border-radius:9px;padding:2px 7px;color:var(--blu);border:1px solid #60a5fa55}
+.btn{width:30px;height:24px;border:1px solid var(--brd);background:transparent;color:var(--txt);border-radius:6px;cursor:pointer;font-size:14px}
+.btn:hover{border-color:var(--sub)}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--brd);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--sub);padding:6px 10px;font-size:12px;cursor:pointer;border-left:1px solid var(--brd)}
+.seg button:first-child{border-left:0}.seg button.on{background:#22c55e22;color:var(--grn)}
+.sw{width:42px;height:22px;border-radius:11px;background:#2b2f38;position:relative;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--gry);transition:left .15s}
+.sw.on{background:#22c55e44}.sw.on::after{left:23px;background:var(--grn)}
+.dis{opacity:.45;pointer-events:none}
+.tou{grid-column:1/-1}
+.days{display:flex;gap:6px;margin-left:auto}.days button{background:transparent;border:1px solid var(--brd);color:var(--sub);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer}
+.days button.on{color:var(--grn);border-color:#22c55e88}
+svg text{font-family:Arial,Helvetica,sans-serif}
+table{width:100%;border-collapse:collapse;margin-top:6px}th{color:var(--dim);font-weight:normal;font-size:12px;text-align:left;padding:6px 8px}
+td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{background:#60a5fa12}tr.cur td:first-child{box-shadow:inset 3px 0 var(--blu)}
+.cell{display:flex;align-items:center;gap:6px}.cell .v{min-width:52px;text-align:center}
+.src{white-space:nowrap}.src button{background:transparent;border:1px solid var(--brd);color:var(--sub);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;margin-right:4px}
+.src button.on.s-grid{color:var(--blu);border-color:#60a5fa88}.src button.on.s-gen{color:var(--org);border-color:#f59e0b88}.src button.on.s-none{color:var(--txt);border-color:var(--sub)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.presets button{background:transparent;border:1px dashed var(--brd);color:var(--sub);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px}
+.presets button:hover{color:var(--txt);border-color:var(--sub)}
+.foot{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;color:var(--dim);font-size:12px}
+@media(max-width:1100px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:720px){.grid{grid-template-columns:1fr}.wrap{padding:12px}th:nth-child(5),td:nth-child(5){display:none}}
+</style></head><body><div class="wrap">
+
+<div class="top">
+ <button class="back">← Схема</button>
+ <h1><svg width="26" height="26" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="4" fill="none" stroke="#e5e7eb" stroke-width="2"/><path d="M6 9h5M6 13h5M6 17h5M14 13c1.5-4 3-4 4.5 0s3 4 4.5 0" fill="none" stroke="#e5e7eb" stroke-width="1.8"/></svg>Инвертор · Deye SUN-30K-SG01HP3</h1>
+ <span class="chip ok">Статус: норма</span><span class="chip hot">32.8 °C</span><span class="chip">сеть 50.0 Гц · 241 / 246 / 236 В</span><span class="chip ok">Modbus ✓</span>
+ <span class="spacer"></span><span class="note">изменения пишутся в инвертор сразу · последнее: 07:47 «Заряд от сети» → выкл (регулятор)</span>
+</div>
+
+<div class="grid">
+ <div class="card"><h2>Режим работы<span class="dot"></span></h2>
+  <div class="row"><span class="lbl">Режим</span><div class="seg" data-g="mode"><button>Продажа в сеть</button><button class="on">Ноль в нагрузку</button><button>Ноль по CT</button></div></div>
+  <div class="row"><span class="lbl">Приоритет энергии</span><div class="seg" data-g="pat"><button>Сначала АКБ</button><button class="on">Сначала нагрузка</button></div></div>
+  <div class="row"><span class="lbl">Заряд от сети</span><span class="tag">авто: регулятор</span><div class="sw"></div></div>
+  <div class="row"><span class="lbl">Заряд от генератора</span><div class="sw"></div></div>
+  <div class="row"><span class="lbl">Фон из сети (ноль экспорта)</span><button class="btn">−</button><span class="val" data-n="zexp" data-s="10" data-u=" Вт">150 Вт</span><button class="btn">+</button></div>
+  <div class="row dis"><span class="lbl">Отдача в сеть, макс</span><button class="btn">−</button><span class="val">30 кВт</span><button class="btn">+</button></div>
+  <div class="note" style="margin-top:6px">Отдача в сеть — после подключения зелёного тарифа, только при АВР вводов на Ввод 2.</div>
+ </div>
+
+ <div class="card"><h2>Батарея<span class="dot"></span></h2>
+  <div class="row"><span class="lbl">Макс. ток заряда</span><span class="tag">авто: регулятор</span><span class="val">0 А</span></div>
+  <div class="row"><span class="lbl">Макс. ток разряда</span><button class="btn">−</button><span class="val" data-n data-s="5" data-u=" А">50 А</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Ток заряда от сети</span><span class="tag">авто: регулятор</span><span class="val">2 А</span></div>
+  <div class="row"><span class="lbl">Отключение при</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">25 %</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Низкий заряд</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">30 %</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Перезапуск при</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">35 %</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Ёмкость · BMS</span><span class="val" style="min-width:auto;color:var(--sub);font-size:13px">100 А·ч · PYLON · Lithium · ×2 канала</span></div>
+ </div>
+
+ <div class="card"><h2>Регулятор заряда <span style="color:var(--dim);font-size:12px">аддон</span><span class="dot"></span></h2>
+  <div class="row"><span class="lbl">Авто-регулятор</span><div class="sw on"></div></div>
+  <div class="row"><span class="lbl">Текущее ограничение</span><span class="val" style="color:var(--org)">0 А · удержание</span></div>
+  <div class="row"><span class="lbl">Общий лимит</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" А">20 А</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Снижать ток с</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">80 %</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Цель на ночь</span><button class="btn">−</button><span class="val" data-n data-s="1" data-u=" %">90 %</span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Без заряда от сети днём</span><div class="sw on"></div></div>
+  <div class="row"><span class="lbl">Полный заряд раз в · следующий</span><span class="val" style="min-width:auto">14 д · 13.10</span></div>
+ </div>
+
+ <div class="card tou"><h2>Расписание (Time of Use)
+   <div class="days" id="days"></div></h2>
+  <svg id="tl" viewBox="0 0 1360 150" width="100%" style="display:block"></svg>
+  <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
+  <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span>
+   <button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
+  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
+ </div>
+</div></div>
+
+<script>
+var slots=[{t:60,soc:40,src:'grid',p:30},{t:300,soc:30,src:'grid',p:30},{t:540,soc:35,src:'grid',p:30},{t:840,soc:40,src:'grid',p:30},{t:960,soc:45,src:'grid',p:30},{t:1260,soc:50,src:'grid',p:30}];
+var now=7*60+47,cols={grid:'#60a5fa',gen:'#f59e0b',none:'#9aa1ad'},names={none:'—',grid:'Сеть',gen:'Ген'};
+function hm(m){m=(m+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
+function cur(){var c=slots.length-1;for(var i=0;i<slots.length;i++)if(slots[i].t<=now)c=i;return c}
+function draw(){var X=40,W=1300,s='',ci=cur();
+ for(var h=0;h<=24;h+=3){var x=X+W*h/24;s+='<line x1="'+x+'" y1="18" x2="'+x+'" y2="118" stroke="#23272f"/><text x="'+x+'" y="140" fill="#9aa1ad" font-size="12" text-anchor="middle">'+String(h).padStart(2,'0')+':00</text>'}
+ for(var v=0;v<=100;v+=50){var y=118-v;s+='<text x="'+(X-8)+'" y="'+(y+4)+'" fill="#9aa1ad" font-size="11" text-anchor="end">'+v+'%</text>'}
+ var pts='';for(var k=-1;k<slots.length;k++){var a=k<0?0:slots[k].t,b=k+1<slots.length?slots[k+1].t:1440,sl=slots[k<0?slots.length-1:k];
+  var x1=X+W*a/1440,x2=X+W*b/1440,y=118-sl.soc;s+='<rect x="'+x1+'" y="'+y+'" width="'+(x2-x1)+'" height="'+sl.soc+'" fill="'+cols[sl.src]+'" fill-opacity="'+((k<0?slots.length-1:k)==ci?.32:.14)+'"/>';pts+=x1+','+y+' '+x2+','+y+' ';
+  if(b-a>=90&&k>=0)s+='<text x="'+((x1+x2)/2)+'" y="'+(y-6)+'" fill="'+cols[sl.src]+'" font-size="12" text-anchor="middle">'+(k+1)+' · '+sl.soc+'% · '+names[sl.src]+'</text>'}
+ s+='<polyline points="'+pts+'" fill="none" stroke="#e5e7eb" stroke-width="1.5"/>';
+ var nx=X+W*now/1440;s+='<line x1="'+nx+'" y1="14" x2="'+nx+'" y2="118" stroke="#22c55e" stroke-width="2"/><polygon points="'+(nx-6)+',10 '+(nx+6)+',10 '+nx+',18" fill="#22c55e"/>';
+ document.getElementById('tl').innerHTML=s;
+ var tb='';slots.forEach(function(sl,i){var e=i+1<slots.length?slots[i+1].t:slots[0].t;
+  tb+='<tr class="'+(i==ci?'cur':'')+'"><td>'+(i+1)+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
+  '<td><div class="cell"><button class="btn" onclick="ss('+i+',-5)">−</button><span class="v">'+sl.soc+' %</span><button class="btn" onclick="ss('+i+',5)">+</button></div></td><td style="color:#9ca3af">'+sl.p+' кВт</td>'+
+  '<td class="src">'+['none','grid','gen'].map(function(k){return '<button class="s-'+k+(sl.src==k?' on':'')+'" onclick="sr('+i+',\''+k+'\')">'+names[k]+'</button>'}).join('')+'</td></tr>'});
+ document.getElementById('slots').innerHTML=tb}
+function mv(i,d){var lo=i?slots[i-1].t+30:0,hi=i+1<slots.length?slots[i+1].t-30:1410;slots[i].t=Math.min(hi,Math.max(lo,slots[i].t+d));draw()}
+function ss(i,d){slots[i].soc=Math.min(100,Math.max(10,slots[i].soc+d));draw()}
+function sr(i,k){slots[i].src=k;draw()}
+var P={night:[[60,30,'grid'],[300,30,'grid'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,30,'grid']],none:[[60,25,'none'],[300,25,'none'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'none']],gen:[[60,25,'gen'],[300,25,'gen'],[540,25,'none'],[840,25,'none'],[960,25,'none'],[1260,25,'gen']]};
+document.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){slots[i].t=r[0];slots[i].soc=r[1];slots[i].src=r[2]});draw()}});
+var dd=document.getElementById('days');['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(d){var b=document.createElement('button');b.textContent=d;b.className='on';b.onclick=function(){b.classList.toggle('on')};dd.appendChild(b)});
+document.querySelectorAll('.seg').forEach(function(g){g.querySelectorAll('button').forEach(function(b){b.onclick=function(){g.querySelectorAll('button').forEach(function(x){x.classList.remove('on')});b.classList.add('on')}})});
+document.querySelectorAll('.sw').forEach(function(s){s.onclick=function(){s.classList.toggle('on')}});
+document.querySelectorAll('.row').forEach(function(r){var v=r.querySelector('[data-n]'),bs=r.querySelectorAll('.btn');if(!v||bs.length<2)return;
+ function step(k){var n=parseFloat(v.textContent)+k*parseFloat(v.dataset.s);v.textContent=Math.max(0,n)+v.dataset.u}bs[0].onclick=function(){step(-1)};bs[1].onclick=function(){step(1)}});
+draw();
+</script></body></html>
