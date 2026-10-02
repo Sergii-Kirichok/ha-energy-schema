@@ -39,6 +39,7 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+		{Domain: "input_boolean", ID: "energy_schema_charge_no_grid_day", Name: "Заряд: без сети днём", Icon: "mdi:transmission-tower-off", Initial: 1},
 	}
 }
 
@@ -152,7 +153,7 @@ func (s *Server) loopCharge() {
 // chargeSignature — всё, от чего зависит уставка: хелперы, SOC, баланс ячеек.
 func (s *Server) chargeSignature() string {
 	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level") +
-		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"), s.cfg.Charge)
+		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"), s.cfg.Charge) + "|" + s.store.State(gridChargeSwitch)
 	for _, h := range chargeHelpers(s.cfg.Charge) {
 		sig += "|" + s.store.State(h.Domain+"."+h.ID)
 	}
@@ -204,6 +205,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		return // хелперы ещё не созданы / не прочитаны
 	}
 	amps, mode := chargeSetpoint(in)
+	if auto {
+		s.syncGridCharge(st.Night, soc)
+	}
 	if !auto {
 		// ручной режим: без спада и удержания — просто «Общий лимит». Иначе
 		// в инверторе навсегда остался бы последний авто-ответ (например, 0 = стоп)

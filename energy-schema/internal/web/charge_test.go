@@ -165,3 +165,22 @@ func TestDriftMargin(t *testing.T) {
 		t.Error("no floor / no sun left → no margin")
 	}
 }
+
+func TestGridChargeWanted(t *testing.T) {
+	cases := []struct {
+		night, block bool
+		soc, shut    float64
+		want         bool
+	}{
+		{false, true, 30, 25, false}, // день, блок: солнце → дом, сеть не заряжает
+		{true, true, 30, 25, true},   // ночь: слоты ToU работают
+		{false, false, 30, 25, true}, // блок выключен пользователем
+		{false, true, 28, 25, true},  // страховка: ниже shutdown+5 — разрешаем и днём
+		{false, true, 29.9, 25, true},
+	}
+	for _, c := range cases {
+		if got := gridChargeWanted(c.night, c.block, c.soc, c.shut); got != c.want {
+			t.Errorf("gridChargeWanted(%v,%v,%.1f,%.0f) = %v", c.night, c.block, c.soc, c.shut, got)
+		}
+	}
+}
