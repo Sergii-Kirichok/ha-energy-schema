@@ -171,7 +171,7 @@ rb.onclick=function(){var n=nd();if(n&&!confirm('Несохранённые из
 function rowOf(el){return el.closest('.row')}
 // ===== пороги сети: перетаскиваемые ползунки на шкалах (два бегунка — диапазон, один — значение) =====
 var SL={
- V:{name:'Пороги напряжения',lo:190,hi:260,min:170,max:280,step:1,d:0,u:' В',warn:1,marks:[{n:'L1',v:241},{n:'L2',v:246},{n:'L3',v:236}]},
+ V:{name:'Пороги напряжения',lo:190,hi:260,min:180,max:270,step:1,d:0,u:' В',warn:1,marks:[{n:'1',v:241},{n:'2',v:246},{n:'3',v:236}]},
  F:{name:'Пороги частоты',lo:49,hi:51,min:47,max:53,step:0.1,d:1,u:' Гц',warn:1,marks:[{n:'f',v:50.0}]},
  R:{name:'Подключать обратно через',v:70,min:0,max:300,step:5,d:0,u:' с'}};
 var SX=10,SW=320;
@@ -180,7 +180,7 @@ function fmt(b,v){return (+v).toFixed(b.d)}
 function slRender(k){var b=SL[k],s='',two=b.lo!==undefined,y=26;
  s+='<rect x="'+SX+'" y="'+(y-4)+'" width="'+SW+'" height="8" rx="4" fill="'+(two?'#ef444433':'#2b2f38')+'"/>';
  var a=two?b.lo:b.min,c=two?b.hi:b.v;s+='<rect x="'+sx(b,a)+'" y="'+(y-4)+'" width="'+(sx(b,c)-sx(b,a))+'" height="8" fill="'+(two?'#22c55e55':'#60a5fa88')+'"/>';
- (b.marks||[]).forEach(function(m){var ok=m.v>b.lo&&m.v<b.hi;s+='<polygon points="'+(sx(b,m.v)-5)+',6 '+(sx(b,m.v)+5)+',6 '+sx(b,m.v)+',15" fill="'+(ok?'#22c55e':'#ef4444')+'"/>'});
+ (b.marks||[]).forEach(function(m){var ok=m.v>b.lo&&m.v<b.hi,x=sx(b,m.v);s+='<polygon points="'+(x-8)+',1 '+(x+8)+',1 '+x+',17" fill="'+(ok?'#22c55e':'#ef4444')+'"/><text x="'+x+'" y="10" fill="#0f1115" font-size="10" font-weight="bold" text-anchor="middle">'+m.n+'</text>'});
  (two?[['lo',b.lo],['hi',b.hi]]:[['v',b.v]]).forEach(function(h){var x=sx(b,h[1]);
   s+='<g class="knob" data-k="'+k+'" data-h="'+h[0]+'"><circle cx="'+x+'" cy="'+y+'" r="13" fill="transparent"/><circle cx="'+x+'" cy="'+y+'" r="8" fill="#e5e7eb" stroke="#0f1115" stroke-width="2"/></g>'+
    '<text x="'+x+'" y="'+(y+24)+'" fill="#e5e7eb" font-size="12" text-anchor="middle">'+fmt(b,h[1])+b.u.trim()+'</text>'});
