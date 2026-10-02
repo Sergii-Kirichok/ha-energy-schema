@@ -48,7 +48,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .st{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:11px;flex:none;border:1px solid currentColor}
 .st.s-send{color:var(--amb)}.st.s-read{color:var(--blu);animation:spin 1s linear infinite}.st.s-ok{color:var(--grn)}.st.s-bad{color:var(--red)}.st.idle{visibility:hidden}
 @keyframes spin{to{transform:rotate(360deg)}}
-.slh .now{font-size:12px;color:var(--dim);margin-left:auto}.slh .slv{margin-left:12px}
+.slh .now{font-size:13px;color:var(--dim);margin-left:auto;white-space:nowrap}.slh .now b{font-weight:normal}.slh .slv{margin-left:12px}
 .slrow{position:relative;border-top:1px solid #23272f;padding:8px 0 2px}.slrow:first-of-type{border-top:0}.slh{display:flex;align-items:center;gap:8px;padding-right:26px}.slv{font-size:15px;color:var(--txt)}
 .slrow>.st{position:absolute;right:0;top:9px}.slrow.dirty{background:#f5b30010}.slrow.bad{background:#ef444426}.slrow.bad .slv{color:var(--red)}.knob{cursor:ew-resize;touch-action:none}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
@@ -171,8 +171,8 @@ rb.onclick=function(){var n=nd();if(n&&!confirm('Несохранённые из
 function rowOf(el){return el.closest('.row')}
 // ===== пороги сети: перетаскиваемые ползунки на шкалах (два бегунка — диапазон, один — значение) =====
 var SL={
- V:{name:'Пороги напряжения',lo:190,hi:260,min:180,max:270,step:1,d:0,u:' В',warn:1,marks:[{n:'1',v:241},{n:'2',v:246},{n:'3',v:236}]},
- F:{name:'Пороги частоты',lo:49,hi:51,min:47,max:53,step:0.1,d:1,u:' Гц',warn:1,marks:[{n:'f',v:50.0}]},
+ V:{name:'Пороги напряжения',lo:190,hi:260,min:180,max:270,step:1,d:0,u:' В',warn:1,marks:[{n:'1',v:241,c:'#f5b300'},{n:'2',v:246,c:'#60a5fa'},{n:'3',v:236,c:'#a78bfa'}]},
+ F:{name:'Пороги частоты',lo:49,hi:51,min:47,max:53,step:0.1,d:1,u:' Гц',warn:1,marks:[{n:'f',v:50.0,c:'#e5e7eb'}]},
  R:{name:'Подключать обратно через',v:70,min:0,max:300,step:5,d:0,u:' с'}};
 var SX=10,SW=320;
 function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
@@ -180,7 +180,8 @@ function fmt(b,v){return (+v).toFixed(b.d)}
 function slRender(k){var b=SL[k],s='',two=b.lo!==undefined,y=26;
  s+='<rect x="'+SX+'" y="'+(y-4)+'" width="'+SW+'" height="8" rx="4" fill="'+(two?'#ef444433':'#2b2f38')+'"/>';
  var a=two?b.lo:b.min,c=two?b.hi:b.v;s+='<rect x="'+sx(b,a)+'" y="'+(y-4)+'" width="'+(sx(b,c)-sx(b,a))+'" height="8" fill="'+(two?'#22c55e55':'#60a5fa88')+'"/>';
- (b.marks||[]).forEach(function(m){var ok=m.v>b.lo&&m.v<b.hi,x=sx(b,m.v);s+='<polygon points="'+(x-8)+',1 '+(x+8)+',1 '+x+',17" fill="'+(ok?'#22c55e':'#ef4444')+'"/><text x="'+x+'" y="10" fill="#0f1115" font-size="10" font-weight="bold" text-anchor="middle">'+m.n+'</text>'});
+ (b.marks||[]).forEach(function(m){var ok=m.v>b.lo&&m.v<b.hi,x=sx(b,m.v);s+='<polygon points="'+(x-8)+',1 '+(x+8)+',1 '+x+',17" fill="'+m.c+'"'+(ok?'':' stroke="#ef4444" stroke-width="2.5"')+'/><text x="'+x+'" y="10" fill="#0f1115" font-size="10" font-weight="bold" text-anchor="middle">'+m.n+'</text>'});
+ var nw=document.querySelector('#row'+k+' .now');if(nw&&b.marks)nw.innerHTML=b.marks.map(function(m){var ok=m.v>b.lo&&m.v<b.hi;return '<b title="'+(m.n==='f'?'частота':'фаза L'+m.n)+'" style="color:'+(ok?m.c:'#ef4444')+'">'+m.v.toFixed(b.d)+'</b>'}).join(' · ');
  (two?[['lo',b.lo],['hi',b.hi]]:[['v',b.v]]).forEach(function(h){var x=sx(b,h[1]);
   s+='<g class="knob" data-k="'+k+'" data-h="'+h[0]+'"><circle cx="'+x+'" cy="'+y+'" r="13" fill="transparent"/><circle cx="'+x+'" cy="'+y+'" r="8" fill="#e5e7eb" stroke="#0f1115" stroke-width="2"/></g>'+
    '<text x="'+x+'" y="'+(y+24)+'" fill="#e5e7eb" font-size="12" text-anchor="middle">'+fmt(b,h[1])+b.u.trim()+'</text>'});
