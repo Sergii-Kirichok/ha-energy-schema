@@ -52,6 +52,8 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .slrow{position:relative;border-top:1px solid #23272f;padding:8px 0 2px}.slrow:first-of-type{border-top:0}.slh{display:flex;align-items:center;gap:8px;padding-right:26px}.slv{font-size:15px;color:var(--txt)}
 .slrow>.st{position:absolute;right:0;top:9px}.slrow.dirty{background:#f5b30010}.slrow.bad{background:#ef444426}.slrow.bad .slv{color:var(--red)}.knob{cursor:ew-resize;touch-action:none}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
+.row.bad,.slrow.bad{outline:1.5px solid var(--red);outline-offset:-1px;border-radius:6px}tr.bad{outline:1.5px solid var(--red);outline-offset:-2px}
+.badbox{border:1.5px solid var(--red);border-radius:5px;padding:0 6px;color:var(--red)}
 .row.dirty,tr.dirty td{background:#f5b30010}.row.bad,tr.bad td{background:#ef444426}.row.bad .val,tr.bad .v{color:var(--red)}
 .days.dirty{outline:1px dashed var(--amb);outline-offset:3px;border-radius:6px}
 .act{border:1px solid var(--brd);background:var(--box);color:var(--sub);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
@@ -101,7 +103,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Мощность</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
   <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span>
    <button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
-  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="st s-dirty">●</span> изменено, не сохранено · <span class="st s-ok">✓</span> записано и прочитано · <span class="st s-bad">✕</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
+  <div class="foot"><span>▲ — сейчас 07:47, активен слот 2</span><span><span class="st s-dirty">●</span> изменено, не сохранено · <span class="st s-ok">✓</span> записано и прочитано · <span class="badbox">рамка</span> в инверторе другое значение</span><span>Регулятор выключает «заряд от сети» днём сам — слоты «Сеть» работают ночью</span></div>
  </div>
 </div></div>
 <span id="msg" hidden></span>
@@ -121,7 +123,7 @@ function draw(){var X=40,W=1300,s='',ci=cur();
  var nx=X+W*now/1440;s+='<line x1="'+nx+'" y1="14" x2="'+nx+'" y2="118" stroke="#22c55e" stroke-width="2"/><polygon points="'+(nx-6)+',10 '+(nx+6)+',10 '+nx+',18" fill="#22c55e"/>';
  document.getElementById('tl').innerHTML=s;
  var tb='';slots.forEach(function(sl,i){var e=i+1<slots.length?slots[i+1].t:slots[0].t,it=slotIt[i],c=(i==ci?'cur ':'')+(it?stateCls(it):'');
-  tb+='<tr class="'+c+'"><td>'+(i+1)+(it?icon(it):'')+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
+  tb+='<tr class="'+c+'" title="'+(it?badTip(it):'')+'"><td>'+(i+1)+(it?icon(it):'')+'</td><td><div class="cell"><button class="btn" onclick="mv('+i+',-30)">−</button><span class="v">'+hm(sl.t)+'</span><button class="btn" onclick="mv('+i+',30)">+</button></div></td><td style="color:#9ca3af">'+hm(e)+'</td>'+
   '<td><div class="cell"><button class="btn" onclick="ss('+i+',-5)">−</button><span class="v">'+sl.soc+' %</span><button class="btn" onclick="ss('+i+',5)">+</button></div></td><td style="color:#9ca3af">'+sl.p+' кВт</td>'+
   '<td class="src">'+['none','grid','gen'].map(function(k){return '<button class="s-'+k+(sl.src==k?' on':'')+'" onclick="sr('+i+',\''+k+'\')">'+names[k]+'</button>'}).join('')+'</td></tr>'});
  document.getElementById('slots').innerHTML=tb}
@@ -132,11 +134,13 @@ var P={night:[[60,30,'grid'],[300,30,'grid'],[540,25,'none'],[840,25,'none'],[96
 var items=[],slotIt=[],failOnce=true; // макет: «Фон из сети» при первом сохранении «не совпадёт»
 function dirty(it){return it.get()!==it.orig}
 function stateCls(it){return it.st==='bad'?'bad':dirty(it)?'dirty':it.st==='ok'?'ok':''}
-function icon(it){var c=stateCls(it);if(c==='bad')return '<span class="st s-bad" title="записано '+it.get()+', в инверторе '+it.inv+'">✕</span>';
+// расхождение — без значка: строка в красной рамке, подробности в подсказке строки
+function badTip(it){return it.st==='bad'?'записано '+it.get()+', в инверторе '+it.inv:''}
+function icon(it){var c=stateCls(it);if(c==='bad')return '';
  if(c==='dirty')return '<span class="st s-dirty" title="изменено, не сохранено (было '+it.orig+')">●</span>';
  if(c==='ok')return '<span class="st s-ok" title="сохранено и прочитано — совпадает">✓</span>';return ''}
 function paint(it){if(it.slot!==undefined){draw();return}var h=it.host;['dirty','bad','ok'].forEach(function(c){h.classList.remove(c)});
- var c=stateCls(it);if(c)h.classList.add(c);var old=h.querySelector(':scope > .st');if(old)old.remove();var x=icon(it);if(x)h.insertAdjacentHTML('beforeend',x)}
+ var c=stateCls(it);if(c)h.classList.add(c);h.title=badTip(it);var old=h.querySelector(':scope > .st');if(old)old.remove();var x=icon(it);if(x)h.insertAdjacentHTML('beforeend',x)}
 function track(host,get,set,extra){var it=Object.assign({host:host,get:get,set:set,orig:get(),st:''},extra||{});items.push(it);return it}
 function touched(it){if(it.st==='ok'||it.st==='bad')it.st='';paint(it);bar()}
 var sb=document.getElementById('save'),rb=document.getElementById('reread'),msg=document.getElementById('msg'),busy=false;
