@@ -56,6 +56,18 @@ func (s *Server) loopBMS() {
 	lastLine := ""
 	for {
 		regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, regSOH, regCellMinN-regSOH+1)
+		if err == nil {
+			if d, derr := s.client.ReadHoldingRegisters(bmsDeviceEntity, bmsDetailFrom, bmsDetailTo-bmsDetailFrom+1); derr == nil {
+				for k, v := range d {
+					regs[k] = v
+				}
+				if perr := s.publishDetail(regs); perr != nil {
+					log.Println("bms detail:", perr)
+				}
+			} else {
+				log.Println("bms detail:", derr)
+			}
+		}
 		if err != nil {
 			log.Println("bms:", err)
 		} else if line, err := s.publishBMS(regs); err != nil {

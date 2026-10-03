@@ -133,7 +133,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
 	}
-	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta cleanup": patchDeltaCleanup, "grid rows": patchGridRows, "flow battery": patchFlowBattery} {
+	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta cleanup": patchDeltaCleanup, "grid rows": patchGridRows, "bms cards": patchBMSCards, "flow battery": patchFlowBattery} {
 		if c2, err := patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, name, err)
 		} else {
