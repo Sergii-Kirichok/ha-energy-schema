@@ -121,7 +121,7 @@ func TestPatchDeltaCleanupAndPowerRow(t *testing.T) {
 	src := `{"views":[{"sections":[{"cards":[
 	  {"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"},{"entity":"sensor.deye_sun_30k_battery_power","name":"Мощность"}]},
 	  {"type":"gauge","entity":"sensor.energy_schema_bms_cell_delta"},
-	  {"type":"markdown","content":"{{ states('sensor.energy_schema_bms_cell_delta') }}"},
+	  {"type":"markdown","content":"▲ Разбег ячеек {{ states('sensor.energy_schema_bms_cell_delta') }}"},
 	  {"type":"conditional","conditions":[],"card":{"type":"tile","entity":"sensor.energy_schema_bms_cell_delta"}},
 	  {"type":"conditional","conditions":[],"card":{"type":"tile","entity":"sensor.energy_schema_bms_cell_delta"}}]}]}]}`
 	var cfg any

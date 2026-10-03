@@ -238,7 +238,8 @@ const dashDeltaEntity = "sensor.energy_schema_bms_cell_delta"
 
 func patchDeltaCleanup(node any) (bool, error) {
 	changed := removeOwnEntityCard(node, "gauge", dashDeltaEntity)
-	if md := findMarkdownWith(node, dashDeltaEntity); md != nil {
+	// только старая строка разбега, а не таблица батарей (в ней тот же сенсор)
+	if md := findMarkdownWith(node, "▲ Разбег ячеек"); md != nil {
 		changed = removeCard(node, md) || changed
 	}
 	for c := findConditionalTile(node, dashDeltaEntity); c != nil; c = findConditionalTile(node, dashDeltaEntity) {
