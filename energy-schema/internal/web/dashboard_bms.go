@@ -78,3 +78,26 @@ func chartHas(node any) bool {
 	}
 	return walk(node)
 }
+
+// Таблица «батарея — строка» как в BMS-приложениях. Инвертор отдаёт полный
+// набор только на батарею (BMS1; BMS2 у нас пуст, 0 батарей) — строка одна.
+// Помодульные строки возможны только при чтении BMS стойки напрямую.
+const dashBMSTableKey = "| Батарея | U | I |"
+
+var dashBMSTable = map[string]any{
+	"type": "markdown",
+	"content": "#### Батареи\n" + dashBMSTableKey + " SOC | SOH | Циклы | Ячейки | t | Δ |\n|---|--:|--:|--:|--:|--:|--:|--:|--:|\n" +
+		"| 1 · стойка, 12 мод. | {{ states('sensor.deye_sun_30k_battery_voltage') | float(0) | round(1) }} В" +
+		" | {{ states('sensor.deye_sun_30k_battery_current') | float(0) | round(1) }} А" +
+		" | {{ states('sensor.deye_sun_30k_battery') }} %" +
+		" | {{ states('sensor.energy_schema_bms_soh') }} %" +
+		" | {{ states('sensor.energy_schema_bms_cycles') }}" +
+		" | {{ states('sensor.energy_schema_bms_cell_min') }}–{{ states('sensor.energy_schema_bms_cell_max') }} В" +
+		" | {{ states('sensor.energy_schema_bms_temp_min') }}–{{ states('sensor.energy_schema_bms_temp_max') }} °C" +
+		" | {{ states('sensor.energy_schema_bms_cell_delta') }} мВ |\n\n" +
+		"<small>мин: {{ states('sensor.energy_schema_bms_cell_min_loc') }} · макс: {{ states('sensor.energy_schema_bms_cell_max_loc') }} (модуль·ячейка)</small>",
+}
+
+func patchBMSTable(node any) (bool, error) {
+	return appendCardOnce(node, findMarkdownWith(node, dashBMSTableKey) != nil, dashBMSTable)
+}
