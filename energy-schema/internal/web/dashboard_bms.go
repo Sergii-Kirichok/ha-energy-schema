@@ -51,23 +51,36 @@ func patchBMSCards(node any) (bool, error) {
 	return a || b || c, nil
 }
 
-// layoutChart — один раз (пока у графика нет grid_options): во всю ширину
-// секции и в конец её списка карточек. Дальше раскладку не трогаем.
+// layoutChart дописывает графику недостающее, каждое — один раз: высоту как у
+// остальных графиков (230) и, пока нет grid_options, всю ширину секции с
+// переносом в конец её списка. Заданное пользователем не трогаем.
 func layoutChart(node any) bool {
 	chart := findChart(node)
-	if chart == nil || chart["grid_options"] != nil {
+	if chart == nil || chart["grid_options"] != nil && chart["apex_config"] != nil {
 		return false
 	}
 	h := findCardsHolding(node, chart)
 	if h == nil {
 		return false
 	}
-	nc := map[string]any{"grid_options": map[string]any{"columns": "full"}}
+	nc := map[string]any{}
 	for k, v := range chart {
 		nc[k] = v
 	}
-	removeCard(node, chart)
+	if nc["apex_config"] == nil {
+		nc["apex_config"] = map[string]any{"chart": map[string]any{"height": 230}}
+	}
 	holder, key := h[0].(map[string]any), h[1].(string)
+	if nc["grid_options"] != nil { // только высота — на месте
+		for i, c := range holder[key].([]any) {
+			if cm, ok := c.(map[string]any); ok && sameMap(cm, chart) {
+				holder[key].([]any)[i] = nc
+			}
+		}
+		return true
+	}
+	nc["grid_options"] = map[string]any{"columns": "full"}
+	removeCard(node, chart)
 	holder[key] = append(holder[key].([]any), nc)
 	return true
 }

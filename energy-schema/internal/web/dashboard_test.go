@@ -212,10 +212,23 @@ func TestLayoutChartOnce(t *testing.T) {
 	if len(cards) != 3 || last["type"] != "custom:apexcharts-card" || last["grid_options"].(map[string]any)["columns"] != "full" {
 		t.Fatalf("chart not moved/widened: %v", cards)
 	}
+	if last["apex_config"].(map[string]any)["chart"].(map[string]any)["height"] != 230 {
+		t.Errorf("height not set: %v", last["apex_config"])
+	}
 	if changed, _ := patchBMSCards(cfg); changed {
 		t.Error("second run must be a no-op")
 	}
-	if dashBMSChart["grid_options"] != nil {
+	if dashBMSChart["grid_options"] != nil || dashBMSChart["apex_config"] != nil {
 		t.Error("template must stay untouched")
+	}
+	// уже размеченный (0.6.5) график без высоты: высота на месте, без переноса
+	delete(last, "apex_config")
+	cards[0], cards[2] = cards[2], cards[0]
+	if changed, _ := patchBMSCards(cfg); !changed {
+		t.Fatal("height must be added")
+	}
+	cards = cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[1].(map[string]any)["cards"].([]any)
+	if c := cards[0].(map[string]any); c["type"] != "custom:apexcharts-card" || c["apex_config"] == nil {
+		t.Errorf("height must be set in place: %v", cards)
 	}
 }
