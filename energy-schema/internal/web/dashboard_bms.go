@@ -43,40 +43,61 @@ func patchBMSCards(node any) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	b, err := appendCardOnce(node, chartHas(node), dashBMSChart)
-	return a || b, err
+	b, err := appendCardOnce(node, findChart(node) != nil, dashBMSChart)
+	if err != nil {
+		return a || b, err
+	}
+	c := layoutChart(node)
+	return a || b || c, nil
 }
 
-// chartHas — уже есть график ячеек (ищем по сущности разбега в apexcharts).
-func chartHas(node any) bool {
-	var walk func(any) bool
-	walk = func(n any) bool {
-		switch v := n.(type) {
-		case map[string]any:
-			if v["type"] == "custom:apexcharts-card" {
-				if ss, ok := v["series"].([]any); ok {
-					for _, s := range ss {
-						if m, ok := s.(map[string]any); ok && m["entity"] == "sensor.energy_schema_bms_cell_delta" {
-							return true
-						}
+// layoutChart — один раз (пока у графика нет grid_options): во всю ширину
+// секции и в конец её списка карточек. Дальше раскладку не трогаем.
+func layoutChart(node any) bool {
+	chart := findChart(node)
+	if chart == nil || chart["grid_options"] != nil {
+		return false
+	}
+	h := findCardsHolding(node, chart)
+	if h == nil {
+		return false
+	}
+	nc := map[string]any{"grid_options": map[string]any{"columns": "full"}}
+	for k, v := range chart {
+		nc[k] = v
+	}
+	removeCard(node, chart)
+	holder, key := h[0].(map[string]any), h[1].(string)
+	holder[key] = append(holder[key].([]any), nc)
+	return true
+}
+
+// findChart — график ячеек (apexcharts с сущностью разбега), nil если нет.
+func findChart(node any) map[string]any {
+	switch v := node.(type) {
+	case map[string]any:
+		if v["type"] == "custom:apexcharts-card" {
+			if ss, ok := v["series"].([]any); ok {
+				for _, s := range ss {
+					if m, ok := s.(map[string]any); ok && m["entity"] == "sensor.energy_schema_bms_cell_delta" {
+						return v
 					}
 				}
 			}
-			for _, c := range v {
-				if walk(c) {
-					return true
-				}
-			}
-		case []any:
-			for _, c := range v {
-				if walk(c) {
-					return true
-				}
+		}
+		for _, c := range v {
+			if r := findChart(c); r != nil {
+				return r
 			}
 		}
-		return false
+	case []any:
+		for _, c := range v {
+			if r := findChart(c); r != nil {
+				return r
+			}
+		}
 	}
-	return walk(node)
+	return nil
 }
 
 // Таблица «батарея — строка» как в BMS-приложениях. Инвертор отдаёт полный

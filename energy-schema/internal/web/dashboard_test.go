@@ -195,3 +195,27 @@ func TestPatchChargeCardRenamesSetpoint(t *testing.T) {
 		t.Errorf("not renamed: %s", b)
 	}
 }
+
+func TestLayoutChartOnce(t *testing.T) {
+	src := `{"views":[{"sections":[{"cards":[{"type":"entities","entities":[{"entity":"sensor.deye_sun_30k_battery_soh"}]},
+	  {"type":"entities","entities":[{"entity":"sensor.energy_schema_bms_weak_cell"}]}]},
+	  {"cards":[{"type":"heading"},
+	  {"type":"custom:apexcharts-card","series":[{"entity":"sensor.energy_schema_bms_cell_delta"}]},
+	  {"type":"vertical-stack","grid_options":{"columns":24}}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	if changed, err := patchBMSCards(cfg); err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[1].(map[string]any)["cards"].([]any)
+	last := cards[len(cards)-1].(map[string]any)
+	if len(cards) != 3 || last["type"] != "custom:apexcharts-card" || last["grid_options"].(map[string]any)["columns"] != "full" {
+		t.Fatalf("chart not moved/widened: %v", cards)
+	}
+	if changed, _ := patchBMSCards(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+	if dashBMSChart["grid_options"] != nil {
+		t.Error("template must stay untouched")
+	}
+}
