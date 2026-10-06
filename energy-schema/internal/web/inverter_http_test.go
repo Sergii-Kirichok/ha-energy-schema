@@ -179,3 +179,22 @@ func TestWriteRuns(t *testing.T) {
 		}
 	}
 }
+
+// Включён «Авто-регулятор» (главный переключатель): поля регулятора со
+// страницы не пишутся и ручные флаги не сохраняются; clear снимает старые.
+func TestInverterSaveRegulatorOn(t *testing.T) {
+	f := &fakeInverter{regs: liveRegs(), pending: map[int]int{}}
+	s := newInvServer(t, f)
+	s.ovr.set(map[string]bool{"grid_a": true})
+	s.store.ReplaceStates(map[string]string{chargeAutoHelper: "on"})
+	code, out := save(t, s, `{"values":{"max_charge_a":40,"v_high":260},"manual":{"max_charge":true}}`)
+	if code != 200 || f.regs[108] != 10 || f.regs[185] != 2600 {
+		t.Fatalf("code %d, reg108=%d (must stay 10), reg185=%d", code, f.regs[108], f.regs[185])
+	}
+	if s.ovr.get("max_charge") || out["regulator"] != true {
+		t.Errorf("manual flag saved with regulator on: %v", out["manual"])
+	}
+	if !s.ovr.clear() || s.ovr.get("grid_a") || s.ovr.clear() {
+		t.Error("clear must drop stale flags once")
+	}
+}

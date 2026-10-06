@@ -119,7 +119,7 @@ func (s *Server) inverterState(w http.ResponseWriter, r *http.Request) {
 	}
 	num := s.store.Num
 	writeJSON(w, map[string]any{
-		"values": vals, "manual": s.ovr.snapshot(), "channels": factor, "can": s.userAllowed(r),
+		"values": vals, "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
 		"live": map[string]any{
 			"v":    []float64{num("sensor.deye_sun_30k_grid_l1_voltage"), num("sensor.deye_sun_30k_grid_l2_voltage"), num("sensor.deye_sun_30k_grid_l3_voltage")},
 			"f":    num("sensor.deye_sun_30k_grid_frequency"),
@@ -158,6 +158,10 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "нет связи с инвертором: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	regulator := s.store.On(chargeAutoHelper)
+	if regulator {
+		req.Manual = nil // при включённом «Авто-регулятор» ручных полей регулятора нет
+	}
 	manual := s.ovr.snapshot()
 	for k, v := range req.Manual {
 		manual[k] = v
@@ -173,7 +177,7 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "неизвестное поле "+k, http.StatusBadRequest)
 			return
 		}
-		if f.Auto != "" && !manual[f.Auto] {
+		if f.Auto != "" && (regulator || !manual[f.Auto]) {
 			continue // поле регулятора в «авто» — пишет регулятор
 		}
 		raw, err := f.encode(v, factor)
@@ -224,7 +228,7 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		res[k] = r
 		log.Printf("inverter: %s reg %d ← %d, read %d (%v)", k, x.f.Reg, x.raw, got, map[bool]string{true: "ok", false: "MISMATCH"}[r.OK])
 	}
-	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": decodeAll(after, factor), "manual": s.ovr.snapshot(), "ts": time.Now().Format("15:04:05")})
+	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": decodeAll(after, factor), "manual": s.ovr.snapshot(), "regulator": regulator, "ts": time.Now().Format("15:04:05")})
 }
 
 func allMatch(writes []invWrite, raw map[int]int) bool {

@@ -24,11 +24,9 @@ func gridChargeWanted(night, blockDay bool, soc, shutdownSOC float64) bool {
 }
 
 // syncGridCharge приводит переключатель «Заряд от сети» к нужному положению;
-// пишет только при расхождении (состояние берётся из опроса HA).
+// пишет только при расхождении (состояние берётся из опроса HA). Вызывается
+// только при включённом «Авто-регулятор» — тогда ручных флагов нет.
 func (s *Server) syncGridCharge(night bool, soc float64) {
-	if s.ovr.get("grid_charge") {
-		return // переведено вручную на странице инвертора
-	}
 	cur := s.store.State(gridChargeSwitch)
 	if cur != "on" && cur != "off" {
 		return // сущности нет / недоступна — не трогаем

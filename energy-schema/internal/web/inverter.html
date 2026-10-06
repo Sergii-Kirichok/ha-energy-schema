@@ -53,6 +53,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
 .slrow>.st{position:absolute;right:0;top:9px}.slrow.dirty{background:#f5b30010}.slrow.bad{background:#ef444426}.slrow.bad .slv{color:var(--red)}.knob{cursor:ew-resize;touch-action:none}
 .st.s-dirty{color:var(--amb);border:0;font-size:12px}
 .tag.man{color:var(--amb);border-color:#f5b30066}.rev{background:transparent;border:1px solid var(--brd);color:var(--blu);border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer}
+.row.lock .btn,.row.lock .sw{opacity:.35;pointer-events:none}
 .offnote{display:none;font-size:12px;color:var(--amb);margin-left:10px}.tou.off .offnote{display:inline}.tou.off svg,.tou.off .tblw,.tou.off .presets{opacity:.35;pointer-events:none}
 .row.bad,.slrow.bad,.row.dirty,.slrow.dirty,.row.ok,.slrow.ok,.days.dirty{outline:1.5px solid var(--red);outline-offset:-1px;border-radius:6px}tr.bad,tr.dirty,tr.ok{outline:1.5px solid var(--red);outline-offset:-2px}
 .row.dirty,.slrow.dirty,tr.dirty,.days.dirty{outline-color:var(--org)}.row.ok,.slrow.ok,tr.ok{outline-color:#22c55e99}
@@ -105,7 +106,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  </div>
 </div></div>
 <script>
-var V={},O={},M={},MO={},ST={},CH=1,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,busy=false;
+var V={},O={},M={},MO={},ST={},CH=1,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,RG=false,busy=false;
 var NAMES=['—','Сеть','Ген','Оба'],COLS=['#9aa1ad','#60a5fa','#f59e0b','#a78bfa'],PH=['#f5b300','#60a5fa','#a78bfa'];
 var SL={V:{lo:'v_low',hi:'v_high',min:140,max:290,step:1,d:0,u:' В'},F:{lo:'f_low',hi:'f_high',min:45,max:55,step:0.1,d:1,u:' Гц'},R:{v:'reconnect_s',min:0,max:300,step:5,d:0,u:' с'}};
 var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return [].slice.call((r||document).querySelectorAll(s))};
@@ -120,7 +121,7 @@ function mark(el,keys){var bad=keys.some(function(k){return ST[k]==='bad'}),dt=k
 function bitOn(k,b){return ((V[k]||0)>>b)&1}
 function render(){
  $$('.row[data-k]').forEach(function(r){var k=r.dataset.k,v=V[k];
-  if(r.dataset.auto){var man=!!M[r.dataset.auto],t=$('.tag',r);t.textContent=man?'вручную':'авто: регулятор';t.classList.toggle('man',man);$('.rev',r).hidden=!man}
+  if(r.dataset.auto){var man=!RG&&!!M[r.dataset.auto],t=$('.tag',r);t.textContent=RG?'регулятор (авто вкл.)':man?'вручную':'авто: регулятор';t.title=RG?'Управляет авто-регулятор заряда. Задать вручную — выключите «Авто-регулятор» на дашборде':'';t.classList.toggle('man',man);$('.rev',r).hidden=RG||!man;r.classList.toggle('lock',RG)}
   var sg=$('.seg',r);if(sg)$$('button',sg).forEach(function(b,i){b.classList.toggle('on',i===v)});
   var sw=$('.sw',r);if(sw)sw.classList.toggle('on',r.dataset.bit!==undefined?!!bitOn(k,+r.dataset.bit):v===1);
   var vl=$('.val',r);if(vl)vl.textContent=(v===undefined?'—':(+v).toFixed(0))+(r.dataset.u||'');
@@ -136,9 +137,9 @@ function bar(){var b=$('#save');if(busy)return;var n=changed().length;b.disabled
 $$('.row[data-k]').forEach(function(r){var k=r.dataset.k,a=r.dataset.auto;
  function man(){if(a)M[a]=true}
  var bs=$$('.btn',r);if(bs.length===2){var st=function(){return r.dataset.step==='ch'?CH:+r.dataset.step};
-  bs[0].onclick=function(){V[k]=Math.max(0,+(V[k]-st()).toFixed(2));man();touch()};bs[1].onclick=function(){V[k]=+(V[k]+st()).toFixed(2);man();touch()}}
+  bs[0].onclick=function(){if(a&&RG)return;V[k]=Math.max(0,+(V[k]-st()).toFixed(2));man();touch()};bs[1].onclick=function(){if(a&&RG)return;V[k]=+(V[k]+st()).toFixed(2);man();touch()}}
  $$('.seg button',r).forEach(function(b,i){b.onclick=function(){V[k]=i;touch()}});
- var sw=$('.sw',r);if(sw)sw.onclick=function(){if(r.dataset.bit!==undefined)V[k]=(V[k]||0)^(1<<+r.dataset.bit);else V[k]=V[k]?0:1;man();touch()};
+ var sw=$('.sw',r);if(sw)sw.onclick=function(){if(a&&RG)return;if(r.dataset.bit!==undefined)V[k]=(V[k]||0)^(1<<+r.dataset.bit);else V[k]=V[k]?0:1;man();touch()};
  var rv=$('.rev',r);if(rv)rv.onclick=function(){M[a]=false;V[k]=O[k];touch()}});
 // ---- ползунки порогов ----
 var SX=10,SW=320;function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
@@ -177,7 +178,7 @@ $('#slots').onclick=function(e){var b=e.target.closest('button');if(!b)return;va
 var P={night:[[60,30,1],[300,30,1],[540,25,0],[840,25,0],[960,25,0],[1260,30,1]],none:[[60,25,0],[300,25,0],[540,25,0],[840,25,0],[960,25,0],[1260,25,0]],gen:[[60,25,2],[300,25,2],[540,25,0],[840,25,0],[960,25,0],[1260,25,2]]};
 $$('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){V[sk(i,'time')]=r[0];V[sk(i,'soc')]=r[1];V[sk(i,'src')]=r[2]});touch()}});
 // ---- загрузка / сохранение / перечитывание ----
-function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});MO=Object.assign({},M);
+function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});RG=!!st.regulator;MO=Object.assign({},M);
  if(st.channels)CH=st.channels;if(st.live)LIVE=st.live;if(st.can!==undefined)CAN=st.can;ST={};
  $('#cTemp').textContent=(LIVE.temp||0).toFixed(1)+' °C';$('#cGrid').textContent='сеть '+(+LIVE.f).toFixed(2)+' Гц · '+LIVE.v.map(function(v){return (+v).toFixed(0)}).join(' / ')+' В';
  $('#cLink').textContent='прочитано '+st.ts;$('#cLink').className='chip ok';$('#ro').hidden=CAN;$('#save').hidden=!CAN;render()}

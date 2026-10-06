@@ -155,6 +155,25 @@ func (o *overrides) snapshot() map[string]bool {
 	return c
 }
 
+// clear снимает все ручные флаги (включён «Авто-регулятор» — он главный);
+// true, если что-то было снято.
+func (o *overrides) clear() bool {
+	if o == nil {
+		return false
+	}
+	off := map[string]bool{}
+	for k, v := range o.snapshot() {
+		if v {
+			off[k] = false
+		}
+	}
+	if len(off) == 0 {
+		return false
+	}
+	o.set(off)
+	return true
+}
+
 func (o *overrides) set(m map[string]bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

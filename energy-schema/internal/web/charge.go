@@ -19,6 +19,7 @@ import (
 const (
 	chargeMaxEntity      = "number.deye_sun_30k_battery_max_charging_current"
 	chargeGridEntity     = "number.deye_sun_30k_battery_grid_charging_current"
+	chargeAutoHelper     = "input_boolean.energy_schema_charge_auto" // главный: включён — поля регулятора только у него
 	chargeFile           = "/data/charge.json"
 	chargeMinA           = 1.0
 	taperGap             = 10.0            // спад минимум за столько % до цели, даже если «снижать с» выше цели
@@ -32,7 +33,7 @@ const (
 // настроек аддона (config.ChargeTuning).
 func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 	return []hass.Helper{
-		{Domain: "input_boolean", ID: "energy_schema_charge_auto", Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
+		{Domain: "input_boolean", ID: chargeAutoHelper[len("input_boolean."):], Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
 		{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: t.MaxALimit, Step: 1, Initial: math.Min(25, t.MaxALimit), Unit: "A", Icon: "mdi:current-dc"},
 		{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 1, Max: t.GridALimit, Step: 1, Initial: math.Min(5, t.GridALimit), Unit: "A", Icon: "mdi:transmission-tower"},
 		{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
@@ -200,7 +201,10 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		in.TargetSOC -= margin
 	}
 	in.Night = st.Night
-	auto := s.store.On("input_boolean.energy_schema_charge_auto")
+	auto := s.store.On(chargeAutoHelper)
+	if auto && s.ovr.clear() {
+		log.Println("charge: auto-regulator on — manual overrides from the inverter page cleared")
+	}
 	if in.MaxA <= 0 || in.TargetSOC <= 0 {
 		return // хелперы ещё не созданы / не прочитаны
 	}
