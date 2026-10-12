@@ -32,6 +32,7 @@ type Server struct {
 	solar  *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
 	ovr    *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
 	cells  *cellStats      // статистика крайних ячеек BMS (поиск слабой)
+	writes *writeLog       // учёт записей в инвертор за сутки
 	svgMu  sync.Mutex      // один писатель файла схемы за раз
 	mb     sync.Mutex      // одна Modbus-транзакция (регулятор / страница инвертора) за раз
 }
@@ -41,7 +42,7 @@ func New(cfg config.Config, store *hass.Store, client *hass.Client) *Server {
 	scada.SetQuickMax("max_a", cfg.Charge.MaxALimit)
 	scada.SetQuickMax("grid_a", cfg.Charge.GridALimit)
 	scada.SetQuickMax("full_days", cfg.Charge.FullDaysMax)
-	return &Server{cfg: cfg, store: store, client: client, ovr: loadOverrides(overridesFile), cells: loadCellStats(cellStatsFile)}
+	return &Server{cfg: cfg, store: store, client: client, ovr: loadOverrides(overridesFile), cells: loadCellStats(cellStatsFile), writes: loadWriteLog(writesFile)}
 }
 
 func (s *Server) render() string { return scada.Render(s.store, s.cfg) }

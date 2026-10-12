@@ -60,14 +60,14 @@ func TestChargeTickAutoTaper(t *testing.T) {
 	s, f := tickSetup(t, nil, nil)
 	st := recentState()
 	lastMax, lastGrid := runTick(s, &st)
-	// 24 А × (90−86)/(90−80) = 9.6 → 10 А → reg 5 при ×2; от сети 6 А → 3
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 5)
+	// 24 А × ступень ⌈0.4×4⌉/4 = 12 А → reg 6 при ×2; от сети 6 А → 3
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 6)
 	wantVals(t, "grid", f.setValues(chargeGridEntity), 3)
-	if st.Factor != 2 || lastMax != 5 || lastGrid != 3 {
+	if st.Factor != 2 || lastMax != 6 || lastGrid != 3 {
 		t.Errorf("factor %v lastMax %v lastGrid %v", st.Factor, lastMax, lastGrid)
 	}
 	state, a, ok := f.state("sensor.energy_schema_charge_setpoint")
-	if !ok || state != "10" || a["mode"] != "night/taper" || a["auto"] != true || a["channels"] != 2.0 || a["target_a"] != 10.0 {
+	if !ok || state != "12" || a["mode"] != "night/taper" || a["auto"] != true || a["channels"] != 2.0 || a["target_a"] != 12.0 {
 		t.Errorf("setpoint = %q %v", state, a)
 	}
 	nf, _, ok := f.state("sensor.energy_schema_charge_next_full")
@@ -127,7 +127,7 @@ func TestChargeTickAutoClearsOverrides(t *testing.T) {
 	if s.ovr.get("max_charge") || s.ovr.get("grid_a") {
 		t.Error("auto on must clear inverter-page manual flags")
 	}
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 5)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 6)
 	wantVals(t, "grid", f.setValues(chargeGridEntity), 3)
 }
 
@@ -165,7 +165,7 @@ func TestChargeTickManualRespectsOverrides(t *testing.T) {
 }
 
 func TestChargeTickNoWriteWhenInverterMatches(t *testing.T) {
-	s, f := tickSetup(t, nil, map[int]int{108: 5})
+	s, f := tickSetup(t, nil, map[int]int{108: 6, 128: 3})
 	st := recentState()
 	lastMax, lastGrid := -1.0, 3.0
 	s.chargeTick(&st, &lastMax, &lastGrid)
@@ -214,7 +214,7 @@ func TestChargeTickReadFailure(t *testing.T) {
 	}
 	st.Factor = 2 // уже известен с прошлого тика → пишем по памяти
 	runTick(s, &st)
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 5)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 6)
 }
 
 // 0 уже стоит в инверторе (рестарт аддона): самопроверка стартует без записи;

@@ -17,7 +17,7 @@ const overridesFile = "/data/overrides.json"
 // readRaw читает все блоки регистров страницы; factor — число каналов АКБ (рег. 110).
 func (s *Server) readRaw() (map[int]int, float64, error) {
 	raw := map[int]int{}
-	for _, b := range append(invBlocks, [2]int{parallelReg, 1}) {
+	for _, b := range invBlocks { // 110 (каналы) входит в блок 104..130
 		r, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, b[0], b[1])
 		if err != nil {
 			return nil, 0, err
@@ -119,7 +119,7 @@ func (s *Server) inverterState(w http.ResponseWriter, r *http.Request) {
 	}
 	num := s.store.Num
 	writeJSON(w, map[string]any{
-		"values": vals, "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
+		"values": s.gridRuleView(vals), "gc_now": vals["grid_charge"], "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
 		"live": map[string]any{
 			"v":    []float64{num("sensor.deye_sun_30k_grid_l1_voltage"), num("sensor.deye_sun_30k_grid_l2_voltage"), num("sensor.deye_sun_30k_grid_l3_voltage")},
 			"f":    num("sensor.deye_sun_30k_grid_frequency"),
@@ -153,6 +153,8 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
+	s.mb.Lock() // чтение-запись-сверка целиком, без вклинивания регулятора
+	defer s.mb.Unlock()
 	baseRaw, factor, err := s.readRaw()
 	if err != nil {
 		http.Error(w, "нет связи с инвертором: "+err.Error(), http.StatusBadGateway)
@@ -176,6 +178,9 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		if f == nil {
 			http.Error(w, "неизвестное поле "+k, http.StatusBadRequest)
 			return
+		}
+		if regulator && k == "grid_charge" {
+			continue // правило «днём», см. setGridDayRule после записи регистров
 		}
 		if f.Auto != "" && (regulator || !manual[f.Auto]) {
 			continue // поле регулятора в «авто» — пишет регулятор
@@ -209,9 +214,12 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 	var after map[int]int
 	for _, d := range invVerifyDelays {
 		time.Sleep(d)
-		if after, _, err = s.readRaw(); err != nil {
+		a, _, e := s.readRaw()
+		if e != nil {
+			err = e // удачное прошлое чтение не затираем
 			continue
 		}
+		after = a
 		if allMatch(writes, after) {
 			break
 		}
@@ -228,7 +236,24 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		res[k] = r
 		log.Printf("inverter: %s reg %d ← %d, read %d (%v)", k, x.f.Reg, x.raw, got, map[bool]string{true: "ok", false: "MISMATCH"}[r.OK])
 	}
-	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": decodeAll(after, factor), "manual": s.ovr.snapshot(), "regulator": regulator, "ts": time.Now().Format("15:04:05")})
+	vals := decodeAll(after, factor)
+	if v, has := req.Values["grid_charge"]; regulator && has {
+		// при авто-регуляторе переключатель задаёт правило «заряд от сети днём»
+		// (хелпер); сам регистр 130 переключит регулятор через пару секунд
+		r := invResult{Want: v, Read: v, OK: true}
+		if err := s.setGridDayRule(v >= 1); err != nil {
+			r.OK, r.Error, ok = false, err.Error(), false
+		}
+		res["grid_charge"] = r
+	}
+	gcNow := vals["grid_charge"]
+	if regulator {
+		vals = s.gridRuleView(vals)
+		if v, has := req.Values["grid_charge"]; has {
+			vals["grid_charge"] = v // HA ещё не успел отдать новое состояние хелпера
+		}
+	}
+	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": vals, "gc_now": gcNow, "manual": s.ovr.snapshot(), "regulator": regulator, "ts": time.Now().Format("15:04:05")})
 }
 
 func allMatch(writes []invWrite, raw map[int]int) bool {

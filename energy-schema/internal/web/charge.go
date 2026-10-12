@@ -3,6 +3,7 @@ package web
 import (
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"energy-schema/internal/config"
@@ -45,58 +46,6 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 }
 
 const chargeFullNowEntity = "input_boolean.energy_schema_charge_full_now"
-
-// chargeInput — всё, что нужно закону регулирования (чистая функция, тестируется).
-type chargeInput struct {
-	SOC, MaxA, TaperSOC, TargetSOC float64
-	FullDue                        bool
-	CellLevel                      string // "ok" | "warn" | "bad" (см. cellVerdict)
-	Night                          bool   // нет генерации — стоим на полном токе к утру
-	Tune                           config.ChargeTuning
-}
-
-// chargeSetpoint возвращает ток заряда (целые амперы, ≥1) и режим для сенсора.
-func chargeSetpoint(in chargeInput) (float64, string) {
-	// ночью ток не нужен, а утро должно начаться с полного лимита даже без
-	// связи с HA — поэтому на ночь пишем «Общий лимит», а не 0/спад
-	if in.Night {
-		return math.Max(chargeMinA, math.Round(in.MaxA)), "night-ready"
-	}
-	// Полный заряд — не «тянуть к 100 % большим током», а добрать минимальным
-	// после цели на ночь: медленный хвост и есть балансировка ячеек.
-	target := in.TargetSOC
-	mode := "night"
-	if in.FullDue {
-		mode = "full"
-	}
-	var a float64
-	// «снижать с» ≥ цели — ошибка настройки (30.09: 99 % при цели 90 → полный
-	// ток до цели без спада). Спад всё равно нужен: начинаем за taperGap до цели.
-	if in.TaperSOC >= target {
-		in.TaperSOC = target - taperGap
-	}
-	switch {
-	case in.SOC < in.TaperSOC:
-		a, mode = in.MaxA, "max"
-	case in.SOC < target:
-		a = in.MaxA * (target - in.SOC) / (target - in.TaperSOC)
-		mode += "/taper"
-	case in.FullDue && in.SOC < 100:
-		a, mode = chargeMinA, "full/trickle"
-	default:
-		a, mode = 0, mode+"/hold" // 0 = стоп заряда: даже 1 в регистре (×2 канала) набивает до 100 % за день
-		if !in.Tune.ZeroOnTarget {
-			a = chargeMinA
-		}
-	}
-	if in.CellLevel == "bad" && in.SOC >= in.Tune.CellCapSOC && a > in.Tune.CellCapA {
-		a, mode = in.Tune.CellCapA, mode+"/cells"
-	}
-	if a <= 0 {
-		return 0, mode
-	}
-	return math.Max(chargeMinA, math.Round(a)), mode
-}
 
 func (s *Server) ensureChargeHelpers() {
 	for _, h := range chargeHelpers(s.cfg.Charge) {
@@ -162,6 +111,8 @@ func (s *Server) chargeSignature() string {
 }
 
 func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
+	s.mb.Lock() // не пересекаться со страницей инвертора (чтение-запись-сверка)
+	defer s.mb.Unlock()
 	num := func(e string) float64 { return s.store.Num(e) }
 	// SOC — BMS через Solarman (регистр 214, тот же, что 10005)
 	soc := num("sensor.deye_sun_30k_battery")
@@ -171,8 +122,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	fullDays := num("input_number.energy_schema_charge_full_days")
 	// первый запуск: отсчёт с сегодня, а не «полный заряд немедленно» — иначе
 	// регулятор молча тянет к 100 % в первый же день вместо цели на ночь
-	if soc >= 100 || st.LastFull.IsZero() {
-		st.LastFull = time.Now()
+	if st.LastFull.IsZero() || soc >= 100 && st.LastFull.Format("2006-01-02") != time.Now().Format("2006-01-02") {
+		st.LastFull = time.Now() // раз в сутки, а не каждую минуту на 100 %
 		st.save(chargeFile)
 	}
 	nextFull := st.LastFull.Add(time.Duration(fullDays*24) * time.Hour)
@@ -187,7 +138,13 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
 		TaperSOC: num("input_number.energy_schema_charge_taper_soc"), TargetSOC: num("input_number.energy_schema_charge_target_soc"),
 		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
-	st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night, s.cfg.Charge)
+	// ночь — по генерации И по солнцу: пасмурный день (PV ~1 кВт) — не ночь
+	// (12.10: 10:41–10:45 ложная «ночь» → лишние переключения и записи).
+	// Недоступный PV — оставляем прежний режим (0 не значит «ночь»).
+	if s.store.Available("sensor.deye_sun_30k_pv_power") {
+		st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night, s.cfg.Charge) && sunLow(s.store)
+	}
+	in.Holding = st.Holding
 	in.Tune = s.cfg.Charge
 	// остаток тока при 108=0 доберёт ещё немного до вечера — удержание раньше на
 	// этот запас (панели ЮВ: полезное солнце заканчивается ~за час до заката)
@@ -209,29 +166,32 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		return // хелперы ещё не созданы / не прочитаны
 	}
 	amps, mode := chargeSetpoint(in)
-	if auto {
-		s.syncGridCharge(st.Night, soc)
+	if auto && s.syncGridCharge(st.Night, soc) {
+		s.writes.add("switch", 1)
 	}
 	if !auto {
 		// ручной режим: без спада и удержания — просто «Общий лимит». Иначе
 		// в инверторе навсегда остался бы последний авто-ответ (например, 0 = стоп)
 		amps, mode = in.MaxA, "manual"
 	}
+	st.Holding = strings.Contains(mode, "/hold")
+	defer s.publishWrites()
 	nf := "—"
 	if !st.LastFull.IsZero() {
 		nf = nextFull.Format("2006-01-02")
 	}
 	_ = s.client.SetState("sensor.energy_schema_charge_next_full", nf, map[string]any{"friendly_name": "Заряд: следующий 100 %",
 		"icon": "mdi:calendar-check", "last_full": st.LastFull.Format(time.RFC3339)})
-	// 108..110 одним чтением: фактический лимит в инверторе и множитель каналов
+	// 108..128 одним чтением: фактические лимиты в инверторе и множитель каналов
 	// («Parallel Bat&Bat2»=1 → ×2). Без известного множителя не пишем вовсе
 	// (иначе можно случайно дать вдвое больший ток).
-	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 108, 3)
+	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 108, 21)
 	if err == nil {
 		st.Factor = 1 + float64(regs[parallelReg]&1)
 		*lastMax = float64(regs[108]) // сверяемся с инвертором, а не с памятью
+		*lastGrid = float64(regs[128])
 	} else if st.Factor == 0 {
-		log.Println("charge: read 108..110:", err)
+		log.Println("charge: read 108..128:", err)
 		return
 	}
 	defer func() {
@@ -253,7 +213,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		chargingA := -num("sensor.deye_sun_30k_battery_current") // «−» = заряд
 		// проверка честная только когда батарее есть что брать: не полная и есть излишек PV
 		surplusW := num("sensor.deye_sun_30k_pv_power") - num("sensor.deye_sun_30k_load_power")
-		testable := soc < 99 && surplusW > 1500
+		// и без заряда от сети — иначе ток из сети даст ложное «broken» навсегда
+		testable := soc < 99 && surplusW > 1500 && s.store.State(gridChargeSwitch) != "on"
 		switch zeroVerdict(time.Since(st.ZeroSince), chargingA, testable) {
 		case "broken":
 			st.ZeroBroken = true
@@ -267,7 +228,17 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			st.ZeroSince = time.Time{} // проверено, больше не смотрим
 		}
 	}
-	if maxReg != *lastMax && !s.ovr.get("max_charge") {
+	// регистр в энергонезависимой памяти: некритичные изменения не чаще раза
+	// в chargeMinWriteGap; сразу — стоп (0), смена день/ночь,
+	// защита ячеек и полный заряд; в ручном режиме — когда ползунок отпустили
+	urgent := maxReg == 0 || strings.Contains(mode, "/cells") || strings.HasPrefix(mode, "full") ||
+		strings.HasPrefix(mode, "night-ready") != strings.HasPrefix(st.LastMode, "night-ready")
+	st.LastMode = mode
+	due := urgent || time.Since(st.Wrote108) >= chargeMinWriteGap
+	if !auto {
+		due = st.settled("max", in.MaxA) // ручной режим: пишем, когда ползунок отпустили
+	}
+	if maxReg != *lastMax && due && !s.ovr.get("max_charge") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeMaxEntity, "value": maxReg}); err != nil {
 			log.Println("charge: set max:", err)
 		} else {
@@ -275,15 +246,17 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			if maxReg == 0 && !st.ZeroBroken {
 				st.ZeroSince = time.Now()
 			}
-			*lastMax = maxReg
+			*lastMax, st.Wrote108 = maxReg, time.Now()
+			s.writes.add("reg108", 1)
 		}
 	}
-	if gridReg != *lastGrid && !s.ovr.get("grid_a") {
+	if gridReg != *lastGrid && st.settled("grid", grid) && !s.ovr.get("grid_a") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": gridReg}); err != nil {
 			log.Println("charge: set grid:", err)
 		} else {
 			log.Printf("charge: grid %.0f A → reg128=%.0f", grid, gridReg)
 			*lastGrid = gridReg
+			s.writes.add("reg128", 1)
 		}
 	}
 }

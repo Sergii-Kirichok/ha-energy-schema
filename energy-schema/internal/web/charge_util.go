@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"energy-schema/internal/config"
+	"energy-schema/internal/hass"
 )
 
 // regValue — значение регистра для желаемого фактического тока: делим на
@@ -93,6 +94,45 @@ type chargeState struct {
 	ZeroChecked bool      `json:"zero_checked"` // остаток измерен самопроверкой
 	ZeroSince   time.Time `json:"-"`            // когда записали 0 (для самопроверки)
 	Night       bool      `json:"-"`            // ночной режим (гистерезис по генерации)
+	Holding     bool      `json:"holding"`      // удержание у цели (гистерезис holdHyst)
+	LastMode    string    `json:"-"`            // режим прошлого тика (смена день/ночь — запись сразу)
+	Wrote108    time.Time `json:"-"`            // последняя запись регистра 108
+	seen        map[string]float64
+	seenAt      map[string]time.Time
+}
+
+// inputSettle — сколько ползунок должен не меняться, чтобы значение ушло в
+// инвертор (три клика «+1» = одна запись, а не три). 0 — без выдержки (тесты).
+var inputSettle = 15 * time.Second
+
+// settled — значение k не менялось inputSettle (первое наблюдение — «нет»).
+func (st *chargeState) settled(k string, v float64) bool {
+	if inputSettle <= 0 {
+		return true
+	}
+	if st.seen == nil {
+		st.seen, st.seenAt = map[string]float64{}, map[string]time.Time{}
+	}
+	if _, ok := st.seenAt[k]; !ok || st.seen[k] != v {
+		st.seen[k], st.seenAt[k] = v, time.Now()
+		return false
+	}
+	return time.Since(st.seenAt[k]) >= inputSettle
+}
+
+// sunLow — солнце ниже 10° (или sun.sun недоступен — тогда решает генерация).
+// Пасмурным днём генерация бывает < 1 кВт, но это не ночь.
+func sunLow(st *hass.Store) bool {
+	if !st.Available("sun.sun") {
+		return true
+	}
+	if st.State("sun.sun") == "below_horizon" {
+		return true
+	}
+	if e := st.Attr("sun.sun", "elevation"); e != "" {
+		return st.AttrNum("sun.sun", "elevation") < 10
+	}
+	return false
 }
 
 func loadChargeState(path string) chargeState {

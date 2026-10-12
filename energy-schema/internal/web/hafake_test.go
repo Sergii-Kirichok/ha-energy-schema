@@ -104,6 +104,9 @@ func newHAFakeServer(t *testing.T, f *haFake) *Server {
 	srv := httptest.NewServer(http.HandlerFunc(f.handler))
 	t.Cleanup(srv.Close)
 	dir := t.TempDir()
+	prev := inputSettle
+	inputSettle = 0 // ползунки «отпущены» сразу
+	t.Cleanup(func() { inputSettle = prev })
 	return &Server{client: hass.NewClient(srv.URL+"/api", "T"), store: hass.NewStore(),
-		ovr: loadOverrides(filepath.Join(dir, "o.json")), cells: loadCellStats(filepath.Join(dir, "cs.json"))}
+		ovr: loadOverrides(filepath.Join(dir, "o.json")), cells: loadCellStats(filepath.Join(dir, "cs.json")), writes: loadWriteLog(filepath.Join(dir, "w.json"))}
 }

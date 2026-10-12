@@ -24,16 +24,16 @@ func gridChargeWanted(night, blockDay bool, soc, shutdownSOC float64) bool {
 }
 
 // syncGridCharge приводит переключатель «Заряд от сети» к нужному положению;
-// пишет только при расхождении (состояние берётся из опроса HA). Вызывается
+// пишет только при расхождении (состояние берётся из опроса HA); true — записал. Вызывается
 // только при включённом «Авто-регулятор» — тогда ручных флагов нет.
-func (s *Server) syncGridCharge(night bool, soc float64) {
+func (s *Server) syncGridCharge(night bool, soc float64) bool {
 	cur := s.store.State(gridChargeSwitch)
 	if cur != "on" && cur != "off" {
-		return // сущности нет / недоступна — не трогаем
+		return false // сущности нет / недоступна — не трогаем
 	}
 	want := gridChargeWanted(night, s.store.On(noGridDayHelper), soc, s.store.Num(shutdownSOCNum))
 	if (cur == "on") == want {
-		return
+		return false
 	}
 	svc := "turn_off"
 	if want {
@@ -41,7 +41,38 @@ func (s *Server) syncGridCharge(night bool, soc float64) {
 	}
 	if err := s.client.CallService("switch", svc, map[string]any{"entity_id": gridChargeSwitch}); err != nil {
 		log.Println("charge: grid charging switch:", err)
-		return
+		return false
 	}
 	log.Printf("charge: grid charging %s (night=%v, soc %.0f%%)", map[bool]string{true: "ON", false: "OFF"}[want], night, soc)
+	return true
+}
+
+// setGridDayRule — «Заряд от сети» со страницы инвертора при включённом
+// авто-регуляторе: allow=true разрешает заряд от сети и днём (хелпер
+// «Без заряда от сети днём» выключается), false — днём запрещает. Ночью
+// регулятор включает заряд от сети в любом случае.
+func (s *Server) setGridDayRule(allow bool) error {
+	svc := "turn_on"
+	if allow {
+		svc = "turn_off"
+	}
+	log.Printf("charge: grid charging by day %s (inverter page)", map[bool]string{true: "allowed", false: "blocked"}[allow])
+	return s.client.CallService("input_boolean", svc, map[string]any{"entity_id": noGridDayHelper})
+}
+
+// gridRuleView — при авто-регуляторе поле «Заряд от сети» на странице = правило
+// «днём разрешено» (хелпер), а не текущий регистр 130 (он в gc_now).
+func (s *Server) gridRuleView(vals map[string]float64) map[string]float64 {
+	if !s.store.On(chargeAutoHelper) {
+		return vals
+	}
+	out := map[string]float64{}
+	for k, v := range vals {
+		out[k] = v
+	}
+	out["grid_charge"] = 0
+	if !s.store.On(noGridDayHelper) {
+		out["grid_charge"] = 1
+	}
+	return out
 }
