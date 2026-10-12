@@ -198,19 +198,3 @@ func TestInverterSaveRegulatorOn(t *testing.T) {
 		t.Error("clear must drop stale flags once")
 	}
 }
-
-// Авто-регулятор включён: «Заряд от сети» со страницы задаёт правило «днём»
-// (хелпер), регистр 130 не пишется; в ответе — правило и фактическое gc_now.
-func TestInverterSaveGridDayRule(t *testing.T) {
-	f := &haFake{regs: liveRegs()}
-	s := newHAFakeServer(t, f)
-	invVerifyDelays = []time.Duration{time.Millisecond}
-	s.store.ReplaceStates(map[string]string{chargeAutoHelper: "on", noGridDayHelper: "on"})
-	code, out := save(t, s, `{"values":{"grid_charge":1},"manual":{}}`)
-	if code != 200 || out["ok"] != true || out["values"].(map[string]any)["grid_charge"] != 1.0 {
-		t.Fatalf("code %d out %v", code, out)
-	}
-	if len(f.find("/services/input_boolean/turn_off")) != 1 || len(f.find("write_multiple_holding_registers")) != 0 {
-		t.Errorf("want helper turn_off and no register write, calls %v", f.find("/services/"))
-	}
-}

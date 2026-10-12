@@ -30,7 +30,7 @@ var invFields = func() []invField {
 		{Key: "low_soc", Reg: 117, Kind: "num", Scale: 1, Min: 5, Max: 90},
 		{Key: "grid_charge_a", Reg: 128, Kind: "num", Min: 0, Max: 185, Auto: "grid_a"},
 		{Key: "gen_charge", Reg: 129, Kind: "bool"},
-		{Key: "grid_charge", Reg: 130, Kind: "bool", Auto: "grid_charge"},
+		{Key: "grid_charge", Reg: 130, Kind: "bool"}, // только вручную: регулятор рег. 130 не трогает
 		{Key: "energy_pattern", Reg: 141, Kind: "enum", Max: 1},
 		{Key: "work_mode", Reg: 142, Kind: "enum", Max: 2},
 		{Key: "tou", Reg: 146, Kind: "bits", Max: 255}, // бит 0 — вкл., биты 1–7 — Пн…Вс

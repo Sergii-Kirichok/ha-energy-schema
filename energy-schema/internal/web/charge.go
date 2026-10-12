@@ -18,9 +18,12 @@ import (
 // поднимается до 100 %; любое достижение 100 % обнуляет отсчёт. Все параметры —
 // хелперы HA (input_number/input_boolean), регулятор включается переключателем.
 const (
-	chargeMaxEntity      = "number.deye_sun_30k_battery_max_charging_current"
-	chargeGridEntity     = "number.deye_sun_30k_battery_grid_charging_current"
-	chargeAutoHelper     = "input_boolean.energy_schema_charge_auto" // главный: включён — поля регулятора только у него
+	chargeMaxEntity  = "number.deye_sun_30k_battery_max_charging_current"
+	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
+	chargeAutoHelper = "input_boolean.energy_schema_charge_auto" // главный: включён — поля регулятора только у него
+	// «Заряд от сети» (рег. 130) — только вручную (страница инвертора, дашборд);
+	// заряжать ли от сети по времени суток решает расписание Time of Use инвертора
+	gridChargeSwitch     = "switch.deye_sun_30k_battery_grid_charging"
 	chargeFile           = "/data/charge.json"
 	chargeMinA           = 1.0
 	taperGap             = 10.0            // спад минимум за столько % до цели, даже если «снижать с» выше цели
@@ -41,7 +44,6 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
-		{Domain: "input_boolean", ID: "energy_schema_charge_no_grid_day", Name: "Заряд: без сети днём", Icon: "mdi:transmission-tower-off", Initial: 1},
 	}
 }
 
@@ -166,9 +168,6 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		return // хелперы ещё не созданы / не прочитаны
 	}
 	amps, mode := chargeSetpoint(in)
-	if auto && s.syncGridCharge(st.Night, soc) {
-		s.writes.add("switch", 1)
-	}
 	if !auto {
 		// ручной режим: без спада и удержания — просто «Общий лимит». Иначе
 		// в инверторе навсегда остался бы последний авто-ответ (например, 0 = стоп)

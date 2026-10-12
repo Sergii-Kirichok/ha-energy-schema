@@ -119,7 +119,7 @@ func (s *Server) inverterState(w http.ResponseWriter, r *http.Request) {
 	}
 	num := s.store.Num
 	writeJSON(w, map[string]any{
-		"values": s.gridRuleView(vals), "gc_now": vals["grid_charge"], "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
+		"values": vals, "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
 		"live": map[string]any{
 			"v":    []float64{num("sensor.deye_sun_30k_grid_l1_voltage"), num("sensor.deye_sun_30k_grid_l2_voltage"), num("sensor.deye_sun_30k_grid_l3_voltage")},
 			"f":    num("sensor.deye_sun_30k_grid_frequency"),
@@ -179,9 +179,6 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "неизвестное поле "+k, http.StatusBadRequest)
 			return
 		}
-		if regulator && k == "grid_charge" {
-			continue // правило «днём», см. setGridDayRule после записи регистров
-		}
 		if f.Auto != "" && (regulator || !manual[f.Auto]) {
 			continue // поле регулятора в «авто» — пишет регулятор
 		}
@@ -236,24 +233,7 @@ func (s *Server) inverterSave(w http.ResponseWriter, r *http.Request) {
 		res[k] = r
 		log.Printf("inverter: %s reg %d ← %d, read %d (%v)", k, x.f.Reg, x.raw, got, map[bool]string{true: "ok", false: "MISMATCH"}[r.OK])
 	}
-	vals := decodeAll(after, factor)
-	if v, has := req.Values["grid_charge"]; regulator && has {
-		// при авто-регуляторе переключатель задаёт правило «заряд от сети днём»
-		// (хелпер); сам регистр 130 переключит регулятор через пару секунд
-		r := invResult{Want: v, Read: v, OK: true}
-		if err := s.setGridDayRule(v >= 1); err != nil {
-			r.OK, r.Error, ok = false, err.Error(), false
-		}
-		res["grid_charge"] = r
-	}
-	gcNow := vals["grid_charge"]
-	if regulator {
-		vals = s.gridRuleView(vals)
-		if v, has := req.Values["grid_charge"]; has {
-			vals["grid_charge"] = v // HA ещё не успел отдать новое состояние хелпера
-		}
-	}
-	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": vals, "gc_now": gcNow, "manual": s.ovr.snapshot(), "regulator": regulator, "ts": time.Now().Format("15:04:05")})
+	writeJSON(w, map[string]any{"ok": ok, "results": res, "values": decodeAll(after, factor), "manual": s.ovr.snapshot(), "regulator": regulator, "ts": time.Now().Format("15:04:05")})
 }
 
 func allMatch(writes []invWrite, raw map[int]int) bool {

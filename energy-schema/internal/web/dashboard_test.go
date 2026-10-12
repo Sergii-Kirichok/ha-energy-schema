@@ -232,3 +232,19 @@ func TestLayoutChartOnce(t *testing.T) {
 		t.Errorf("height must be set in place: %v", cards)
 	}
 }
+
+func TestPatchChargeCardReplacesNoGridDayRow(t *testing.T) {
+	src := `{"views":[{"cards":[{"type":"entities","show_header_toggle":false,"entities":[
+	  {"entity":"input_boolean.energy_schema_charge_auto"},
+	  {"entity":"input_boolean.energy_schema_charge_no_grid_day","name":"Без заряда от сети днём"}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	_, _ = patchChargeCard(cfg)
+	b, _ := json.Marshal(cfg)
+	if strings.Contains(string(b), "no_grid_day") || strings.Count(string(b), gridChargeSwitch) != 1 {
+		t.Errorf("row not replaced exactly once: %s", b)
+	}
+	if changed, _ := patchChargeCard(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+}

@@ -77,7 +77,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <div class="card"><h2>Режим работы</h2>
   <div class="row" data-k="work_mode"><span class="lbl">Режим</span><div class="seg"><button>Продажа в сеть</button><button>Ноль в нагрузку</button><button>Ноль по CT</button></div></div>
   <div class="row" data-k="energy_pattern"><span class="lbl">Приоритет энергии</span><div class="seg"><button>Сначала АКБ</button><button>Сначала нагрузка</button></div></div>
-  <div class="row" data-k="grid_charge" data-auto="grid_charge"><span class="lbl">Заряд от сети</span><span class="tag"></span><button class="rev" hidden>↺ авто</button><div class="sw"></div></div>
+  <div class="row" data-k="grid_charge"><span class="lbl">Заряд от сети</span><div class="sw"></div></div>
   <div class="row" data-k="gen_charge"><span class="lbl">Заряд от генератора</span><div class="sw"></div></div>
   <div class="row" data-k="tou" data-bit="0"><span class="lbl">Time of Use (расписание)</span><div class="sw"></div></div>
   <div class="row" data-k="zero_export_w" data-step="10" data-u=" Вт"><span class="lbl">Фон из сети (ноль экспорта)</span><button class="btn">−</button><span class="val"></span><button class="btn">+</button></div>
@@ -106,7 +106,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  </div>
 </div></div>
 <script>
-var V={},O={},M={},MO={},ST={},CH=1,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,RG=false,GC=0,busy=false;
+var V={},O={},M={},MO={},ST={},CH=1,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,RG=false,busy=false;
 var NAMES=['—','Сеть','Ген','Оба'],COLS=['#9aa1ad','#60a5fa','#f59e0b','#a78bfa'],PH=['#f5b300','#60a5fa','#a78bfa'];
 var SL={V:{lo:'v_low',hi:'v_high',min:140,max:290,step:1,d:0,u:' В'},F:{lo:'f_low',hi:'f_high',min:45,max:55,step:0.1,d:1,u:' Гц'},R:{v:'reconnect_s',min:0,max:300,step:5,d:0,u:' с'}};
 var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return [].slice.call((r||document).querySelectorAll(s))};
@@ -121,7 +121,7 @@ function mark(el,keys){var bad=keys.some(function(k){return ST[k]==='bad'}),dt=k
 function bitOn(k,b){return ((V[k]||0)>>b)&1}
 function render(){
  $$('.row[data-k]').forEach(function(r){var k=r.dataset.k,v=V[k];
-  if(r.dataset.auto&&RG&&k==='grid_charge'){var t0=$('.tag',r);t0.textContent='днём · сейчас '+(GC?'вкл':'выкл');t0.title='Авто-регулятор: этим переключателем вы разрешаете или запрещаете заряд от сети ДНЁМ. Ночью регулятор включает заряд от сети всегда (заряд по слотам Time of Use).';t0.classList.remove('man');$('.rev',r).hidden=true;r.classList.remove('lock')}else if(r.dataset.auto){var man=!RG&&!!M[r.dataset.auto],t=$('.tag',r);t.textContent=RG?'регулятор (авто вкл.)':man?'вручную':'авто: регулятор';t.title=RG?'Управляет авто-регулятор заряда. Задать вручную — выключите «Авто-регулятор» на дашборде':'';t.classList.toggle('man',man);$('.rev',r).hidden=RG||!man;r.classList.toggle('lock',RG)}
+  if(r.dataset.auto){var man=!RG&&!!M[r.dataset.auto],t=$('.tag',r);t.textContent=RG?'регулятор (авто вкл.)':man?'вручную':'авто: регулятор';t.title=RG?'Управляет авто-регулятор заряда. Задать вручную — выключите «Авто-регулятор» на дашборде':'';t.classList.toggle('man',man);$('.rev',r).hidden=RG||!man;r.classList.toggle('lock',RG)}
   var sg=$('.seg',r);if(sg)$$('button',sg).forEach(function(b,i){b.classList.toggle('on',i===v)});
   var sw=$('.sw',r);if(sw)sw.classList.toggle('on',r.dataset.bit!==undefined?!!bitOn(k,+r.dataset.bit):v===1);
   var vl=$('.val',r);if(vl)vl.textContent=(v===undefined?'—':(+v).toFixed(0))+(r.dataset.u||'');
@@ -139,7 +139,7 @@ $$('.row[data-k]').forEach(function(r){var k=r.dataset.k,a=r.dataset.auto;
  var bs=$$('.btn',r);if(bs.length===2){var st=function(){return r.dataset.step==='ch'?CH:+r.dataset.step};
   bs[0].onclick=function(){if(a&&RG)return;V[k]=Math.max(0,+(V[k]-st()).toFixed(2));man();touch()};bs[1].onclick=function(){if(a&&RG)return;V[k]=+(V[k]+st()).toFixed(2);man();touch()}}
  $$('.seg button',r).forEach(function(b,i){b.onclick=function(){V[k]=i;touch()}});
- var sw=$('.sw',r);if(sw)sw.onclick=function(){if(a&&RG&&k!=='grid_charge')return;if(r.dataset.bit!==undefined)V[k]=(V[k]||0)^(1<<+r.dataset.bit);else V[k]=V[k]?0:1;man();touch()};
+ var sw=$('.sw',r);if(sw)sw.onclick=function(){if(a&&RG)return;if(r.dataset.bit!==undefined)V[k]=(V[k]||0)^(1<<+r.dataset.bit);else V[k]=V[k]?0:1;man();touch()};
  var rv=$('.rev',r);if(rv)rv.onclick=function(){M[a]=false;V[k]=O[k];touch()}});
 // ---- ползунки порогов ----
 var SX=10,SW=320;function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
@@ -178,7 +178,7 @@ $('#slots').onclick=function(e){var b=e.target.closest('button');if(!b)return;va
 var P={night:[[60,30,1],[300,30,1],[540,25,0],[840,25,0],[960,25,0],[1260,30,1]],none:[[60,25,0],[300,25,0],[540,25,0],[840,25,0],[960,25,0],[1260,25,0]],gen:[[60,25,2],[300,25,2],[540,25,0],[840,25,0],[960,25,0],[1260,25,2]]};
 $$('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){V[sk(i,'time')]=r[0];V[sk(i,'soc')]=r[1];V[sk(i,'src')]=r[2]});touch()}});
 // ---- загрузка / сохранение / перечитывание ----
-function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});RG=!!st.regulator;GC=st.gc_now||0;MO=Object.assign({},M);
+function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});RG=!!st.regulator;MO=Object.assign({},M);
  if(st.channels)CH=st.channels;if(st.live)LIVE=st.live;if(st.can!==undefined)CAN=st.can;ST={};
  $('#cTemp').textContent=(LIVE.temp||0).toFixed(1)+' °C';$('#cGrid').textContent='сеть '+(+LIVE.f).toFixed(2)+' Гц · '+LIVE.v.map(function(v){return (+v).toFixed(0)}).join(' / ')+' В';
  $('#cLink').textContent='прочитано '+st.ts;$('#cLink').className='chip ok';$('#ro').hidden=CAN;$('#save').hidden=!CAN;render()}
@@ -193,7 +193,7 @@ $('#save').onclick=function(){var ks=changed();if(!ks.length)return;var vals={};
  fetch('inverter/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values:vals,manual:M})})
  .then(function(r){return r.ok?r.json():r.text().then(function(t){throw t})}).then(function(res){var bad=0;
    Object.keys(res.results||{}).forEach(function(k){var x=res.results[k];if(x.ok){O[k]=x.read;V[k]=x.read;ST[k]='ok'}else{bad++;ST[k]='bad';ST[k+'_w']=x.want;O[k]=x.read}});
-   ks.forEach(function(k){if(!res.results||!res.results[k]){O[k]=V[k];ST[k]='ok'}});MO=Object.assign({},res.manual||M);if(res.gc_now!==undefined)GC=res.gc_now;M=Object.assign({},MO);busy=false;render();
+   ks.forEach(function(k){if(!res.results||!res.results[k]){O[k]=V[k];ST[k]='ok'}});MO=Object.assign({},res.manual||M);M=Object.assign({},MO);busy=false;render();
    if(bad)phase(b,'s-bad','✕ Не совпало: '+bad);else{phase(b,'s-ok','✓ Сохранено '+res.ts);setTimeout(function(){if(!busy){Object.keys(ST).forEach(function(k){if(ST[k]==='ok')delete ST[k]});render()}},5000)}
    b.disabled=!changed().length})
  .catch(function(e){busy=false;phase(b,'s-bad','✕ Ошибка');b.disabled=false;alert('Не сохранено: '+e)})};

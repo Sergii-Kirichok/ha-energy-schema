@@ -45,7 +45,7 @@ var dashChargeCard = map[string]any{
 		map[string]any{"entity": "input_number.energy_schema_charge_target_soc", "name": "Цель на ночь, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_full_days", "name": "Полный заряд раз в, дней"},
 		map[string]any{"entity": "input_boolean.energy_schema_charge_full_now", "name": "Полный заряд сейчас"},
-		map[string]any{"entity": noGridDayHelper, "name": "Без заряда от сети днём"},
+		map[string]any{"entity": gridChargeSwitch, "name": "Заряд от сети (вручную)"},
 		map[string]any{"entity": "sensor.energy_schema_charge_next_full", "name": "Следующий 100 %"},
 	},
 }
@@ -68,6 +68,12 @@ func patchChargeCard(node any) (bool, error) {
 	}
 	if card["show_header_toggle"] != false {
 		card["show_header_toggle"], changed = false, true
+	}
+	// хелпер «Без заряда от сети днём» убран (0.6.11): его строку — на переключатель Deye
+	for _, e := range card["entities"].([]any) {
+		if m, ok := e.(map[string]any); ok && m["entity"] == "input_boolean.energy_schema_charge_no_grid_day" {
+			m["entity"], m["name"], changed = gridChargeSwitch, "Заряд от сети (вручную)", true
+		}
 	}
 	// карточка есть — дорисовать строки, появившиеся в новых версиях, на их
 	// место по шаблону (строки пользователя и порядок сохраняются)

@@ -134,12 +134,12 @@ func TestChargeTickAutoClearsOverrides(t *testing.T) {
 func TestChargeTickManualWritesMaxA(t *testing.T) {
 	// SOC 95 в авто дал бы удержание 0; вручную — просто «Общий лимит»
 	s, f := tickSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "95", chargeAutoHelper: "off",
-		gridChargeSwitch: "on", noGridDayHelper: "on", shutdownSOCNum: "20"}, nil)
+		gridChargeSwitch: "on"}, nil)
 	st := recentState()
 	runTick(s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 12)
 	if len(f.find("/services/switch/turn_off")) != 0 {
-		t.Error("grid charging switch must not be touched with auto off")
+		t.Error("grid charging switch is manual only — never touched by the regulator")
 	}
 	if state, a, _ := f.state("sensor.energy_schema_charge_setpoint"); state != "24" || a["mode"] != "manual" || a["auto"] != false {
 		t.Errorf("setpoint = %q %v", state, a)
