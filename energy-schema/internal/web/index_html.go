@@ -3,11 +3,13 @@ package web
 // indexHTML auto-reloads the given SVG file every refresh seconds.
 // %s = svg filename, %d = refresh seconds.
 const indexHTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%%;overflow:hidden;background:#0f1115}#c{position:fixed;inset:0}#c svg{width:100%%;height:100%%;display:block}#vo{position:fixed;top:8px;right:12px;background:#1f2937;color:#9ca3af;font:12px sans-serif;padding:4px 10px;border-radius:8px;opacity:.85;z-index:9}
-.face{transform-box:fill-box;transform-origin:center;transition:transform .22s ease-in-out}
-.f-back{transform:scaleX(0);pointer-events:none}
-.flipped>.f-front{transform:scaleX(0);pointer-events:none}
-.flipped>.f-back{transform:scaleX(1);pointer-events:auto}
-.noanim .face{transition:none}</style></head><body><div id="c"></div><div id="vo" style="display:none">только просмотр</div><script>
+.face{transform-box:fill-box;transform-origin:center;transition:transform .22s ease-in-out,visibility 0s .22s}
+.f-back{transform:scaleX(0);visibility:hidden;pointer-events:none}
+.flipped>.f-front{transform:scaleX(0);visibility:hidden;pointer-events:none}
+.flipped>.f-back{transform:scaleX(1);visibility:visible;pointer-events:auto;transition-delay:0s}
+:not(.flipped)>.f-front{transition-delay:0s}
+.noanim .face{transition:none}
+#lost{position:fixed;top:8px;left:12px;background:#7f1d1d;color:#fecaca;font:13px sans-serif;padding:4px 10px;border-radius:8px;z-index:9;display:none}</style></head><body><div id="c"></div><div id="vo" style="display:none">только просмотр</div><div id="lost">нет связи · переподключение…</div><script>
 var CANCTL=%s;
 function ask(act,val){
  var m='Выполнить действие?';
@@ -31,7 +33,15 @@ function flips(){var g=document.getElementById('card-batt');if(!g)return;
 function $$nav(){var n=document.querySelectorAll('#c [data-nav]');for(var i=0;i<n.length;i++){(function(el){el.addEventListener('click',function(){location.href=el.getAttribute('data-nav')})})(n[i])}}
 function wire(){flips();$$nav();if(!CANCTL)return;var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}
  var ss=document.querySelectorAll('#c [data-set]');for(var j=0;j<ss.length;j++){(function(el){el.addEventListener('click',function(){setp(el.getAttribute('data-set'));});})(ss[j]);}}
-var T0=Date.now();
-function load(){fetch('%s?t='+Date.now()).then(function(r){return r.text()}).then(function(t){var c=document.getElementById('c');c.innerHTML=t;var s=c.querySelector('svg');if(s&&s.setCurrentTime){try{s.setCurrentTime((Date.now()-T0)/1000);}catch(e){}}wire();})}
+var T0=Date.now(),busy=0,okAt=Date.now();
+// Устойчиво для ТВ-браузеров: таймаут запроса, без наложения запросов, ошибка
+// не стирает схему (плашка «нет связи»), долго без связи — перезагрузка страницы.
+function lost(on){document.getElementById('lost').style.display=on?'block':'none'}
+function load(){if(busy&&Date.now()-busy<20000)return;busy=Date.now();
+ var ac=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ac)ac.abort()},15000);
+ fetch('%s?t='+Date.now(),ac?{signal:ac.signal,cache:'no-store'}:{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
+  if(t.indexOf('<svg')<0)throw new Error('not svg');var c=document.getElementById('c');c.innerHTML=t;var s=c.querySelector('svg');if(s&&s.setCurrentTime){try{s.setCurrentTime((Date.now()-T0)/1000);}catch(e){}}wire();okAt=Date.now();lost(false)
+ }).catch(function(){lost(true)}).then(function(){clearTimeout(to);busy=0})}
 if(!CANCTL){document.getElementById('vo').style.display='block';}
-load();setInterval(load,%d000);</script></body></html>`
+var EVERY=%d000;load();setInterval(function(){load();if(Date.now()-okAt>Math.max(90000,3*EVERY))location.reload()},EVERY);
+setTimeout(function(){location.reload()},6*3600*1000); // ТВ-браузеры копят память при постоянной замене SVG</script></body></html>`
