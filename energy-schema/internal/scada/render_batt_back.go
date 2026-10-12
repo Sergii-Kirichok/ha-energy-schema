@@ -8,7 +8,7 @@ import "fmt"
 // меняются кнопками data-set="key:±step|toggle" → POST /control?act=param.
 func (f *frame) batteryBack() {
 	st, s := f.st, f.s
-	s.p(`<g class="face f-back">`)
+	s.p(`<g class="face f-back" visibility="hidden">`) // скрыта и без CSS страницы (ТВ/картинка)
 	s.box(24, 520, 300, 280)
 	s.head(24, 520, 300, "batt", "АКБ · заряд", "")
 	// клик по иконке / заголовку — назад на лицевую сторону

@@ -163,8 +163,7 @@ func (s *Server) loop() {
 			s.store.Replace(m)
 			s.trackReconnect()
 		}
-		s.writeFiles()
-		time.Sleep(pollInterval)
+		time.Sleep(pollInterval) // файл схемы пишет loopAnim (раз в секунду)
 	}
 }
 

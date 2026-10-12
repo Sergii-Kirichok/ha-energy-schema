@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"energy-schema/internal/config"
@@ -31,6 +32,8 @@ type Server struct {
 	solar  *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
 	ovr    *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
 	cells  *cellStats      // статистика крайних ячеек BMS (поиск слабой)
+	svgMu  sync.Mutex      // один писатель файла схемы за раз
+	mb     sync.Mutex      // одна Modbus-транзакция (регулятор / страница инвертора) за раз
 }
 
 // New builds a Server.
@@ -90,10 +93,22 @@ func (s *Server) userAllowed(r *http.Request) bool {
 	return false
 }
 
+// writeFiles пишет схему атомарно (tmp + rename): ТВ читает /local/energy_schema.svg
+// в любой момент и не должен получить пустой или обрезанный файл.
 func (s *Server) writeFiles() {
-	if err := os.WriteFile(wwwDir+"/energy_schema.svg", []byte(s.render()), 0644); err != nil {
+	s.svgMu.Lock()
+	defer s.svgMu.Unlock()
+	if err := writeAtomic(wwwDir+"/energy_schema.svg", []byte(s.render())); err != nil {
 		log.Println("write svg:", err)
 	}
+}
+
+func writeAtomic(path string, b []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func (s *Server) writeWrapper() {
