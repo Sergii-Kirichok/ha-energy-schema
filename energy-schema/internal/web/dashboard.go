@@ -41,7 +41,6 @@ var dashChargeCard = map[string]any{
 		map[string]any{"entity": dashSetpointEntity, "name": dashSetpointName},
 		map[string]any{"entity": "input_number.energy_schema_charge_max_a", "name": "Общий лимит, А"},
 		map[string]any{"entity": "input_number.energy_schema_charge_grid_a", "name": "Лимит от сети, А"},
-		map[string]any{"entity": "input_number.energy_schema_charge_taper_soc", "name": "Снижать ток с, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_target_soc", "name": "Цель на ночь, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_full_days", "name": "Полный заряд раз в, дней"},
 		map[string]any{"entity": "input_boolean.energy_schema_charge_full_now", "name": "Полный заряд сейчас"},
@@ -68,6 +67,18 @@ func patchChargeCard(node any) (bool, error) {
 	}
 	if card["show_header_toggle"] != false {
 		card["show_header_toggle"], changed = false, true
+	}
+	// «Снижать ток с» убран (0.6.12, без спада) — строку удалить
+	if ents, ok := card["entities"].([]any); ok {
+		kept := ents[:0:0]
+		for _, e := range ents {
+			if entityID(e) == "input_number.energy_schema_charge_taper_soc" {
+				changed = true
+				continue
+			}
+			kept = append(kept, e)
+		}
+		card["entities"] = kept
 	}
 	// хелпер «Без заряда от сети днём» убран (0.6.11): его строку — на переключатель Deye
 	for _, e := range card["entities"].([]any) {

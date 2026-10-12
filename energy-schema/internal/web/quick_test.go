@@ -38,7 +38,7 @@ func TestQuickParam(t *testing.T) {
 		{"max_a:abc", "", true},        // not a number
 		{"nope:+1", "", true},          // unknown key
 		{"full_days:+1", "", true},     // entity missing in store
-		{"taper_soc:toggle", "", true}, // number with toggle
+		{"target_soc:toggle", "", true}, // number with toggle
 	}
 	for _, c := range cases {
 		calls = nil

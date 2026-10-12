@@ -10,36 +10,27 @@ import (
 )
 
 func TestChargeSetpoint(t *testing.T) {
-	base := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, CellLevel: "ok", Tune: config.DefaultCharge()}
+	base := chargeInput{MaxA: 25, TargetSOC: 90, CellLevel: "ok", Tune: config.DefaultCharge()}
 	cases := []struct {
 		name string
 		mod  func(*chargeInput)
 		amps float64
 		mode string
 	}{
-		{"below taper -> max", func(c *chargeInput) { c.SOC = 50 }, 25, "max"},
-		{"at taper start -> max", func(c *chargeInput) { c.SOC = 80 }, 25, "night/taper"},
-		{"midway 85 -> half", func(c *chargeInput) { c.SOC = 85 }, 13, "night/taper"},
-		{"89 -> lowest step 25 %", func(c *chargeInput) { c.SOC = 89 }, 6, "night/taper"},
-		{"87 -> step 50 %", func(c *chargeInput) { c.SOC = 87 }, 13, "night/taper"},
-		{"holding at 89 -> stay on hold", func(c *chargeInput) { c.SOC = 89; c.Holding = true }, 0, "night/hold"},
-		{"holding at 88 (target-2) -> stay on hold", func(c *chargeInput) { c.SOC = 88; c.Holding = true }, 0, "night/hold"},
-		{"holding below hysteresis -> taper again", func(c *chargeInput) { c.SOC = 87; c.Holding = true }, 13, "night/taper"},
-		{"holding but full due -> trickle on", func(c *chargeInput) { c.SOC = 95; c.Holding = true; c.FullDue = true }, 1, "full/trickle"},
+		{"below target -> full limit", func(c *chargeInput) { c.SOC = 50 }, 25, "max"},
+		{"89 -> still full (no taper)", func(c *chargeInput) { c.SOC = 89 }, 25, "max"},
 		{"at target -> hold 0", func(c *chargeInput) { c.SOC = 90 }, 0, "night/hold"},
 		{"above target -> hold 0", func(c *chargeInput) { c.SOC = 97 }, 0, "night/hold"},
-		{"full due 85 -> normal taper", func(c *chargeInput) { c.SOC = 85; c.FullDue = true }, 13, "full/taper"},
+		{"holding at 89 -> stay on hold", func(c *chargeInput) { c.SOC = 89; c.Holding = true }, 0, "night/hold"},
+		{"holding at 88 (target-2) -> stay on hold", func(c *chargeInput) { c.SOC = 88; c.Holding = true }, 0, "night/hold"},
+		{"holding below hysteresis -> full again", func(c *chargeInput) { c.SOC = 87; c.Holding = true }, 25, "max"},
+		{"holding but full due -> trickle", func(c *chargeInput) { c.SOC = 95; c.Holding = true; c.FullDue = true }, 1, "full/trickle"},
+		{"full due 85 -> full limit", func(c *chargeInput) { c.SOC = 85; c.FullDue = true }, 25, "max"},
 		{"full due 90..99 -> trickle 1A", func(c *chargeInput) { c.SOC = 95; c.FullDue = true }, 1, "full/trickle"},
 		{"full due 100 -> hold 0", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 0, "full/hold"},
 		{"cells bad below 70% ignored", func(c *chargeInput) { c.SOC = 50; c.CellLevel = "bad" }, 25, "max"},
 		{"cells bad from 70% caps at 5", func(c *chargeInput) { c.SOC = 75; c.CellLevel = "bad" }, 5, "max/cells"},
-		{"cells bad caps lowest step", func(c *chargeInput) { c.SOC = 89; c.CellLevel = "bad" }, 5, "night/taper/cells"},
-		{"cells bad below cap untouched", func(c *chargeInput) { c.SOC = 89; c.MaxA = 16; c.CellLevel = "bad" }, 4, "night/taper"},
-		{"taper >= target -> max below target-10", func(c *chargeInput) { c.SOC = 75; c.TaperSOC = 99 }, 25, "max"},
-		{"taper >= target -> taper from target-10", func(c *chargeInput) { c.SOC = 85; c.TaperSOC = 99 }, 13, "night/taper"},
-		{"taper >= target -> hold at target", func(c *chargeInput) { c.SOC = 90; c.TaperSOC = 99 }, 0, "night/hold"},
-		{"taper >= target -> hold above target", func(c *chargeInput) { c.SOC = 97; c.TaperSOC = 99 }, 0, "night/hold"},
-		{"taper >= target, full due -> trickle", func(c *chargeInput) { c.SOC = 95; c.TaperSOC = 99; c.FullDue = true }, 1, "full/trickle"},
+		{"cells bad, limit below cap untouched", func(c *chargeInput) { c.SOC = 75; c.MaxA = 4; c.CellLevel = "bad" }, 4, "max"},
 	}
 	for _, c := range cases {
 		in := base
@@ -75,7 +66,7 @@ func TestRegValue(t *testing.T) {
 }
 
 func TestHoldWritesZero(t *testing.T) {
-	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 91, Tune: config.DefaultCharge()}
+	in := chargeInput{MaxA: 25, TargetSOC: 90, SOC: 91, Tune: config.DefaultCharge()}
 	if a, mode := chargeSetpoint(in); a != 0 || mode != "night/hold" {
 		t.Errorf("hold = %.0f %q, want 0 night/hold", a, mode)
 	}
@@ -128,7 +119,7 @@ func TestChargeSignature(t *testing.T) {
 }
 
 func TestNightMode(t *testing.T) {
-	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 100, Night: true, Tune: config.DefaultCharge()}
+	in := chargeInput{MaxA: 25, TargetSOC: 90, SOC: 100, Night: true, Tune: config.DefaultCharge()}
 	if a, mode := chargeSetpoint(in); a != 25 || mode != "night-ready" {
 		t.Errorf("night = %.0f %q, want 25 night-ready", a, mode)
 	}
@@ -153,7 +144,7 @@ func TestNightMode(t *testing.T) {
 func TestZeroOnTargetOff(t *testing.T) {
 	tune := config.DefaultCharge()
 	tune.ZeroOnTarget = false
-	in := chargeInput{MaxA: 25, TaperSOC: 80, TargetSOC: 90, SOC: 95, Tune: tune}
+	in := chargeInput{MaxA: 25, TargetSOC: 90, SOC: 95, Tune: tune}
 	if a, mode := chargeSetpoint(in); a != 1 || mode != "night/hold" {
 		t.Errorf("zero_on_target=false: %.0f %q, want 1 night/hold", a, mode)
 	}

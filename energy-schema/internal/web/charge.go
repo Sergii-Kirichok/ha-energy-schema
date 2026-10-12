@@ -13,9 +13,9 @@ import (
 // Динамический ток заряда. Регистры Deye (MODBUS RTU V104): 108 «Max A Charge»
 // (общий потолок, 1 А) и 128 «Grid charge the battery current» (от сети, 1 А);
 // в HA это number.*_battery_max_charging_current и *_battery_grid_charging_current.
-// Логика: ниже taperSOC — заряд по максимуму (maxA); от taperSOC к целевому SOC
-// ток линейно падает до 1 А; выше цели — держим 1 А. Раз в fullDays дней цель
-// поднимается до 100 %; любое достижение 100 % обнуляет отсчёт. Все параметры —
+// Логика: до цели на ночь — полный «Общий лимит» (maxA), на цели — 0 (стоп),
+// ночью — снова полный лимит на утро (см. charge_law.go). Раз в fullDays дней
+// цель поднимается до 100 %; любое достижение 100 % обнуляет отсчёт. Все параметры —
 // хелперы HA (input_number/input_boolean), регулятор включается переключателем.
 const (
 	chargeMaxEntity  = "number.deye_sun_30k_battery_max_charging_current"
@@ -26,7 +26,6 @@ const (
 	gridChargeSwitch     = "switch.deye_sun_30k_battery_grid_charging"
 	chargeFile           = "/data/charge.json"
 	chargeMinA           = 1.0
-	taperGap             = 10.0            // спад минимум за столько % до цели, даже если «снижать с» выше цели
 	chargeZeroFloorGuess = 1.0             // остаток при 108=0 до первого измерения, А
 	chargeWatchEvery     = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
 	chargeIdleEvery      = time.Minute     // сверка с инвертором, если ничего не менялось
@@ -40,7 +39,6 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_boolean", ID: chargeAutoHelper[len("input_boolean."):], Name: "Заряд: авто-регулятор", Icon: "mdi:battery-sync", Initial: 1},
 		{Domain: "input_number", ID: "energy_schema_charge_max_a", Name: "Заряд: общий лимит", Min: 1, Max: t.MaxALimit, Step: 1, Initial: math.Min(25, t.MaxALimit), Unit: "A", Icon: "mdi:current-dc"},
 		{Domain: "input_number", ID: "energy_schema_charge_grid_a", Name: "Заряд: лимит от сети", Min: 1, Max: t.GridALimit, Step: 1, Initial: math.Min(5, t.GridALimit), Unit: "A", Icon: "mdi:transmission-tower"},
-		{Domain: "input_number", ID: "energy_schema_charge_taper_soc", Name: "Заряд: снижать ток с", Min: 50, Max: 99, Step: 1, Initial: 80, Unit: "%", Icon: "mdi:battery-70"},
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
@@ -138,8 +136,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		}
 	}
 	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
-		TaperSOC: num("input_number.energy_schema_charge_taper_soc"), TargetSOC: num("input_number.energy_schema_charge_target_soc"),
-		FullDue: fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
+		TargetSOC: num("input_number.energy_schema_charge_target_soc"),
+		FullDue:   fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
 	// ночь — по генерации И по солнцу: пасмурный день (PV ~1 кВт) — не ночь
 	// (12.10: 10:41–10:45 ложная «ночь» → лишние переключения и записи).
 	// Недоступный PV — оставляем прежний режим (0 не значит «ночь»).
@@ -156,7 +154,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	margin := driftMargin(floorA, num("sensor.deye_sun_30k_battery_voltage"),
 		s.store.HoursUntil("sun.sun", "next_setting")-1, s.cfg.BattCap)
-	if !fullDue && in.TargetSOC-margin > in.TaperSOC {
+	if !fullDue {
 		in.TargetSOC -= margin
 	}
 	in.Night = st.Night

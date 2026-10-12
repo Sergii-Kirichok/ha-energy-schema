@@ -11,14 +11,14 @@ import (
 // Записи в энергонезависимую память инвертора: некритичная смена ступени — не
 // чаще chargeMinWriteGap, стоп (0) и смена день/ночь — сразу; счётчик за сутки.
 func TestChargeTickMinWriteGap(t *testing.T) {
-	s, f := tickSetup(t, nil, map[int]int{128: 3}) // SOC 86 → ступень 12 А (reg 6), в инверторе 10; 128 уже 3
+	s, f := tickSetup(t, nil, map[int]int{128: 3}) // SOC 86 → полный лимит 24 А (reg 12), в инверторе 10; 128 уже 3
 	st := recentState()
 	st.Wrote108, st.LastMode = time.Now().Add(-time.Minute), "night/taper"
 	runTick(s, &st)
 	wantVals(t, "max (within gap)", f.setValues(chargeMaxEntity))
 	st.Wrote108 = time.Now().Add(-chargeMinWriteGap - time.Second)
 	runTick(s, &st)
-	wantVals(t, "max (gap passed)", f.setValues(chargeMaxEntity), 6)
+	wantVals(t, "max (gap passed)", f.setValues(chargeMaxEntity), 12)
 	if total, by := s.writes.today(); total != 1 || by["reg108"] != 1 {
 		t.Errorf("writes today = %d %v", total, by)
 	}
@@ -51,7 +51,7 @@ func TestChargeTickCloudyDayIsNotNight(t *testing.T) {
 	if st.Night {
 		t.Fatal("PV 0.8 kW at sun 25° is a cloudy day, not night")
 	}
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 6)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 12)
 	sun.Attrs["elevation"] = "4"
 	m["sun.sun"] = sun
 	s.store.Replace(m)
