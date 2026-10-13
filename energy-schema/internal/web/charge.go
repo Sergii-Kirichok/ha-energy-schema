@@ -153,7 +153,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		floorA = chargeZeroFloorGuess // ponytail: наблюдение 25–27.09 (1.04 А); заменится измеренным
 	}
 	margin := driftMargin(floorA, num("sensor.deye_sun_30k_battery_voltage"),
-		s.store.HoursUntil("sun.sun", "next_setting")-1, s.cfg.BattCap)
+		s.store.HoursUntil("sun.sun", "next_setting")-1, battKWh(s))
 	if !fullDue {
 		in.TargetSOC -= margin
 	}

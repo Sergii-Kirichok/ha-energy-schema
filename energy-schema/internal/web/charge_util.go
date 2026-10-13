@@ -9,6 +9,7 @@ import (
 
 	"energy-schema/internal/config"
 	"energy-schema/internal/hass"
+	"energy-schema/internal/scada"
 )
 
 // regValue — значение регистра для желаемого фактического тока: делим на
@@ -147,3 +148,6 @@ func (st chargeState) save(path string) {
 	b, _ := json.Marshal(st)
 	_ = os.WriteFile(path, b, 0o644)
 }
+
+// battKWh — номинальная ёмкость стойки из инвертора и BMS (fallback — настройки аддона).
+func battKWh(s *Server) float64 { k, _ := scada.BattCapKWh(s.store, s.cfg.BattCap); return k }

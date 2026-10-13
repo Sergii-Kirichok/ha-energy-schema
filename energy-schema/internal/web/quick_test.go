@@ -33,11 +33,11 @@ func TestQuickParam(t *testing.T) {
 		{"grid_a:-1", `set_value {"entity_id":"input_number.energy_schema_charge_grid_a","value":1}`, false}, // clamp to min
 		{"target_soc:-5", `"value":85}`, false},
 		{"auto:toggle", `/api/services/input_boolean/toggle {"entity_id":"input_boolean.energy_schema_charge_auto"}`, false},
-		{"auto:+1", "", true},          // bool needs toggle
-		{"max_a:+50", "", true},        // step too big
-		{"max_a:abc", "", true},        // not a number
-		{"nope:+1", "", true},          // unknown key
-		{"full_days:+1", "", true},     // entity missing in store
+		{"auto:+1", "", true},           // bool needs toggle
+		{"max_a:+50", "", true},         // step too big
+		{"max_a:abc", "", true},         // not a number
+		{"nope:+1", "", true},           // unknown key
+		{"full_days:+1", "", true},      // entity missing in store
 		{"target_soc:toggle", "", true}, // number with toggle
 	}
 	for _, c := range cases {

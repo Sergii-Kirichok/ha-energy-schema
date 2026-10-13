@@ -1,4 +1,7 @@
 configuration:
+  batt_capacity_kwh:
+    name: "Battery capacity (fallback), kWh"
+    description: "Used only until the inverter and BMS are read. Primary source: Ah from the inverter (register 102, set on the inverter page) × BMS module count × 51.2 V."
   charge_max_a_limit:
     name: "Charge: total limit slider max, A"
     description: "Upper bound of the «Общий лимит» slider. Default 30 A."

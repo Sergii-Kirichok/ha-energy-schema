@@ -119,7 +119,7 @@ func (s *Server) inverterState(w http.ResponseWriter, r *http.Request) {
 	}
 	num := s.store.Num
 	writeJSON(w, map[string]any{
-		"values": vals, "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "can": s.userAllowed(r),
+		"values": vals, "manual": s.ovr.snapshot(), "regulator": s.store.On(chargeAutoHelper), "channels": factor, "packs": s.store.AttrNum("sensor.energy_schema_bms_limits", "packs"), "can": s.userAllowed(r),
 		"live": map[string]any{
 			"v":    []float64{num("sensor.deye_sun_30k_grid_l1_voltage"), num("sensor.deye_sun_30k_grid_l2_voltage"), num("sensor.deye_sun_30k_grid_l3_voltage")},
 			"f":    num("sensor.deye_sun_30k_grid_frequency"),

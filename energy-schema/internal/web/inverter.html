@@ -84,6 +84,8 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
   <div class="row dis"><span class="lbl">Отдача в сеть</span><span class="val" style="min-width:auto;font-size:13px">после подключения зелёного тарифа</span></div>
  </div>
  <div class="card"><h2>Батарея</h2>
+  <div class="row" data-k="batt_ah" data-step="5" data-u=" А·ч"><span class="lbl">Ёмкость АКБ</span><button class="btn">−</button><span class="val"></span><button class="btn">+</button></div>
+  <div class="row"><span class="lbl">Номинал стойки</span><span class="val" id="capInfo" style="min-width:auto;color:var(--sub);font-size:13px"></span></div>
   <div class="row" data-k="max_charge_a" data-auto="max_charge" data-step="ch" data-u=" А"><span class="lbl">Макс. ток заряда</span><span class="tag"></span><button class="rev" hidden>↺ авто</button><button class="btn">−</button><span class="val"></span><button class="btn">+</button></div>
   <div class="row" data-k="max_discharge_a" data-step="5" data-u=" А"><span class="lbl">Макс. ток разряда</span><button class="btn">−</button><span class="val"></span><button class="btn">+</button></div>
   <div class="row" data-k="grid_charge_a" data-auto="grid_a" data-step="ch" data-u=" А"><span class="lbl">Ток заряда от сети</span><span class="tag"></span><button class="rev" hidden>↺ авто</button><button class="btn">−</button><span class="val"></span><button class="btn">+</button></div>
@@ -106,7 +108,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  </div>
 </div></div>
 <script>
-var V={},O={},M={},MO={},ST={},CH=1,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,RG=false,busy=false;
+var V={},O={},M={},MO={},ST={},CH=1,PK=0,LIVE={v:[0,0,0],f:0},AUTO={},CAN=true,RG=false,busy=false;
 var NAMES=['—','Сеть','Ген','Оба'],COLS=['#9aa1ad','#60a5fa','#f59e0b','#a78bfa'],PH=['#f5b300','#60a5fa','#a78bfa'];
 var SL={V:{lo:'v_low',hi:'v_high',min:140,max:290,step:1,d:0,u:' В'},F:{lo:'f_low',hi:'f_high',min:45,max:55,step:0.1,d:1,u:' Гц'},R:{v:'reconnect_s',min:0,max:300,step:5,d:0,u:' с'}};
 var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return [].slice.call((r||document).querySelectorAll(s))};
@@ -127,6 +129,7 @@ function render(){
   var vl=$('.val',r);if(vl)vl.textContent=(v===undefined?'—':(+v).toFixed(0))+(r.dataset.u||'');
   mark(r,[k])});
  $('#chInfo').textContent='×'+CH+' (лимиты 108/128 умножаются)';
+ $('#capInfo').textContent=V.batt_ah&&PK?'≈ '+(V.batt_ah*PK*51.2/1000).toFixed(1)+' кВт·ч ('+PK+' мод. × 51,2 В × '+V.batt_ah+' А·ч)':'— (нет данных BMS)';
  ['V','F','R'].forEach(slRender);draw();
  var d=$('#days');d.innerHTML='';['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(function(n,i){var b=document.createElement('button');b.textContent=n;b.className=bitOn('tou',i+1)?'on':'';
   b.onclick=function(){V.tou=(V.tou||0)^(1<<(i+1));touch()};d.appendChild(b)});mark(d,['tou']);
@@ -179,7 +182,7 @@ var P={night:[[60,30,1],[300,30,1],[540,25,0],[840,25,0],[960,25,0],[1260,30,1]]
 $$('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(function(r,i){V[sk(i,'time')]=r[0];V[sk(i,'soc')]=r[1];V[sk(i,'src')]=r[2]});touch()}});
 // ---- загрузка / сохранение / перечитывание ----
 function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});RG=!!st.regulator;MO=Object.assign({},M);
- if(st.channels)CH=st.channels;if(st.live)LIVE=st.live;if(st.can!==undefined)CAN=st.can;ST={};
+ if(st.channels)CH=st.channels;if(st.packs)PK=st.packs;if(st.live)LIVE=st.live;if(st.can!==undefined)CAN=st.can;ST={};
  $('#cTemp').textContent=(LIVE.temp||0).toFixed(1)+' °C';$('#cGrid').textContent='сеть '+(+LIVE.f).toFixed(2)+' Гц · '+LIVE.v.map(function(v){return (+v).toFixed(0)}).join(' / ')+' В';
  $('#cLink').textContent='прочитано '+st.ts;$('#cLink').className='chip ok';$('#ro').hidden=CAN;$('#save').hidden=!CAN;render()}
 function phase(b,c,t){b.className='act '+c;b.textContent=t}

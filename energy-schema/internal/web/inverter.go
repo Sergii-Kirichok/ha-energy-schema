@@ -22,6 +22,7 @@ type invField struct {
 
 var invFields = func() []invField {
 	f := []invField{
+		{Key: "batt_ah", Reg: 102, Kind: "num", Scale: 1, Min: 10, Max: 2000}, // паспорт стойки, А·ч
 		{Key: "zero_export_w", Reg: 104, Kind: "num", Scale: 10, Min: 0, Max: 500},
 		{Key: "max_charge_a", Reg: 108, Kind: "num", Min: 0, Max: 185, Auto: "max_charge"},
 		{Key: "max_discharge_a", Reg: 109, Kind: "num", Scale: 1, Min: 0, Max: 185},
@@ -50,8 +51,8 @@ var invFields = func() []invField {
 	return f
 }()
 
-// invBlocks — чтение всех полей четырьмя запросами.
-var invBlocks = [][2]int{{104, 27}, {141, 6}, {148, 30}, {180, 9}}
+// invBlocks — чтение всех полей четырьмя запросами (102..130 — АКБ, токи, 110 = каналы).
+var invBlocks = [][2]int{{102, 29}, {141, 6}, {148, 30}, {180, 9}}
 
 func invField0(key string) *invField {
 	for i := range invFields {
