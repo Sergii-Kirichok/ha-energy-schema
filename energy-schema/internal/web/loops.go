@@ -162,6 +162,7 @@ func (s *Server) loop() {
 		} else {
 			s.store.Replace(m)
 			s.trackReconnect()
+			s.updateSOC()
 		}
 		time.Sleep(pollInterval) // файл схемы пишет loopAnim (раз в секунду)
 	}

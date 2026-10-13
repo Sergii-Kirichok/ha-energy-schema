@@ -27,6 +27,7 @@ const (
 	InvBattAh      = "inv.batt_ah"
 	InvShutdownSOC = "inv.shutdown_soc"
 	InvLowSOC      = "inv.low_soc"
+	InvSOC         = "inv.soc" // SOC с десятыми (web/socest.go)
 )
 
 // invNum — свежее значение регистра, иначе сущность Solarman.
