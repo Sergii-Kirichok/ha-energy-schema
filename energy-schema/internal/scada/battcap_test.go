@@ -45,3 +45,12 @@ func TestSocLimitsFreshFirst(t *testing.T) {
 		t.Errorf("fresh registers must win: %v %v", sd, lo)
 	}
 }
+
+func TestDimCol(t *testing.T) {
+	if got := dimCol("#ffffff"); got != "#65676d" {
+		t.Errorf("dimCol(white) = %s", got)
+	}
+	if got := dimCol("bad"); got != "#23272f" {
+		t.Errorf("bad input → track colour, got %s", got)
+	}
+}

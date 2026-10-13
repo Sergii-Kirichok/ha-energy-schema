@@ -29,3 +29,14 @@ type band struct {
 
 // kw formats watts as kilowatts ("X.XX кВт").
 func kw(w float64) string { return fmt.Sprintf("%.2f кВт", w/1000) }
+
+// dimCol — цвет зоны «за пределом уровня»: 30 % цвета на фоне дорожки
+// (#23272f), явным hex — 8-значные #RRGGBBAA старые ТВ-браузеры не понимают.
+func dimCol(hex string) string {
+	var r, g, b int
+	if _, err := fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		return "#23272f"
+	}
+	mix := func(c, bg int) int { return (c*3 + bg*7) / 10 }
+	return fmt.Sprintf("#%02x%02x%02x", mix(r, 0x23), mix(g, 0x27), mix(b, 0x2f))
+}
