@@ -54,8 +54,8 @@ func (f *frame) battery() {
 		}
 		prev = math.Max(prev, b.thr)
 	}
-	// подписи границ зон, как у остальных гейджей
-	for _, v := range []float64{0, cutoff, lowSOC, 100} {
+	// подписи границ зон (отключение, низкий заряд); 0 и 100 не подписываем
+	for _, v := range []float64{cutoff, lowSOC} {
 		if v == lowSOC && lowSOC == cutoff {
 			continue
 		}
