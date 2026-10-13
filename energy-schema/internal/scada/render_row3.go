@@ -54,6 +54,13 @@ func (f *frame) battery() {
 		}
 		prev = math.Max(prev, b.thr)
 	}
+	// подписи границ зон, как у остальных гейджей
+	for _, v := range []float64{0, cutoff, lowSOC, 100} {
+		if v == lowSOC && lowSOC == cutoff {
+			continue
+		}
+		s.gaugeTick(bcx, bcy, br, v, 100, fmt.Sprintf("%.0f", v))
+	}
 	s.marker(bcx, bcy, br, gAng(soc, 100), 6)
 	if pkMax := st.Max12h(be); pkMax > 1 {
 		a := gAng(pkMax, 100)
