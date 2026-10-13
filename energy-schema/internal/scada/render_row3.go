@@ -36,7 +36,8 @@ func (f *frame) battery() {
 	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
 
 	soc := st.Num("sensor.deye_sun_30k_battery")
-	// с десятыми (кулонометрия между целыми % BMS, web/socest.go), если есть
+	socBMS := soc // на гейдже — целое значение BMS
+	// с десятыми для расчёта энергии (кулонометрия между целыми % BMS, web/socest.go)
 	if f := st.Num(InvSOC); f > 0 && math.Abs(f-soc) <= 0.5 {
 		soc = f
 	}
@@ -80,7 +81,7 @@ func (f *frame) battery() {
 		s.markerMax(bcx, bcy, br, a, br*0.13, cCyn)
 		s.markerLabel(bcx, bcy, br, a, fmt.Sprintf("%.0f", mn), cCyn)
 	}
-	s.t(bcx, bcy-2, 24, cTxt, "middle", fmt.Sprintf("%.1f%%", soc))
+	s.t(bcx, bcy-2, 24, cTxt, "middle", fmt.Sprintf("%.0f%%", socBMS))
 
 	// ток — слева от спидометра, SOH — справа (симметрично)
 	s.t(54, 596, 11, cSub, "middle", "ток")
