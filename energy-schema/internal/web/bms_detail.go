@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"sync"
@@ -49,6 +50,8 @@ type cellStats struct {
 	Chg    int            `json:"chg_samples"`
 	MinDsg map[string]int `json:"min_on_discharge"`
 	MaxChg map[string]int `json:"max_on_charge"`
+	Rack   string         `json:"rack"`   // серийник BMU стойки (10032..10039)
+	Cycles int            `json:"cycles"` // счётчик циклов BMS при последней выборке
 	saved  time.Time
 }
 
@@ -123,6 +126,9 @@ func (c *cellStats) summary() (weak string, attrs map[string]any) {
 func (s *Server) publishDetail(r map[int]int) error {
 	minLoc := cellLoc(r[regCellMinMod], r[regCellMinN])
 	maxLoc := cellLoc(r[regCellMaxMod], r[regCellMaxN])
+	if !s.cells.sameRack(rackSerial(r), r[regCycles]) {
+		log.Printf("bms: new battery rack (BMU %s, cycles %d) — cell statistics reset", rackSerial(r), r[regCycles])
+	}
 	s.cells.add(s.store.Num("sensor.deye_sun_30k_battery_current"), minLoc, maxLoc)
 	weak, wattrs := s.cells.summary()
 	t := func(name string) map[string]any {
@@ -155,3 +161,36 @@ func (s *Server) publishDetail(r map[int]int) error {
 }
 
 func withLoc(a map[string]any, mod, n int) map[string]any { a["where"] = cellLoc(mod, n); return a }
+
+// rackSerial — серийник BMU стойки: ASCII в регистрах 10032..10039 (по 2 символа).
+func rackSerial(r map[int]int) string {
+	b := make([]byte, 0, 16)
+	for a := 10032; a <= 10039; a++ {
+		for _, c := range []byte{byte(r[a] >> 8), byte(r[a])} {
+			if c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' {
+				b = append(b, c)
+			}
+		}
+	}
+	return string(b)
+}
+
+// sameRack обнуляет статистику, если стойка сменилась: другой серийник BMU
+// или счётчик циклов заметно упал (заменили модули при том же блоке BMU).
+func (c *cellStats) sameRack(serial string, cycles int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	same := serial == "" || c.Rack == serial
+	if c.Rack != "" && cycles+5 < c.Cycles {
+		same = false
+	}
+	if !same {
+		c.Since, c.Dsg, c.Chg, c.MinDsg, c.MaxChg = time.Now(), 0, 0, map[string]int{}, map[string]int{}
+		c.saved = time.Time{} // сохранить при следующей выборке
+	}
+	if serial != "" {
+		c.Rack = serial
+	}
+	c.Cycles = cycles
+	return same
+}

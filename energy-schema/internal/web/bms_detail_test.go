@@ -70,3 +70,25 @@ func TestPatchBMSTable(t *testing.T) {
 		}
 	}
 }
+
+func TestCellStatsRackChange(t *testing.T) {
+	c := loadCellStats(filepath.Join(t.TempDir(), "cs.json"))
+	c.add(20, "М1·№1", "М1·№2")
+	r := map[int]int{10032: 0x3330, 10033: 0x3034, 10034: 0x3031, 10035: 0x3030, 10036: 0x3743, 10037: 0x3332, 10038: 0x3030, 10039: 0x3733}
+	if got := rackSerial(r); got != "300401007C320073" {
+		t.Fatalf("serial %q", got)
+	}
+	if c.sameRack(rackSerial(r), 239) || c.Dsg != 0 {
+		t.Fatal("file without rack serial → reset once")
+	}
+	c.add(20, "М1·№1", "М1·№2")
+	if !c.sameRack(rackSerial(r), 240) || c.Dsg != 1 {
+		t.Fatal("same rack, cycles grow → keep")
+	}
+	if c.sameRack(rackSerial(r), 0) || c.Dsg != 0 {
+		t.Error("cycles dropped 240 → 0 (modules replaced) → reset")
+	}
+	if c.sameRack("OTHER", 0) {
+		t.Error("other BMU serial → reset")
+	}
+}

@@ -77,7 +77,7 @@ func (f *frame) flows() {
 	if avrStuck {
 		s.flow(cOrg, "on", 4, false, 660, 380, 717, 380)
 	} else {
-		s.flow(cGrn, map[bool]string{true: "on", false: "off"}[avrPos == "inverter"], 4, false, 660, 380, 717, 380)
+		s.flow(cGrn, map[bool]string{true: "on", false: "off"}[invToAvrOn(avrPos, f.load)], 4, false, 660, 380, 717, 380)
 	}
 	// АВР -> Дом
 	// АВР дома -> АВР ген. (вход 2) -> Дом; генератор -> АВР ген. (вход 1) напрямую,
@@ -104,4 +104,11 @@ func (f *frame) flows() {
 	s.flow(cGrn, genOn[genRun], 2, false, genTrunkX, 494, 508, 494, 508, 475)
 	s.flow(cGrn, genOn[genRun && a3 == "gen"], 2, false, genTrunkX, 494, genTrunkX, 475)
 	s.dot(genTrunkX, 494, 3.5, cSub)
+}
+
+// invToAvrOn — есть ли поток «Инвертор → АВР дома». Положение АВР может быть
+// неизвестно (нет связи RS-485), но выход нагрузки инвертора идёт только в АВР
+// дома: есть мощность на выходе (> 50 Вт) — есть и поток.
+func invToAvrOn(avrPos string, loadKW float64) bool {
+	return avrPos == "inverter" || avrPos != "reserve" && loadKW > 0.05
 }
