@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
 	"time"
 
 	"energy-schema/internal/config"
@@ -151,3 +152,14 @@ func (st chargeState) save(path string) {
 
 // battKWh — номинальная ёмкость стойки из инвертора и BMS (fallback — настройки аддона).
 func battKWh(s *Server) float64 { k, _ := scada.BattCapKWh(s.store, s.cfg.BattCap); return k }
+
+// noteBattRegs — ёмкость (102) и пороги SOC (115 отключение, 117 низкий) прямо
+// из прочитанных регистров в хранилище: схема видит их сразу, а не через
+// опрос настроек Solarman (раз в 5 мин). См. scada.InvBattAh и соседей.
+func (s *Server) noteBattRegs(r map[int]int) {
+	for reg, key := range map[int]string{102: scada.InvBattAh, 115: scada.InvShutdownSOC, 117: scada.InvLowSOC} {
+		if v, ok := r[reg]; ok && v > 0 {
+			s.store.SetVirtual(key, strconv.Itoa(v))
+		}
+	}
+}

@@ -179,16 +179,18 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	_ = s.client.SetState("sensor.energy_schema_charge_next_full", nf, map[string]any{"friendly_name": "Заряд: следующий 100 %",
 		"icon": "mdi:calendar-check", "last_full": st.LastFull.Format(time.RFC3339)})
-	// 108..128 одним чтением: фактические лимиты в инверторе и множитель каналов
+	// 102..130 одним чтением: ёмкость и пороги SOC (для схемы — свежее опроса
+	// Solarman раз в 5 мин), фактические лимиты в инверторе и множитель каналов
 	// («Parallel Bat&Bat2»=1 → ×2). Без известного множителя не пишем вовсе
 	// (иначе можно случайно дать вдвое больший ток).
-	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 108, 21)
+	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 102, 29)
 	if err == nil {
 		st.Factor = 1 + float64(regs[parallelReg]&1)
 		*lastMax = float64(regs[108]) // сверяемся с инвертором, а не с памятью
 		*lastGrid = float64(regs[128])
+		s.noteBattRegs(regs)
 	} else if st.Factor == 0 {
-		log.Println("charge: read 108..128:", err)
+		log.Println("charge: read 102..130:", err)
 		return
 	}
 	defer func() {

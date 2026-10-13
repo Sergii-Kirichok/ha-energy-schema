@@ -26,6 +26,7 @@ func (s *Server) readRaw() (map[int]int, float64, error) {
 			raw[k] = v
 		}
 	}
+	s.noteBattRegs(raw) // любое чтение страницы освежает ёмкость и пороги на схеме
 	return raw, 1 + float64(raw[parallelReg]&1), nil
 }
 

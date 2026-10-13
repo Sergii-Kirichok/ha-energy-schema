@@ -32,3 +32,16 @@ func TestInvToAvrOn(t *testing.T) {
 		}
 	}
 }
+
+func TestSocLimitsFreshFirst(t *testing.T) {
+	st := hass.NewStore()
+	st.ReplaceStates(map[string]string{"number.deye_sun_30k_battery_shutdown_soc": "20", "number.deye_sun_30k_battery_low_soc": "25"})
+	if sd, lo := socLimits(st); sd != 20 || lo != 25 {
+		t.Fatalf("solarman fallback: %v %v", sd, lo)
+	}
+	st.SetVirtual(InvShutdownSOC, "25")
+	st.SetVirtual(InvLowSOC, "30")
+	if sd, lo := socLimits(st); sd != 25 || lo != 30 {
+		t.Errorf("fresh registers must win: %v %v", sd, lo)
+	}
+}

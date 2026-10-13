@@ -42,13 +42,21 @@ func (f *frame) battery() {
 	// (красная капля) и минимум (голубая) заряда за 12 ч — выносками на самом гейдже.
 	bcx, bcy, br := 174.0, 606.0, 50.0
 	s.arc(bcx, bcy, br, 180, 0, "#23272f", 12)
+	// пороги из инвертора: ниже «отключения» — красный, ниже «низкого заряда» — оранжевый
+	cutoff, lowSOC := socLimits(st)
 	socCol := cGrn
-	if soc < 20 {
+	if soc <= cutoff {
 		socCol = cRed
-	} else if soc < 50 {
-		socCol = cAmb
+	} else if soc < lowSOC {
+		socCol = cOrg
 	}
 	s.arc(bcx, bcy, br, 180, gAng(soc, 100), socCol, 12)
+	// зоны — тонкой полосой по внутреннему краю (видны при любом заряде):
+	// 0…отключение — красная, отключение…низкий заряд — оранжевая
+	s.arc(bcx, bcy, br-8, 180, gAng(cutoff, 100), cRed, 4)
+	if lowSOC > cutoff {
+		s.arc(bcx, bcy, br-8, gAng(cutoff, 100), gAng(lowSOC, 100), cOrg, 4)
+	}
 	s.marker(bcx, bcy, br, gAng(soc, 100), 6)
 	if pkMax := st.Max12h(be); pkMax > 1 {
 		a := gAng(pkMax, 100)
@@ -86,13 +94,6 @@ func (f *frame) battery() {
 	}
 
 	// доступно сейчас: запас энергии до отключения + на сколько его хватит
-	cutoff := st.Num("number.deye_sun_30k_battery_shutdown_soc")
-	if cutoff <= 0 {
-		cutoff = st.Num("number.deye_sun_30k_battery_low_soc")
-	}
-	if cutoff <= 0 {
-		cutoff = 15
-	}
 	// ёмкость: паспортный номинал стойки (А·ч инвертора × модули BMS × 51,2 В,
 	// см. battcap.go) × деградацию (SOH). Оценка Solarman «Battery Capacity»
 	// и Ah×«живое» напряжение врут — не используем.
