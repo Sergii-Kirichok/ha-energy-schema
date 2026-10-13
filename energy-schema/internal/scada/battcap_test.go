@@ -54,3 +54,17 @@ func TestDimCol(t *testing.T) {
 		t.Errorf("bad input → track colour, got %s", got)
 	}
 }
+
+func TestChargeTarget(t *testing.T) {
+	st := hass.NewStore()
+	st.ReplaceStates(map[string]string{"input_number.energy_schema_charge_target_soc": "80",
+		"input_boolean.energy_schema_charge_auto": "on", "input_boolean.energy_schema_charge_full_now": "off"})
+	if got := chargeTarget(st); got != 80 {
+		t.Errorf("auto on, no full charge → night target, got %v", got)
+	}
+	st.ReplaceStates(map[string]string{"input_number.energy_schema_charge_target_soc": "80",
+		"input_boolean.energy_schema_charge_auto": "on", "input_boolean.energy_schema_charge_full_now": "on"})
+	if got := chargeTarget(st); got != 100 {
+		t.Errorf("full charge now → 100, got %v", got)
+	}
+}

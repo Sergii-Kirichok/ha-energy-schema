@@ -47,14 +47,18 @@ func (f *frame) battery() {
 	bcx, bcy, br := 174.0, 606.0, 50.0
 	// зоны в самой дуге (как у других гейджей): 0…отключение — красная,
 	// …низкий заряд — оранжевая, выше — зелёная; пороги из инвертора. До
-	// текущего заряда — ярко (заливка уровня), выше — те же цвета приглушённо.
+	// текущего заряда — ярко (заливка уровня), от него до цели — приглушённо.
 	cutoff, lowSOC := socLimits(st)
+	target := chargeTarget(st) // приглушённый хвост — только до цели заряда, дальше тёмная дорожка
+	s.arc(bcx, bcy, br, 180, 0, "#23272f", 12)
 	prev := 0.0
 	for _, b := range []band{{cutoff, cRed}, {lowSOC, cOrg}, {100, cGrn}} {
 		if b.thr > prev {
 			mid := math.Min(math.Max(soc, prev), b.thr)
 			s.arc(bcx, bcy, br, gAng(prev, 100), gAng(mid, 100), b.col, 12)
-			s.arc(bcx, bcy, br, gAng(mid, 100), gAng(b.thr, 100), dimCol(b.col), 12)
+			if end := math.Min(b.thr, target); end > mid {
+				s.arc(bcx, bcy, br, gAng(mid, 100), gAng(end, 100), dimCol(b.col), 12)
+			}
 		}
 		prev = math.Max(prev, b.thr)
 	}

@@ -50,3 +50,16 @@ func socLimits(st State) (shutdown, low float64) {
 	}
 	return
 }
+
+// chargeTarget — до какого SOC сейчас заряжаем: «Цель на ночь» регулятора;
+// 100 — если полный заряд (по кнопке или по сроку) или регулятор выключен.
+func chargeTarget(st State) float64 {
+	t := st.Num("input_number.energy_schema_charge_target_soc")
+	full := st.State("input_boolean.energy_schema_charge_full_now") == "on" ||
+		st.Attr("sensor.energy_schema_charge_setpoint", "full_due") == "true" ||
+		st.State("input_boolean.energy_schema_charge_auto") == "off"
+	if full || t <= 0 || t > 100 {
+		return 100
+	}
+	return t
+}
