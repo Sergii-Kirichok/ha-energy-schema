@@ -68,3 +68,19 @@ func TestChargeTarget(t *testing.T) {
 		t.Errorf("full charge now → 100, got %v", got)
 	}
 }
+
+func TestBattHours(t *testing.T) {
+	for _, c := range []struct {
+		h, load float64
+		want    string
+	}{
+		{5.5, 2, "≈ 5 ч 30 м"},
+		{47.75, 2, "≈ 47 ч 45 м"},
+		{52, 2, "≈ 2 д 4 ч"},
+		{99, 0.01, "≈ —"},
+	} {
+		if got := battHours(c.h, c.load); got != c.want {
+			t.Errorf("battHours(%v, %v) = %q, want %q", c.h, c.load, got, c.want)
+		}
+	}
+}

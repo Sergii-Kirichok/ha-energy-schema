@@ -1,5 +1,10 @@
 package scada
 
+import (
+	"fmt"
+	"math"
+)
+
 // Паспортная ёмкость стойки — из самого оборудования, а не ручного ввода:
 // А·ч — регистр 102 инвертора («Battery Capacity», задаётся при установке
 // стойки; страница инвертора), число модулей — BMS (рег. 10070, атрибут packs
@@ -72,4 +77,16 @@ func batterySOH(st State) float64 {
 		return st.Num("sensor.energy_schema_bms_soh")
 	}
 	return st.Num("sensor.deye_sun_30k_battery_soh")
+}
+
+// battHours — «Только от АКБ»: часы и минуты до 48 ч, дальше дни и часы;
+// «—», пока нагрузки практически нет.
+func battHours(h, loadKW float64) string {
+	if loadKW < 0.05 {
+		return "≈ —"
+	}
+	if h >= 48 {
+		return fmt.Sprintf("≈ %d д %d ч", int(h)/24, int(h)%24)
+	}
+	return fmt.Sprintf("≈ %d ч %02d м", int(h), int((h-math.Floor(h))*60))
 }

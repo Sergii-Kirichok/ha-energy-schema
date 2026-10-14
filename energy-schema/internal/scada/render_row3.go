@@ -147,14 +147,12 @@ func (f *frame) battery() {
 		batH = usableKWh / loadKW
 	}
 	autoH, aNote := simulateAutonomy(st, usableKWh, capKWh*(100-cutoff)/100, loadKW, pvKW, clearDay)
+	// прогноз ограничен горизонтом симуляции — 48 ч
 	hfmt := func(h float64) string {
-		if loadKW < 0.05 {
-			return "≈ —"
-		}
-		if h >= 48 {
+		if h >= 48 && loadKW >= 0.05 {
 			return "≈ 48 ч+"
 		}
-		return fmt.Sprintf("≈ %d ч %02d м", int(h), int((h-math.Floor(h))*60))
+		return battHours(h, loadKW)
 	}
 	rcol := cGrn
 	if usableKWh < capKWh*0.12 {
@@ -172,7 +170,7 @@ func (f *frame) battery() {
 			batCol = cRed
 		}
 	}
-	s.t(308, 716, 20, batCol, "end", hfmt(batH))
+	s.t(308, 716, 20, batCol, "end", battHours(batH, loadKW))
 	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
 	s.t(308, 742, 20, cGrn, "end", hfmt(autoH))
 	// откуда берётся прогноз генерации + детали симуляции
