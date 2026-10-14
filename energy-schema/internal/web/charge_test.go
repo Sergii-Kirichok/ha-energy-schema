@@ -29,6 +29,8 @@ func TestChargeSetpoint(t *testing.T) {
 		{"full due 92 -> full limit", func(c *chargeInput) { c.SOC = 92; c.FullDue = true }, 25, "full"},
 		{"full due 97 -> tail 6 A", func(c *chargeInput) { c.SOC = 97; c.FullDue = true }, 6, "full/tail"},
 		{"full due 100 -> hold 0", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 0, "full/hold"},
+		{"night, full due 96 -> tail, not night-ready", func(c *chargeInput) { c.SOC = 96; c.FullDue = true; c.Night = true }, 6, "full/tail"},
+		{"night, full done 100 -> night-ready", func(c *chargeInput) { c.SOC = 100; c.FullDue = true; c.Night = true }, 25, "night-ready"},
 		{"cells bad below 70% ignored", func(c *chargeInput) { c.SOC = 50; c.CellLevel = "bad" }, 25, "max"},
 		{"cells bad from 70% caps at 5", func(c *chargeInput) { c.SOC = 75; c.CellLevel = "bad" }, 5, "max/cells"},
 		{"cells bad, limit below cap untouched", func(c *chargeInput) { c.SOC = 75; c.MaxA = 4; c.CellLevel = "bad" }, 4, "max"},
