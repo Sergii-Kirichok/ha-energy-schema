@@ -23,6 +23,7 @@ h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;ga
 .row:first-of-type{border-top:0}.row .lbl{flex:1;color:var(--sub);font-size:13px}
 .row .val{min-width:62px;text-align:right;font-size:15px}
 .tag{font-size:11px;border-radius:9px;padding:2px 7px;color:var(--blu);border:1px solid #60a5fa55}
+.wn{color:var(--amb);cursor:help;font-size:14px}.twarn{color:var(--amb);font-size:13px;margin:8px 4px;line-height:1.5}
 .ii{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;border:1px solid var(--sub);border-radius:50%;font:11px/1 sans-serif;color:var(--sub);cursor:help;vertical-align:middle}
 .btn{width:30px;height:24px;border:1px solid var(--brd);background:transparent;color:var(--txt);border-radius:6px;cursor:pointer;font-size:14px}
 .btn:hover{border-color:var(--sub)}
@@ -104,6 +105,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <div class="card tou" id="touCard"><h2>Расписание (Time of Use)<span class="offnote">выключено — инвертор не применяет расписание</span><div class="days" id="days"></div></h2>
   <svg id="tl" viewBox="0 0 1360 150" width="100%" style="display:block"></svg>
   <div class="tblw"><table><thead><tr><th>#</th><th>Начало</th><th>Конец</th><th>Держать SOC не ниже</th><th>Заряд от</th></tr></thead><tbody id="slots"></tbody></table></div>
+  <div id="touwarn" class="twarn"></div>
   <div class="presets"><span class="note" style="align-self:center">Шаблоны:</span><button data-p="night">Ночь от сети до 30 %, день без сети</button><button data-p="none">Без заряда от сети</button><button data-p="gen">Резерв от генератора</button></div>
   <div class="foot"><span>▲ — сейчас</span><span><span class="dirtybox">рамка</span> изменено · <span class="okbox">рамка</span> записано и прочитано · <span class="badbox">рамка</span> в инверторе другое значение</span></div>
  </div>
@@ -163,6 +165,15 @@ document.addEventListener('pointermove',function(e){if(!drag)return;var b=drag.b
 document.addEventListener('pointerup',function(){drag=null});
 // ---- расписание ----
 function sk(i,f){return 'slot'+(i+1)+'_'+f}
+// ⚠ слоты ToU с зарядом от сети, которые при текущих токах не успевают: худший
+// случай — солнца нет, батарея на уровне предыдущего слота; ток = меньшее из
+// «Ток заряда от сети» и «Макс. ток заряда», напряжение — номинал стойки
+var TW=[];
+function touWarn(T){var w=[],cap=V.batt_ah*PK*51.2/1000,vn=PK*51.2,a=Math.min(V.grid_charge_a,V.max_charge_a),kw=a*vn/1000;if(!cap||!vn)return w;
+ for(var i=0;i<6;i++){var src=V[sk(i,"src")];if(src!==1&&src!==3)continue;var soc=V[sk(i,"soc")],prev=V[sk((i+5)%6,"soc")],need=(soc-prev)/100*cap;if(need<=0)continue;
+  var dur=((T[(i+1)%6]-T[i])%1440+1440)%1440/60||24,h=kw>0?need/kw:Infinity;if(h<=dur)continue;
+  var req=Math.ceil(need*1000/(vn*dur));w[i]="Слот "+(i+1)+": с "+prev+" до "+soc+" % от сети при "+a+" А нужно ≈ "+(isFinite(h)?h.toFixed(1):"∞")+" ч, а слот длится "+dur.toFixed(1)+" ч — нужно ≈ "+req+" А «Ток заряда от сети»"+(req>V.max_charge_a?" и «Макс. ток заряда»":"")}
+ return w}
 function draw(){var X=40,W=1300,s='',now=new Date().getHours()*60+new Date().getMinutes(),T=[0,1,2,3,4,5].map(function(i){return V[sk(i,'time')]});if(T[0]===undefined)return;
  var ci=5;T.forEach(function(t,i){if(t<=now)ci=i});
  for(var h=0;h<=24;h+=3){var x=X+W*h/24;s+='<line x1="'+x+'" y1="18" x2="'+x+'" y2="118" stroke="#23272f"/><text x="'+x+'" y="140" fill="#9aa1ad" font-size="12" text-anchor="middle">'+String(h).padStart(2,'0')+':00</text>'}
@@ -171,8 +182,8 @@ function draw(){var X=40,W=1300,s='',now=new Date().getHours()*60+new Date().get
   s+='<rect x="'+x1+'" y="'+y+'" width="'+Math.max(0,x2-x1)+'" height="'+soc+'" fill="'+COLS[src]+'" fill-opacity="'+(j===ci?.32:.14)+'"/>';pts+=x1+','+y+' '+x2+','+y+' ';
   if(e-a>=90&&k>=0)s+='<text x="'+((x1+x2)/2)+'" y="'+(y-6)+'" fill="'+COLS[src]+'" font-size="12" text-anchor="middle">'+(k+1)+' · '+soc+'% · '+NAMES[src]+'</text>'}
  var nx=X+W*now/1440;s+='<polyline points="'+pts+'" fill="none" stroke="#e5e7eb" stroke-width="1.5"/><line x1="'+nx+'" y1="14" x2="'+nx+'" y2="118" stroke="#22c55e" stroke-width="2"/><polygon points="'+(nx-6)+',10 '+(nx+6)+',10 '+nx+',18" fill="#22c55e"/>';
- $('#tl').innerHTML=s;var tb='';
- for(var i=0;i<6;i++){tb+='<tr data-i="'+i+'" class="'+(i===ci?'cur':'')+'"><td>'+(i+1)+'</td><td><div class="cell"><button class="btn" data-a="t-">−</button><span class="v">'+hm(T[i])+'</span><button class="btn" data-a="t+">+</button></div></td><td style="color:#9ca3af">'+hm(i<5?T[i+1]:T[0])+'</td>'+
+ $('#tl').innerHTML=s;var tb='';TW=touWarn(T);var gw=TW.filter(Boolean);$('#touwarn').innerHTML=gw.map(function(m){return '<div>⚠ '+m+'</div>'}).join('');var gl=$('.row[data-k="grid_charge_a"] .lbl'),ow=gl&&gl.querySelector('.wn');if(ow)ow.remove();if(gl&&gw.length){var sp=document.createElement('span');sp.className='wn';sp.textContent=' ⚠';sp.title='Не хватает для ToU: '+gw.join('; ');gl.appendChild(sp)}
+ for(var i=0;i<6;i++){tb+='<tr data-i="'+i+'" class="'+(i===ci?'cur':'')+'"><td>'+(i+1)+(TW[i]?' <span class="wn" title="'+TW[i]+'">⚠</span>':'')+'</td><td><div class="cell"><button class="btn" data-a="t-">−</button><span class="v">'+hm(T[i])+'</span><button class="btn" data-a="t+">+</button></div></td><td style="color:#9ca3af">'+hm(i<5?T[i+1]:T[0])+'</td>'+
   '<td><div class="cell"><button class="btn" data-a="s-">−</button><span class="v">'+V[sk(i,'soc')]+' %</span><button class="btn" data-a="s+">+</button></div></td><td class="src">'+
   NAMES.map(function(n,j){return '<button class="s-'+['none','grid','gen','both'][j]+(V[sk(i,'src')]===j?' on':'')+'" data-a="c'+j+'">'+n+'</button>'}).join('')+'</td></tr>'}
  $('#slots').innerHTML=tb;$$('#slots tr').forEach(function(tr){var i=+tr.dataset.i;mark(tr,[sk(i,'time'),sk(i,'soc'),sk(i,'src')])})}
@@ -202,6 +213,7 @@ $('#save').onclick=function(){var ks=changed();if(!ks.length)return;var vals={};
    b.disabled=!changed().length})
  .catch(function(e){busy=false;phase(b,'s-bad','✕ Ошибка');b.disabled=false;alert('Не сохранено: '+e)})};
 reread();
+document.addEventListener("click",function(e){if(e.target.classList&&e.target.classList.contains("wn"))alert(e.target.title)});
 // ---- подсказки ⓘ: наведение — всплывающая, нажатие — окно (телефон/ТВ) ----
 var TIPS={
 "Режим":"Продажа в сеть — излишек отдаётся в сеть. Ноль в нагрузку — в сеть не отдаётся больше, чем потребляет нагрузка на выходе инвертора. Ноль по CT — то же по трансформатору тока на вводе (учёт всего дома).",
