@@ -43,6 +43,10 @@ func patchBMSCards(node any) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// есть блок выбора периода — «Ячейки» живут в нём (один переключатель на все графики)
+	if len(periodStacks(node)) > 0 {
+		return patchPeriodCharts(node) || a, nil
+	}
 	b, err := appendCardOnce(node, findChart(node) != nil, dashBMSChart)
 	if err != nil {
 		return a || b, err
