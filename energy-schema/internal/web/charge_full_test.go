@@ -4,6 +4,7 @@ import (
 	"math"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPlanFull(t *testing.T) {
@@ -54,5 +55,30 @@ func TestTouOffAndRestore(t *testing.T) {
 	}
 	if loadChargeState(chargeFile).TouWas != nil {
 		t.Error("restored state must be persisted")
+	}
+}
+
+// Решение «ToU выкл» по прогнозу ждёт touSettle — моргание сети не пишет 146.
+func TestFullChargeTouSettle(t *testing.T) {
+	prev, prevS := chargeFile, touSettle
+	chargeFile = filepath.Join(t.TempDir(), "charge.json")
+	t.Cleanup(func() { chargeFile, touSettle = prev, prevS })
+	s, f := tickSetup(t, map[string]string{"binary_sensor.deye_sun_30k_grid": "on", gridChargeSwitch: "on",
+		"sun.sun": "below_horizon", "sensor.deye_sun_30k_battery_voltage": "640"}, map[int]int{146: 255})
+	s.cfg.BattCap = 60 // ёмкость из настроек (инвертор и BMS в тесте не прочитаны)
+	st := recentState()
+	touSettle = time.Hour
+	s.fullCharge(&st, true, 96, 10, 8) // ночь, солнца нет → нужна сеть, но ещё не подтверждено
+	if n := len(f.find("/services/solarman/write_multiple_holding_registers")); n != 0 || st.TouWas != nil {
+		t.Fatalf("must wait touSettle, writes=%d", n)
+	}
+	touSettle = 0
+	s.fullCharge(&st, true, 96, 10, 8)
+	if n := len(f.find("/services/solarman/write_multiple_holding_registers")); n != 1 || st.TouWas == nil {
+		t.Fatalf("after settle ToU must go off, writes=%d", n)
+	}
+	s.fullCharge(&st, false, 100, 10, 8) // полный заряд закончен — возврат сразу
+	if n := len(f.find("/services/solarman/write_multiple_holding_registers")); n != 2 || st.TouWas != nil {
+		t.Errorf("restore at the end must be immediate, writes=%d", n)
 	}
 }

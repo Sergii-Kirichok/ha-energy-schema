@@ -19,6 +19,9 @@ const chargeFullPlan = "sensor.energy_schema_charge_full_plan"
 // chargeFile — состояние регулятора (переменная: тесты пишут во временный каталог).
 var chargeFile = "/data/charge.json"
 
+// touSettle — сколько держаться новому решению «ToU выкл/вкл», прежде чем писать 146.
+var touSettle = 5 * time.Minute
+
 type fullIn struct {
 	NeedKWh, BulkKWh                                 float64 // всего до 100 % и из них до порога хвоста
 	SolarLeftKWh, AvgLoadKW, HoursSun, HoursMidnight float64
@@ -122,6 +125,17 @@ func (s *Server) fullCharge(st *chargeState, fullDue bool, soc, maxA, gridA floa
 	}
 	_ = s.client.SetState(chargeFullPlan, text, map[string]any{"friendly_name": "Заряд: полный до 100 %",
 		"icon": "mdi:battery-clock", "grid": p.UseGrid, "short": p.Short})
+	// ToU переключаем, только если нужное состояние держится touSettle: моргание
+	// сети или колебание прогноза не должны дёргать регистр 146 туда-обратно
+	if p.UseGrid != (st.TouWas != nil) {
+		if st.touWant != p.UseGrid || st.touSince.IsZero() {
+			st.touWant, st.touSince = p.UseGrid, now
+		}
+		if now.Sub(st.touSince) < touSettle {
+			return
+		}
+	}
+	st.touSince = time.Time{}
 	if p.UseGrid {
 		s.touPatchNow(st, now)
 	} else {

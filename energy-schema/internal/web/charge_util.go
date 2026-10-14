@@ -98,8 +98,10 @@ type chargeState struct {
 	Night       bool      `json:"-"`                 // ночной режим (гистерезис по генерации)
 	Holding     bool      `json:"holding"`           // удержание у цели (гистерезис holdHyst)
 	TouWas      *int      `json:"tou_was,omitempty"` // рег. 146 до выключения ToU на время полного заряда от сети
-	LastMode    string    `json:"-"`                 // режим прошлого тика (смена день/ночь — запись сразу)
-	Wrote108    time.Time `json:"-"`                 // последняя запись регистра 108
+	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
+	touSince    time.Time // …с этого момента
+	LastMode    string    `json:"-"` // режим прошлого тика (смена день/ночь — запись сразу)
+	Wrote108    time.Time `json:"-"` // последняя запись регистра 108
 	seen        map[string]float64
 	seenAt      map[string]time.Time
 }
