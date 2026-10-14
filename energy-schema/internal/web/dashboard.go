@@ -15,8 +15,7 @@ const dashAnchorEntity = "sensor.deye_sun_30k_battery_soh"
 
 var dashBMSRows = []map[string]any{
 	{"entity": bmsSOHEntity, "name": "Здоровье (SOH)"},
-	{"entity": "sensor.energy_schema_bms_cell_max", "name": "Ячейка макс"},
-	{"entity": "sensor.energy_schema_bms_cell_min", "name": "Ячейка мин"},
+	{"entity": bmsCells, "name": "Ячейки мин / макс"},
 	{"entity": "sensor.energy_schema_bms_cell_delta", "name": "Разбег ячеек"},
 	{"entity": "sensor.energy_schema_bms_balance", "name": "Баланс ячеек"},
 	{"entity": "sensor.energy_schema_bms_cycles", "name": "Циклы (BMS)"},
@@ -148,14 +147,20 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: decode: %v", urlPath, err)
 		return
 	}
+	mm, _ := patchMinMax(cfg) // первым: иначе карточка АКБ получит сводную строку дважды
 	changed, err := patchBatteryCard(cfg)
 	if err != nil {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
 	}
-	for name, patch := range map[string]func(any) (bool, error){"charge card": patchChargeCard, "delta cleanup": patchDeltaCleanup, "grid rows": patchGridRows, "bms table": patchBMSTable, "bms cards": patchBMSCards, "flow battery": patchFlowBattery} {
-		if c2, err := patch(cfg); err != nil {
-			log.Printf("dashboard %s: %s: %v", urlPath, name, err)
+	changed = changed || mm
+	for _, p := range []struct {
+		name  string
+		patch func(any) (bool, error)
+	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows},
+		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}} {
+		if c2, err := p.patch(cfg); err != nil {
+			log.Printf("dashboard %s: %s: %v", urlPath, p.name, err)
 		} else {
 			changed = changed || c2
 		}
@@ -168,7 +173,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: save: %v", urlPath, err)
 		return
 	}
-	log.Printf("dashboard %s: battery card extended with %d BMS rows", urlPath, len(dashBMSRows))
+	log.Printf("dashboard %s: updated", urlPath)
 }
 
 // patchBatteryCard walks the decoded dashboard JSON, finds the first entities

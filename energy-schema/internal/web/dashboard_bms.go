@@ -8,14 +8,11 @@ const dashBMSMarker = "sensor.energy_schema_bms_weak_cell"
 var dashBMSDetailCard = map[string]any{
 	"type": "entities", "title": "BMS · стойка (12 модулей)", "show_header_toggle": false,
 	"entities": []any{
-		map[string]any{"entity": "sensor.energy_schema_bms_cell_max", "name": "Ячейка макс"},
-		map[string]any{"entity": "sensor.energy_schema_bms_cell_max_loc", "name": "… модуль · ячейка"},
-		map[string]any{"entity": "sensor.energy_schema_bms_cell_min", "name": "Ячейка мин"},
-		map[string]any{"entity": "sensor.energy_schema_bms_cell_min_loc", "name": "… модуль · ячейка"},
+		map[string]any{"entity": bmsCells, "name": "Ячейки мин / макс"},
+		map[string]any{"entity": bmsCellsLoc, "name": "… где (модуль·ячейка)"},
 		map[string]any{"entity": "sensor.energy_schema_bms_cell_delta", "name": "Разбег ячеек"},
 		map[string]any{"entity": dashBMSMarker, "name": "Слабая ячейка (статистика)"},
-		map[string]any{"entity": "sensor.energy_schema_bms_temp_max", "name": "Темп. ячеек макс"},
-		map[string]any{"entity": "sensor.energy_schema_bms_temp_min", "name": "Темп. ячеек мин"},
+		map[string]any{"entity": bmsTemps, "name": "Темп. ячеек мин / макс"},
 		map[string]any{"entity": "sensor.energy_schema_bms_limits", "name": "Лимиты BMS заряд / разряд"},
 		map[string]any{"entity": "sensor.energy_schema_bms_overcharge", "name": "Перезарядов за жизнь"},
 		map[string]any{"entity": "sensor.energy_schema_bms_insulation", "name": "Изоляция"},
@@ -138,4 +135,68 @@ var dashBMSTable = map[string]any{
 
 func patchBMSTable(node any) (bool, error) {
 	return appendCardOnce(node, findMarkdownWith(node, dashBMSTableKey) != nil, dashBMSTable)
+}
+
+// minMaxPairs — пары строк «мин» и «макс» → одна сводная строка (0.6.29).
+var minMaxPairs = []struct {
+	old    []string
+	entity string
+	name   string
+}{
+	{[]string{"sensor.energy_schema_bms_cell_min", "sensor.energy_schema_bms_cell_max"}, bmsCells, "Ячейки мин / макс"},
+	{[]string{"sensor.energy_schema_bms_cell_min_loc", "sensor.energy_schema_bms_cell_max_loc"}, bmsCellsLoc, "… где (модуль·ячейка)"},
+	{[]string{"sensor.energy_schema_bms_temp_min", "sensor.energy_schema_bms_temp_max"}, bmsTemps, "Темп. ячеек мин / макс"},
+}
+
+// patchMinMax — в карточках entities пара строк мин/макс заменяется одной
+// сводной на месте первой из пары; если сводная уже есть — пара просто уходит.
+func patchMinMax(node any) (bool, error) {
+	changed := false
+	var walk func(any)
+	walk = func(n any) {
+		switch v := n.(type) {
+		case map[string]any:
+			if ents, ok := v["entities"].([]any); ok && v["type"] == "entities" {
+				if out, ch := mergeMinMax(ents); ch {
+					v["entities"], changed = out, true
+				}
+			}
+			for _, c := range v {
+				walk(c)
+			}
+		case []any:
+			for _, c := range v {
+				walk(c)
+			}
+		}
+	}
+	walk(node)
+	return changed, nil
+}
+
+func mergeMinMax(ents []any) ([]any, bool) {
+	have := map[string]bool{}
+	for _, e := range ents {
+		have[entityID(e)] = true
+	}
+	out, changed := make([]any, 0, len(ents)), false
+	for _, e := range ents {
+		id, drop := entityID(e), false
+		for _, p := range minMaxPairs {
+			for _, o := range p.old {
+				if id != o {
+					continue
+				}
+				drop, changed = true, true
+				if !have[p.entity] {
+					out = append(out, map[string]any{"entity": p.entity, "name": p.name})
+					have[p.entity] = true
+				}
+			}
+		}
+		if !drop {
+			out = append(out, e)
+		}
+	}
+	return out, changed
 }

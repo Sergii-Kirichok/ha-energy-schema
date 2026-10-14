@@ -38,8 +38,8 @@ func TestPublishDetail(t *testing.T) {
 	if err := s.publishDetail(detailRegs()); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.calls) != 8 {
-		t.Errorf("want 8 sensors, got %d", len(f.calls))
+	if len(f.calls) != 11 {
+		t.Errorf("want 11 sensors, got %d", len(f.calls))
 	}
 	for id, want := range map[string]string{
 		"sensor.energy_schema_bms_cell_max_loc": "М4·№1",

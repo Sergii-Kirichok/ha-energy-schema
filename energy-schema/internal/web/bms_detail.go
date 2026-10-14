@@ -32,7 +32,10 @@ const (
 	bmsDetailFrom = 10057
 	bmsDetailTo   = 10095
 	cellStatsFile = "/data/cellstats.json"
-	statLoadA     = 5.0 // учитываем только под нагрузкой: |I| > 5 А
+	statLoadA     = 5.0                                  // учитываем только под нагрузкой: |I| > 5 А
+	bmsCells      = "sensor.energy_schema_bms_cells"     // «3.349 / 3.376 В»
+	bmsCellsLoc   = "sensor.energy_schema_bms_cells_loc" // «М6·№5 / М9·№9»
+	bmsTemps      = "sensor.energy_schema_bms_temps"     // «17 / 19 °C»
 )
 
 func tempC(raw int) float64 { return float64(raw - 40) }
@@ -152,6 +155,13 @@ func (s *Server) publishDetail(r map[int]int) error {
 			map[string]any{"friendly_name": "Лимиты BMS заряд / разряд", "icon": "mdi:current-dc", "packs": r[regPacks],
 				"charge_a": float64(r[regChgLimit]) / 10, "discharge_a": float64(r[regDsgLimit]) / 10}},
 		{"sensor.energy_schema_bms_weak_cell", weak, wattrs},
+		// мин / макс одной строкой (дашборд): напряжения, где они, температуры
+		{bmsCells, fmt.Sprintf("%.3f / %.3f В", float64(r[regCellMin])/1000, float64(r[regCellMax])/1000),
+			map[string]any{"friendly_name": "Ячейки мин / макс", "icon": "mdi:battery-arrow-up-outline"}},
+		{bmsCellsLoc, minLoc + " / " + maxLoc, map[string]any{"friendly_name": "Ячейки мин / макс — где", "icon": "mdi:map-marker"}},
+		{bmsTemps, fmt.Sprintf("%.0f / %.0f °C", tempC(r[regTempMin]), tempC(r[regTempMax])),
+			map[string]any{"friendly_name": "Темп. ячеек мин / макс", "icon": "mdi:thermometer",
+				"where": cellLoc(r[regTempMinMod], r[regTempMinN]) + " / " + cellLoc(r[regTempMaxMod], r[regTempMaxN])}},
 	}
 	for _, p := range pubs {
 		if err := s.client.SetState(p.id, p.state, p.attrs); err != nil {

@@ -27,7 +27,7 @@ func TestPatchBatteryCard(t *testing.T) {
 	if len(ents) != 2+len(dashBMSRows) {
 		t.Fatalf("len = %d", len(ents))
 	}
-	if entityID(ents[1]) != bmsSOHEntity || entityID(ents[2]) != "sensor.energy_schema_bms_cell_max" || entityID(ents[len(ents)-1]) != "sensor.deye_sun_30k_battery_voltage" {
+	if entityID(ents[1]) != bmsSOHEntity || entityID(ents[2]) != bmsCells || entityID(ents[len(ents)-1]) != "sensor.deye_sun_30k_battery_voltage" {
 		t.Errorf("order wrong: %v", ents)
 	}
 	for _, e := range ents {
@@ -82,6 +82,7 @@ func TestPatchBatteryCardDedupesSOH(t *testing.T) {
 	  {"entity":"sensor.energy_schema_bms_cycles"}]}]}]}`
 	var cfg any
 	_ = json.Unmarshal([]byte(src), &cfg)
+	_, _ = patchMinMax(cfg) // как в ensureDashboard: сначала пары мин/макс
 	changed, err := patchBatteryCard(cfg)
 	if err != nil || !changed {
 		t.Fatalf("changed=%v err=%v", changed, err)
@@ -93,7 +94,7 @@ func TestPatchBatteryCardDedupesSOH(t *testing.T) {
 			n++
 		}
 	}
-	if n != 1 || len(ents) != 7 {
+	if n != 1 || len(ents) != 6 {
 		t.Errorf("soh rows = %d, len = %d: %v", n, len(ents), ents)
 	}
 	if changed, _ := patchBatteryCard(cfg); changed {
@@ -246,6 +247,32 @@ func TestPatchChargeCardReplacesNoGridDayRow(t *testing.T) {
 		t.Errorf("row not replaced exactly once: %s", b)
 	}
 	if changed, _ := patchChargeCard(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+}
+
+func TestPatchMinMax(t *testing.T) {
+	src := `{"views":[{"cards":[{"type":"entities","entities":[
+	  {"entity":"sensor.energy_schema_bms_cell_max"},{"entity":"sensor.energy_schema_bms_cell_max_loc"},
+	  {"entity":"sensor.energy_schema_bms_cell_min"},{"entity":"sensor.energy_schema_bms_cell_min_loc"},
+	  {"entity":"sensor.energy_schema_bms_cell_delta"},
+	  {"entity":"sensor.energy_schema_bms_temp_max"},{"entity":"sensor.energy_schema_bms_temp_min"}]}]}]}`
+	var cfg any
+	_ = json.Unmarshal([]byte(src), &cfg)
+	if ch, _ := patchMinMax(cfg); !ch {
+		t.Fatal("must merge")
+	}
+	ents := findCardWith(cfg, bmsCells)["entities"].([]any)
+	want := []string{bmsCells, bmsCellsLoc, "sensor.energy_schema_bms_cell_delta", bmsTemps}
+	if len(ents) != len(want) {
+		t.Fatalf("rows = %v", ents)
+	}
+	for i, w := range want {
+		if entityID(ents[i]) != w {
+			t.Errorf("row %d = %s, want %s", i, entityID(ents[i]), w)
+		}
+	}
+	if ch, _ := patchMinMax(cfg); ch {
 		t.Error("second run must be a no-op")
 	}
 }
