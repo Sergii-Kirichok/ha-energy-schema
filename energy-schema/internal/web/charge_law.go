@@ -51,7 +51,12 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 	case in.SOC < target:
 		a, mode = in.MaxA, "max"
 	case in.FullDue && in.SOC < 100:
-		a, mode = chargeMinA, "full/trickle"
+		// до порога хвоста — «Общим лимитом», последние проценты — малым током
+		// (мягкий подход к колену LiFePO4, BMS успевает выровнять ячейки)
+		a, mode = in.MaxA, "full"
+		if t := in.Tune.FullTailSOC; t > 0 && in.SOC >= t {
+			a, mode = math.Min(in.MaxA, math.Max(chargeMinA, in.Tune.FullTailA)), "full/tail"
+		}
 	default:
 		hold()
 	}

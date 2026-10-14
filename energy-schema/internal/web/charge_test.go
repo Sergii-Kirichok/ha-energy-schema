@@ -24,9 +24,10 @@ func TestChargeSetpoint(t *testing.T) {
 		{"holding at 89 -> stay on hold", func(c *chargeInput) { c.SOC = 89; c.Holding = true }, 0, "night/hold"},
 		{"holding at 88 (target-2) -> stay on hold", func(c *chargeInput) { c.SOC = 88; c.Holding = true }, 0, "night/hold"},
 		{"holding below hysteresis -> full again", func(c *chargeInput) { c.SOC = 87; c.Holding = true }, 25, "max"},
-		{"holding but full due -> trickle", func(c *chargeInput) { c.SOC = 95; c.Holding = true; c.FullDue = true }, 1, "full/trickle"},
+		{"holding but full due -> tail from 95", func(c *chargeInput) { c.SOC = 95; c.Holding = true; c.FullDue = true }, 6, "full/tail"},
 		{"full due 85 -> full limit", func(c *chargeInput) { c.SOC = 85; c.FullDue = true }, 25, "max"},
-		{"full due 90..99 -> trickle 1A", func(c *chargeInput) { c.SOC = 95; c.FullDue = true }, 1, "full/trickle"},
+		{"full due 92 -> full limit", func(c *chargeInput) { c.SOC = 92; c.FullDue = true }, 25, "full"},
+		{"full due 97 -> tail 6 A", func(c *chargeInput) { c.SOC = 97; c.FullDue = true }, 6, "full/tail"},
 		{"full due 100 -> hold 0", func(c *chargeInput) { c.SOC = 100; c.FullDue = true }, 0, "full/hold"},
 		{"cells bad below 70% ignored", func(c *chargeInput) { c.SOC = 50; c.CellLevel = "bad" }, 25, "max"},
 		{"cells bad from 70% caps at 5", func(c *chargeInput) { c.SOC = 75; c.CellLevel = "bad" }, 5, "max/cells"},
@@ -74,8 +75,8 @@ func TestHoldWritesZero(t *testing.T) {
 		t.Error("regValue(0) must pass 0 through")
 	}
 	in.FullDue = true
-	if a, _ := chargeSetpoint(in); a != 1 {
-		t.Errorf("full trickle must stay 1 A, got %.0f", a)
+	if a, _ := chargeSetpoint(in); a != in.MaxA {
+		t.Errorf("full charge goes with the total limit, got %.0f", a)
 	}
 }
 

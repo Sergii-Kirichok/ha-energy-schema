@@ -90,15 +90,16 @@ func driftMargin(floorA, battV, hoursLeft, capKWh float64) float64 {
 
 type chargeState struct {
 	LastFull    time.Time `json:"last_full"`
-	Factor      float64   `json:"-"`            // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
-	ZeroBroken  bool      `json:"zero_broken"`  // проверено: Deye не останавливает заряд по 108=0
-	ZeroFloorA  float64   `json:"zero_floor_a"` // остаточный ток заряда при 108=0 (измерен), А
-	ZeroChecked bool      `json:"zero_checked"` // остаток измерен самопроверкой
-	ZeroSince   time.Time `json:"-"`            // когда записали 0 (для самопроверки)
-	Night       bool      `json:"-"`            // ночной режим (гистерезис по генерации)
-	Holding     bool      `json:"holding"`      // удержание у цели (гистерезис holdHyst)
-	LastMode    string    `json:"-"`            // режим прошлого тика (смена день/ночь — запись сразу)
-	Wrote108    time.Time `json:"-"`            // последняя запись регистра 108
+	Factor      float64   `json:"-"`                 // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	ZeroBroken  bool      `json:"zero_broken"`       // проверено: Deye не останавливает заряд по 108=0
+	ZeroFloorA  float64   `json:"zero_floor_a"`      // остаточный ток заряда при 108=0 (измерен), А
+	ZeroChecked bool      `json:"zero_checked"`      // остаток измерен самопроверкой
+	ZeroSince   time.Time `json:"-"`                 // когда записали 0 (для самопроверки)
+	Night       bool      `json:"-"`                 // ночной режим (гистерезис по генерации)
+	Holding     bool      `json:"holding"`           // удержание у цели (гистерезис holdHyst)
+	TouWas      *int      `json:"tou_was,omitempty"` // рег. 146 до выключения ToU на время полного заряда от сети
+	LastMode    string    `json:"-"`                 // режим прошлого тика (смена день/ночь — запись сразу)
+	Wrote108    time.Time `json:"-"`                 // последняя запись регистра 108
 	seen        map[string]float64
 	seenAt      map[string]time.Time
 }

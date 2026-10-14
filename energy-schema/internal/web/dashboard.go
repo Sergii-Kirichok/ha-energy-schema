@@ -46,6 +46,7 @@ var dashChargeCard = map[string]any{
 		map[string]any{"entity": chargePending, "name": "Изменения"},
 		map[string]any{"entity": chargeApplyBt, "name": "Применить изменения"},
 		map[string]any{"entity": "input_boolean.energy_schema_charge_full_now", "name": "Полный заряд сейчас"},
+		map[string]any{"entity": chargeFullPlan, "name": "Полный заряд: прогноз"},
 		map[string]any{"entity": gridChargeSwitch, "name": "Заряд от сети (вручную)"},
 		map[string]any{"entity": "sensor.energy_schema_charge_next_full", "name": "Следующий 100 %"},
 	},

@@ -174,12 +174,12 @@ func TestChargeTickNoWriteWhenInverterMatches(t *testing.T) {
 	}
 }
 
-func TestChargeTickFullNowTrickle(t *testing.T) {
+func TestChargeTickFullNow(t *testing.T) {
 	s, f := tickSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "95", chargeFullNowEntity: "on"}, nil)
 	st := recentState()
 	runTick(s, &st)
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 1)
-	if _, a, _ := f.state("sensor.energy_schema_charge_setpoint"); a["mode"] != "full/trickle" || a["full_due"] != true {
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 3) // SOC 95 ≥ порога хвоста: 6 А / 2 канала
+	if _, a, _ := f.state("sensor.energy_schema_charge_setpoint"); a["mode"] != "full/tail" || a["full_due"] != true {
 		t.Errorf("attrs = %v", a)
 	}
 	if len(f.find("/services/input_boolean/turn_off")) != 0 {

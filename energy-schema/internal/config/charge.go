@@ -13,13 +13,15 @@ type ChargeTuning struct {
 	DayAboveW    float64 // PV выше — снова дневная логика, Вт
 	CellCapA     float64 // при разбалансе ячеек ток не выше, А
 	CellCapSOC   float64 // …начиная с этого SOC, %
+	FullTailSOC  float64 // полный заряд: с этого SOC — ток хвоста, %
+	FullTailA    float64 // полный заряд: ток хвоста (факт), А
 	ZeroOnTarget bool    // на цели на ночь писать 0 (стоп заряда), иначе 1
 }
 
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
 func DefaultCharge() ChargeTuning {
 	return ChargeTuning{MaxALimit: 30, GridALimit: 15, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
-		CellCapA: 5, CellCapSOC: 70, ZeroOnTarget: true}
+		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true}
 }
 
 // chargeOptions — зеркало необязательных опций config.yaml (nil/0 = по умолчанию).
@@ -31,6 +33,8 @@ type chargeOptions struct {
 	DayAboveW    float64 `json:"charge_day_above_w"`
 	CellCapA     float64 `json:"charge_cell_cap_a"`
 	CellCapSOC   float64 `json:"charge_cell_cap_soc"`
+	FullTailSOC  float64 `json:"charge_full_tail_soc"`
+	FullTailA    float64 `json:"charge_full_tail_a"`
 	ZeroOnTarget *bool   `json:"charge_zero_on_target"`
 }
 
@@ -41,6 +45,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 	}{
 		{&t.MaxALimit, o.MaxALimit}, {&t.GridALimit, o.GridALimit}, {&t.FullDaysMax, o.FullDaysMax},
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
+		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
 	} {
 		if p.v > 0 {
 			*p.dst = p.v

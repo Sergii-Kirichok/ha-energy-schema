@@ -81,6 +81,8 @@ schema:
   charge_day_above_w: int(0,20000)?
   charge_cell_cap_a: float(1,185)?
   charge_cell_cap_soc: int(0,100)?
+  charge_full_tail_soc: int(50,100)?
+  charge_full_tail_a: float(1,185)?
   charge_zero_on_target: bool?
   control_users:
     - str?

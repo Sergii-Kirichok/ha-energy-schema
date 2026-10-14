@@ -24,7 +24,6 @@ const (
 	// «Заряд от сети» (рег. 130) — только вручную (страница инвертора, дашборд);
 	// заряжать ли от сети по времени суток решает расписание Time of Use инвертора
 	gridChargeSwitch     = "switch.deye_sun_30k_battery_grid_charging"
-	chargeFile           = "/data/charge.json"
 	chargeMinA           = 1.0
 	chargeZeroFloorGuess = 1.0             // остаток при 108=0 до первого измерения, А
 	chargeWatchEvery     = 2 * time.Second // проверка отпечатка входов (из опроса HA, без Modbus)
@@ -78,7 +77,7 @@ func (s *Server) ensureChargeHelpers() {
 		if ch, err := s.client.EnsureNumberMode(h, cur); err != nil {
 			log.Printf("charge: %v", err)
 		} else if ch {
-			log.Printf("charge: input_number.%s → slider %g..%g", h.ID, h.Min, h.Max)
+			log.Printf("charge: input_number.%s → box %g..%g", h.ID, h.Min, h.Max)
 		}
 	}
 }
@@ -211,6 +210,11 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto, st.ZeroFloorA, in.TargetSOC)
 	}()
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
+	if auto {
+		s.fullCharge(st, fullDue, soc, in.MaxA, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
+	} else {
+		s.touRestore(st) // ручной режим: ToU — как было
+	}
 	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
 	// самопроверка «0 = стоп»: не документировано, что Deye трактует 0 именно
 	// так. Если после записи 0 заряд не прекратился — откат на 1 и запоминаем.

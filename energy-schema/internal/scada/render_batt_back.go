@@ -59,6 +59,10 @@ func (f *frame) batteryBack() {
 		sp = fmt.Sprintf("%.0f А (%s)", st.Num("sensor.energy_schema_charge_setpoint"), st.Attr("sensor.energy_schema_charge_setpoint", "mode"))
 	}
 	s.t(174, 776, 10, cSub, "middle", "ограничение "+sp+" · reg108 = "+st.State("number.deye_sun_30k_battery_max_charging_current")+" · reg128 = "+st.State("number.deye_sun_30k_battery_grid_charging_current"))
-	s.t(174, 790, 10, cSub, "middle", "следующий 100 %: "+st.State("sensor.energy_schema_charge_next_full")+" · SOC "+fmt.Sprintf("%.0f%%", st.Num("sensor.deye_sun_30k_battery")))
+	line2 := "следующий 100 %: " + st.State("sensor.energy_schema_charge_next_full") + " · SOC " + fmt.Sprintf("%.0f%%", st.Num("sensor.deye_sun_30k_battery"))
+	if p := st.State("sensor.energy_schema_charge_full_plan"); p != "" && p != "—" && p != "unknown" {
+		line2 = "100 %: " + p // идёт полный заряд — прогноз важнее даты следующего
+	}
+	s.t(174, 790, 10, cSub, "middle", line2)
 	s.p(`</g>`)
 }

@@ -23,6 +23,12 @@ configuration:
   charge_cell_cap_soc:
     name: "Charge: imbalance cap from SOC, %"
     description: "Below this SOC imbalance does not cut the current. Default 70."
+  charge_full_tail_soc:
+    name: "Charge: full-charge tail from SOC, %"
+    description: "When charging to 100 %: the total limit up to this SOC, then the small tail current (last percent, cell balancing). Default 95."
+  charge_full_tail_a:
+    name: "Charge: full-charge tail current, A"
+    description: "Actual current for the last percent of a full charge. Default 6 A (about 0.02C for 314 Ah)."
   charge_zero_on_target:
     name: "Charge: stop at the night target"
     description: "On — write 0 (stop) at the target, off — 1 (minimum). Default on."
