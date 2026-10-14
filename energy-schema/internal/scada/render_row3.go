@@ -23,6 +23,19 @@ func (f *frame) battery() {
 		bStatCol = cRed
 	}
 	s.head(24, 520, 300, "batt", "АКБ", bStatCol)
+	// в значке — ток заряда, который сейчас разрешает BMS; 0 = батарея полная
+	// (зелёный: это хорошо, заряд просто не нужен)
+	if st.Attr(bmsLimitsEntity, "charge_a") != "" {
+		ccl := st.AttrNum(bmsLimitsEntity, "charge_a")
+		col, tip := cTxt, fmt.Sprintf("BMS разрешает заряд до %.0f А", ccl)
+		if ccl <= 0 {
+			col, tip = cGrn, "BMS: заряд не нужен — батарея полная (ток заряда 0 А)"
+		}
+		s.p(`<g><title>%s</title>`, tip)
+		s.icon("batt", 46, 542, col)
+		s.t(45, 545.5, 9, col, "middle", fmt.Sprintf("%.0f", ccl))
+		s.p(`</g>`)
+	}
 	// клик по иконке батарейки / слову «АКБ» переворачивает карточку (настройки заряда)
 	s.p(`<rect x="28" y="524" width="100" height="32" rx="6" fill="transparent" style="cursor:pointer" data-flip="batt"/>`)
 	// температура — рядом со значком статуса (не отдельной строкой)
@@ -276,14 +289,4 @@ func (f *frame) sun() {
 	s.t(382, 779, 10, cSub, "start", "0")
 	s.barTicks(380, 779, 520, pvInputMaxKW, []float64{cfg.PVT1, cfg.PVT2, cfg.PVT3, cfg.PVMax}) // 5 · 20 · 25 · 33
 	s.t(898, 779, 10, cSub, "end", fmt.Sprintf("%.0f кВт", pvInputMaxKW))
-}
-
-// batterySOH prefers the real BMS value (register 10006, published by the
-// add-on as sensor.energy_schema_bms_soh) over the Solarman-computed sensor,
-// which is off for HV packs (assumes 48 V nominal when counting cycles).
-func batterySOH(st State) float64 {
-	if st.Available("sensor.energy_schema_bms_soh") {
-		return st.Num("sensor.energy_schema_bms_soh")
-	}
-	return st.Num("sensor.deye_sun_30k_battery_soh")
 }

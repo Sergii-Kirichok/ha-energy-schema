@@ -149,7 +149,8 @@ func (s *Server) publishDetail(r map[int]int) error {
 		{"sensor.energy_schema_bms_insulation", fmt.Sprint(r[regInsulation]), map[string]any{"friendly_name": "Изоляция",
 			"unit_of_measurement": "kΩ", "icon": "mdi:shield-check", "state_class": "measurement"}},
 		{"sensor.energy_schema_bms_limits", fmt.Sprintf("%.0f / %.0f А", float64(r[regChgLimit])/10, float64(r[regDsgLimit])/10),
-			map[string]any{"friendly_name": "Лимиты BMS заряд / разряд", "icon": "mdi:current-dc", "packs": r[regPacks]}},
+			map[string]any{"friendly_name": "Лимиты BMS заряд / разряд", "icon": "mdi:current-dc", "packs": r[regPacks],
+				"charge_a": float64(r[regChgLimit]) / 10, "discharge_a": float64(r[regDsgLimit]) / 10}},
 		{"sensor.energy_schema_bms_weak_cell", weak, wattrs},
 	}
 	for _, p := range pubs {

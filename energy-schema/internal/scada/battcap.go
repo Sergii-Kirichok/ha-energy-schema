@@ -63,3 +63,13 @@ func chargeTarget(st State) float64 {
 	}
 	return t
 }
+
+// batterySOH prefers the real BMS value (register 10006, published by the
+// add-on as sensor.energy_schema_bms_soh) over the Solarman-computed sensor,
+// which is off for HV packs (assumes 48 V nominal when counting cycles).
+func batterySOH(st State) float64 {
+	if st.Available("sensor.energy_schema_bms_soh") {
+		return st.Num("sensor.energy_schema_bms_soh")
+	}
+	return st.Num("sensor.deye_sun_30k_battery_soh")
+}
