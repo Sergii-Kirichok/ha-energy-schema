@@ -93,7 +93,7 @@ func (c *Client) EnsureHelper(h Helper) (bool, error) {
 
 // inputNumberMode — режим отображения input_number: "slider" — строка обычной
 // высоты (у "box" поле ввода высокое и в entities-карточке не ужимается).
-const inputNumberMode = "slider"
+const inputNumberMode = "box"
 
 // EnsureNumberMode switches an existing input_number helper (object id `id`)
 // to inputNumberMode if its current mode differs. HA validates input_number/update

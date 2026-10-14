@@ -95,7 +95,7 @@ func TestEnsureHelperCreatesNumber(t *testing.T) {
 	}
 	create, rename := <-reqs, <-reqs
 	want := map[string]any{"type": "input_number/create", "name": "es_soc_min", "icon": "mdi:battery", "min": 10.0,
-		"max": 90.0, "step": 1.0, "initial": 20.0, "mode": "slider", "unit_of_measurement": "%"}
+		"max": 90.0, "step": 1.0, "initial": 20.0, "mode": "box", "unit_of_measurement": "%"}
 	for k, v := range want {
 		if create[k] != v {
 			t.Errorf("create[%s] = %v, want %v", k, create[k], v)
@@ -162,19 +162,19 @@ func TestEnsureHelperWSFailures(t *testing.T) {
 }
 
 func TestEnsureNumberMode(t *testing.T) {
-	// already slider → no network at all (unroutable base would fail otherwise)
+	// already in the target mode → no network at all (unroutable base would fail otherwise)
 	if ch, err := NewClient("http://127.0.0.1:1/api", "T").EnsureNumberMode(Helper{ID: "x"}, inputNumberMode); ch || err != nil {
 		t.Errorf("slider: changed=%v err=%v", ch, err)
 	}
 	reqs := make(chan map[string]any, 4)
 	srv := hatest.NewServer(t, wsRec(reqs, nil))
 	h := Helper{ID: "es_cap", Min: 0, Max: 100, Step: 5, Unit: "A", Icon: "mdi:flash"}
-	if ch, err := NewClient(srv.URL+"/api", hatest.Token).EnsureNumberMode(h, "box"); !ch || err != nil {
-		t.Fatalf("box: changed=%v err=%v", ch, err)
+	if ch, err := NewClient(srv.URL+"/api", hatest.Token).EnsureNumberMode(h, "slider"); !ch || err != nil {
+		t.Fatalf("slider→box: changed=%v err=%v", ch, err)
 	}
 	got := <-reqs
 	want := map[string]any{"type": "input_number/update", "input_number_id": "es_cap", "name": "es_cap", "min": 0.0,
-		"max": 100.0, "step": 5.0, "mode": "slider", "icon": "mdi:flash", "unit_of_measurement": "A"}
+		"max": 100.0, "step": 5.0, "mode": "box", "icon": "mdi:flash", "unit_of_measurement": "A"}
 	for k, v := range want {
 		if got[k] != v {
 			t.Errorf("update[%s] = %v, want %v", k, got[k], v)

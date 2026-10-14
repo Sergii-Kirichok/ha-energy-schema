@@ -26,16 +26,17 @@ const (
 
 // Server renders and serves the schematic.
 type Server struct {
-	cfg    config.Config
-	store  *hass.Store
-	client *hass.Client
-	solar  *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
-	ovr    *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
-	cells  *cellStats      // статистика крайних ячеек BMS (поиск слабой)
-	writes *writeLog       // учёт записей в инвертор за сутки
-	soc    socEst          // SOC с десятыми (кулонометрия между целыми % BMS)
-	svgMu  sync.Mutex      // один писатель файла схемы за раз
-	mb     sync.Mutex      // одна Modbus-транзакция (регулятор / страница инвертора) за раз
+	cfg     config.Config
+	store   *hass.Store
+	client  *hass.Client
+	solar   *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
+	ovr     *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
+	cells   *cellStats      // статистика крайних ячеек BMS (поиск слабой)
+	writes  *writeLog       // учёт записей в инвертор за сутки
+	applied *chargeApplied  // применённые настройки регулятора (хелперы — черновик)
+	soc     socEst          // SOC с десятыми (кулонометрия между целыми % BMS)
+	svgMu   sync.Mutex      // один писатель файла схемы за раз
+	mb      sync.Mutex      // одна Modbus-транзакция (регулятор / страница инвертора) за раз
 }
 
 // New builds a Server.
@@ -43,7 +44,7 @@ func New(cfg config.Config, store *hass.Store, client *hass.Client) *Server {
 	scada.SetQuickMax("max_a", cfg.Charge.MaxALimit)
 	scada.SetQuickMax("grid_a", cfg.Charge.GridALimit)
 	scada.SetQuickMax("full_days", cfg.Charge.FullDaysMax)
-	return &Server{cfg: cfg, store: store, client: client, ovr: loadOverrides(overridesFile), cells: loadCellStats(cellStatsFile), writes: loadWriteLog(writesFile)}
+	return &Server{cfg: cfg, store: store, client: client, ovr: loadOverrides(overridesFile), cells: loadCellStats(cellStatsFile), writes: loadWriteLog(writesFile), applied: loadApplied(appliedFile)}
 }
 
 func (s *Server) render() string { return scada.Render(s.store, s.cfg) }

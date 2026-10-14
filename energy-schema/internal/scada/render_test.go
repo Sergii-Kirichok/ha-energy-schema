@@ -134,7 +134,7 @@ func TestBatteryBackFace(t *testing.T) {
 	svg := Render(storeFrom(m), config.Default())
 	for _, want := range []string{
 		`<g id="card-batt"><g class="face f-front">`, `class="face f-back"`, `data-flip="batt"`,
-		`data-set="auto:toggle"`, `data-set="max_a:+5"`, `data-set="max_a:-5"`, `data-set="full_now:toggle"`,
+		`data-qb="auto" data-v="1"`, `data-qd="max_a" data-d="1"`, `data-qd="max_a" data-d="-1"`, `data-qb="full_now"`, `data-qn="max_a" data-v="25"`, `data-qsave`, `data-qrow="max_a"`,
 		">25 А<", ">ВКЛ<", "следующий 100 %: 2026-10-09",
 	} {
 		if !strings.Contains(svg, want) {
@@ -143,7 +143,7 @@ func TestBatteryBackFace(t *testing.T) {
 	}
 	// без хелперов — прочерки, но кнопки на месте
 	svg = Render(storeFrom(map[string]string{}), config.Default())
-	if !strings.Contains(svg, `data-set="grid_a:+1"`) || !strings.Contains(svg, ">—<") {
+	if !strings.Contains(svg, `data-qd="grid_a" data-d="1"`) || !strings.Contains(svg, ">—<") {
 		t.Error("back face must render placeholders without helpers")
 	}
 }

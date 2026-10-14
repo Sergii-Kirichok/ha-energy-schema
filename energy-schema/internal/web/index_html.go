@@ -24,15 +24,37 @@ function ask(act,val){
   if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,400);}
  }).catch(function(e){alert('Ошибка связи: '+e);});
 }
-function setp(v){fetch('control?act=param&val='+encodeURIComponent(v),{method:'POST'}).then(function(r){
-  if(!r.ok){r.text().then(function(t){alert('Не выполнено: '+t);});}else{setTimeout(load,300);}
- }).catch(function(e){alert('Ошибка связи: '+e);});}
+// оборот карточки АКБ: правка без немедленной записи — изменённое в QP
+// (оранжевая рамка), «Сохранить» шлёт всё разом, после перечитывания схемы
+// QS сверяет: совпало — зелёная рамка, нет — красная
+var QP={},QS={};
+function qq(s){return document.querySelectorAll('#c '+s)}
+function qcur(k){var e=document.querySelector('#c [data-qn="'+k+'"],#c [data-qb="'+k+'"]');return e?+e.getAttribute('data-v'):NaN}
+function qpaint(){
+ var i,e,k;
+ var ns=qq('[data-qn]');for(i=0;i<ns.length;i++){e=ns[i];k=e.getAttribute('data-qn');if(k in QP)e.textContent=QP[k]+' '+e.getAttribute('data-u')}
+ var bs=qq('[data-qb]');for(i=0;i<bs.length;i++){e=bs[i];k=e.getAttribute('data-qb');if(!(k in QP))continue;var on=QP[k]==1,c=on?'#22c55e':'#6b7280',r=e.querySelector('rect'),t=e.querySelector('text');r.setAttribute('fill',c);r.setAttribute('stroke',c);t.setAttribute('fill',c);t.textContent=on?'ВКЛ':'ВЫКЛ'}
+ var rs=qq('[data-qrow]');for(i=0;i<rs.length;i++){e=rs[i];k=e.getAttribute('data-qrow');e.setAttribute('stroke',(k in QP)?'#f59e0b':(QS[k]&&QS[k].d)?(QS[k].ok?'#22c55e':'#ef4444'):'transparent')}
+ var sv=document.querySelector('#c [data-qsave]');if(sv){var n=Object.keys(QP).length,c2=n?'#f59e0b':'#2a2f38';sv.querySelector('rect').setAttribute('stroke',c2);sv.querySelector('rect').setAttribute('fill',c2);sv.querySelector('text').setAttribute('fill',n?'#f59e0b':'#9ca3af');sv.querySelector('text').textContent=n?'Сохранить · '+n:'Сохранить'}
+}
+function qverify(){var now=Date.now();for(var k in QS){var s=QS[k];if(!s.d){if(qcur(k)==s.v){s.d=1;s.ok=1;s.t=now}else if(now-s.t>15000){s.d=1;s.ok=0;s.t=now}}else if(now-s.t>6000)delete QS[k]}}
+function qwire(){
+ var ds=qq('[data-qd]');for(var i=0;i<ds.length;i++)(function(el){el.addEventListener('click',function(){var k=el.getAttribute('data-qd'),n=document.querySelector('#c [data-qn="'+k+'"]');if(!n)return;
+  var b=(k in QP)?QP[k]:+n.getAttribute('data-v'),v=Math.min(+n.getAttribute('data-max'),Math.max(+n.getAttribute('data-min'),b+(+el.getAttribute('data-d'))));
+  if(v==+n.getAttribute('data-v'))delete QP[k];else QP[k]=v;qpaint()})})(ds[i]);
+ var bs=qq('[data-qb]');for(var j=0;j<bs.length;j++)(function(el){el.addEventListener('click',function(){var k=el.getAttribute('data-qb'),cur=+el.getAttribute('data-v'),v=1-((k in QP)?QP[k]:cur);
+  if(v==cur)delete QP[k];else QP[k]=v;qpaint()})})(bs[j]);
+ var sv=document.querySelector('#c [data-qsave]');if(sv)sv.addEventListener('click',function(){var ks=Object.keys(QP);if(!ks.length)return;
+  var val=ks.map(function(k){return k+'='+QP[k]}).join(',');
+  fetch('control?act=qsave&val='+encodeURIComponent(val),{method:'POST'}).then(function(r){if(!r.ok){r.text().then(function(t){alert('Не сохранено: '+t)});return}
+   var now=Date.now();ks.forEach(function(k){QS[k]={v:QP[k],t:now,d:0}});QP={};qpaint();setTimeout(load,1500)}).catch(function(e){alert('Ошибка связи: '+e)})});
+}
 function flips(){var g=document.getElementById('card-batt');if(!g)return;
  if(localStorage.getItem('flip_batt')==='1'){g.classList.add('noanim','flipped');setTimeout(function(){g.classList.remove('noanim');},60);}
  var els=document.querySelectorAll('#c [data-flip]');for(var i=0;i<els.length;i++){els[i].addEventListener('click',function(){var on=!g.classList.contains('flipped');g.classList.toggle('flipped',on);localStorage.setItem('flip_batt',on?'1':'0');});}}
 function $$nav(){var n=document.querySelectorAll('#c [data-nav]');for(var i=0;i<n.length;i++){(function(el){el.addEventListener('click',function(){location.href=el.getAttribute('data-nav')})})(n[i])}}
 function wire(){flips();$$nav();if(!CANCTL)return;var els=document.querySelectorAll('#c [data-act]');for(var i=0;i<els.length;i++){(function(el){el.addEventListener('click',function(){ask(el.getAttribute('data-act'),el.getAttribute('data-val'));});})(els[i]);}
- var ss=document.querySelectorAll('#c [data-set]');for(var j=0;j<ss.length;j++){(function(el){el.addEventListener('click',function(){setp(el.getAttribute('data-set'));});})(ss[j]);}}
+ qwire()}
 var T0=Date.now(),busy=0,okAt=Date.now();
 // Устойчиво для ТВ-браузеров: таймаут запроса, без наложения запросов, ошибка
 // не стирает схему (плашка «нет связи»), долго без связи — перезагрузка страницы.
@@ -40,7 +62,7 @@ function lost(on){document.getElementById('lost').style.display=on?'block':'none
 function load(){if(busy&&Date.now()-busy<20000)return;busy=Date.now();
  var ac=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ac)ac.abort()},15000);
  fetch('%s?t='+Date.now(),ac?{signal:ac.signal,cache:'no-store'}:{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(t){
-  if(t.indexOf('<svg')<0)throw new Error('not svg');var c=document.getElementById('c');c.innerHTML=t;var s=c.querySelector('svg');if(s&&s.setCurrentTime){try{s.setCurrentTime((Date.now()-T0)/1000);}catch(e){}}wire();okAt=Date.now();lost(false)
+  if(t.indexOf('<svg')<0)throw new Error('not svg');var c=document.getElementById('c');c.innerHTML=t;var s=c.querySelector('svg');if(s&&s.setCurrentTime){try{s.setCurrentTime((Date.now()-T0)/1000);}catch(e){}}wire();qverify();qpaint();okAt=Date.now();lost(false)
  }).catch(function(){lost(true)}).then(function(){clearTimeout(to);busy=0})}
 if(!CANCTL){document.getElementById('vo').style.display='block';}
 var EVERY=%d000;load();setInterval(function(){load();if(Date.now()-okAt>Math.max(90000,3*EVERY))location.reload()},EVERY);

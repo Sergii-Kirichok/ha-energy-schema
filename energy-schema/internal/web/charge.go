@@ -42,6 +42,7 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+		{Domain: "input_button", ID: chargeApplyBt[len("input_button."):], Name: "Заряд: применить", Icon: "mdi:content-save"},
 	}
 }
 
@@ -89,11 +90,23 @@ func (s *Server) loopCharge() {
 	st := loadChargeState(chargeFile)
 	lastMax, lastGrid := -1.0, -1.0
 	lastSig, lastRun := "", time.Time{}
+	if s.applied.empty() { // первый запуск с черновиком/применением: стартуем с текущих хелперов
+		s.applied.apply(s.store.Num)
+	}
+	lastBtn := s.store.State(chargeApplyBt)
 	for {
+		// «Применить» на дашборде: черновик хелперов → применённые настройки
+		if b := s.store.State(chargeApplyBt); b != lastBtn {
+			if lastBtn != "" && b != "" {
+				log.Printf("charge: applied from dashboard: %v", s.applied.apply(s.store.Num))
+			}
+			lastBtn = b
+		}
 		// событийно: отпечаток входов берётся из общего опроса HA (локально,
 		// инвертор не трогаем); к инвертору идём при изменении или раз в минуту
 		if sig := s.chargeSignature(); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
 			s.chargeTick(&st, &lastMax, &lastGrid)
+			s.publishPending()
 			lastSig, lastRun = sig, time.Now()
 		}
 		time.Sleep(chargeWatchEvery)
@@ -119,7 +132,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if !s.store.Available("sensor.deye_sun_30k_battery") {
 		return
 	}
-	fullDays := num("input_number.energy_schema_charge_full_days")
+	cfgNum := func(e string) float64 { return s.applied.num(e, s.store.Num) } // применённые, не черновик
+	fullDays := cfgNum("input_number.energy_schema_charge_full_days")
 	// первый запуск: отсчёт с сегодня, а не «полный заряд немедленно» — иначе
 	// регулятор молча тянет к 100 % в первый же день вместо цели на ночь
 	if st.LastFull.IsZero() || soc >= 100 && st.LastFull.Format("2006-01-02") != time.Now().Format("2006-01-02") {
@@ -135,8 +149,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			_ = s.client.CallService("input_boolean", "turn_off", map[string]any{"entity_id": chargeFullNowEntity})
 		}
 	}
-	in := chargeInput{SOC: soc, MaxA: num("input_number.energy_schema_charge_max_a"),
-		TargetSOC: num("input_number.energy_schema_charge_target_soc"),
+	in := chargeInput{SOC: soc, MaxA: cfgNum("input_number.energy_schema_charge_max_a"),
+		TargetSOC: cfgNum("input_number.energy_schema_charge_target_soc"),
 		FullDue:   fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
 	// ночь — по генерации И по солнцу: пасмурный день (PV ~1 кВт) — не ночь
 	// (12.10: 10:41–10:45 ложная «ночь» → лишние переключения и записи).
@@ -196,7 +210,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	defer func() {
 		s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto, st.ZeroFloorA, in.TargetSOC)
 	}()
-	grid := num("input_number.energy_schema_charge_grid_a")
+	grid := cfgNum("input_number.energy_schema_charge_grid_a")
 	maxReg, gridReg := regValue(amps, st.Factor), regValue(grid, st.Factor)
 	// самопроверка «0 = стоп»: не документировано, что Deye трактует 0 именно
 	// так. Если после записи 0 заряд не прекратился — откат на 1 и запоминаем.
