@@ -1,6 +1,10 @@
 package web
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
 
 // Один переключатель периода (кнопки 1/4/8/12/24 + «Сглаж.») на все графики:
 // пользовательский блок — условные карточки (input_select.diapazon_grafika ×
@@ -162,48 +166,43 @@ func findChartSelf(m map[string]any) bool {
 	return c != nil && sameMap(c, m)
 }
 
-// alignAxes — одинаковые поля: подписи каждой оси не уже axisLabelW (без
-// maxWidth — иначе длинные подписи и заголовок оси обрезаются). У графика без
-// осей («Последний час») заводим одну ось «кВт» слева. Старый «призрак» правой
-// оси (ось kw_r и невидимая серия на ней) — убираем.
+// alignAxes — одинаковые поля у всех графиков стека: подписи каждой оси не
+// уже axisLabelW (без maxWidth — иначе подписи и заголовок обрезаются), и у
+// каждого графика две оси. Графику с одной осью («Последний час») — правая
+// ось-зеркало mirrorAxis: невидимые копии его серий на ней (без легенды,
+// заголовка и подсказки) дают ровно тот же диапазон, что слева. Без правой оси
+// ApexCharts раскладывает поля иначе и время уезжает с вертикали (15.10).
+const mirrorAxis = "kw_r"
+
 func alignAxes(chart map[string]any) bool {
-	labels := func() map[string]any { return map[string]any{"minWidth": axisLabelW} }
-	ys, _ := chart["yaxis"].([]any)
 	ss, _ := chart["series"].([]any)
+	if len(ss) == 0 {
+		return false
+	}
+	before, _ := json.Marshal(chart)
+	ys, _ := chart["yaxis"].([]any)
 	if len(ys) == 0 {
-		if len(ss) == 0 {
-			return false
-		}
-		chart["yaxis"] = []any{map[string]any{"id": "kw", "decimals": 1,
-			"apex_config": map[string]any{"title": map[string]any{"text": "кВт"}, "labels": labels()}}}
+		ys = []any{map[string]any{"id": "kw", "decimals": 1, "apex_config": map[string]any{"title": map[string]any{"text": "кВт"}}}}
 		for _, s := range ss {
 			if m, ok := s.(map[string]any); ok {
 				m["yaxis_id"] = "kw"
 			}
 		}
-		return true
 	}
-	changed := false
-	keptS := ss[:0:0]
+	// зеркало строится заново из текущих серий — сначала убрать прежнее
+	var keptS, keptY []any
 	for _, s := range ss {
-		if m, ok := s.(map[string]any); ok && m["yaxis_id"] == "kw_r" {
-			changed = true
-			continue
+		if m, ok := s.(map[string]any); !ok || m["yaxis_id"] != mirrorAxis {
+			keptS = append(keptS, s)
 		}
-		keptS = append(keptS, s)
 	}
-	if changed {
-		chart["series"] = keptS
-	}
-	keptY := ys[:0:0]
 	for _, y := range ys {
 		m, ok := y.(map[string]any)
 		if !ok {
 			keptY = append(keptY, y)
 			continue
 		}
-		if m["id"] == "kw_r" {
-			changed = true
+		if m["id"] == mirrorAxis {
 			continue
 		}
 		keptY = append(keptY, y)
@@ -212,19 +211,54 @@ func alignAxes(chart map[string]any) bool {
 			ac = map[string]any{}
 			m["apex_config"] = ac
 		}
-		l, ok := ac["labels"].(map[string]any)
-		if !ok {
-			ac["labels"], changed = labels(), true
-			continue
+		l, _ := ac["labels"].(map[string]any)
+		if l == nil {
+			l = map[string]any{}
+			ac["labels"] = l
 		}
-		if _, ok := l["maxWidth"]; ok {
-			delete(l, "maxWidth")
-			changed = true
-		}
+		delete(l, "maxWidth")
 		if l["minWidth"] == nil {
-			l["minWidth"], changed = axisLabelW, true
+			l["minWidth"] = axisLabelW
 		}
 	}
-	chart["yaxis"] = keptY
-	return changed
+	if y0, ok := keptY[0].(map[string]any); ok && len(keptY) == 1 && y0["opposite"] != true {
+		keptS, keptY = mirror(chart, y0, keptS, keptY)
+	}
+	chart["series"], chart["yaxis"] = keptS, keptY
+	after, _ := json.Marshal(chart)
+	return !bytes.Equal(before, after)
+}
+
+// mirror — правая ось-копия y0 и невидимые копии серий на ней; подсказка — только по настоящим.
+func mirror(chart, y0 map[string]any, ss, ys []any) ([]any, []any) {
+	cp := func(v any) map[string]any {
+		var m map[string]any
+		b, _ := json.Marshal(v)
+		_ = json.Unmarshal(b, &m)
+		return m
+	}
+	ax := cp(y0)
+	ax["id"], ax["opposite"] = mirrorAxis, true
+	ys = append(ys, ax)
+	n := len(ss)
+	on := make([]any, n)
+	for i := 0; i < n; i++ {
+		on[i] = i
+		g := cp(ss[i])
+		g["yaxis_id"], g["color"], g["stroke_width"] = mirrorAxis, "transparent", 0
+		g["show"] = map[string]any{"in_header": false, "in_legend": false, "legend_value": false}
+		ss = append(ss, g)
+	}
+	ac, _ := chart["apex_config"].(map[string]any)
+	if ac == nil {
+		ac = map[string]any{}
+		chart["apex_config"] = ac
+	}
+	tt, _ := ac["tooltip"].(map[string]any)
+	if tt == nil {
+		tt = map[string]any{}
+		ac["tooltip"] = tt
+	}
+	tt["enabledOnSeries"] = on
+	return ss, ys
 }
