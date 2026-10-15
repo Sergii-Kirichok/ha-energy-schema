@@ -1,7 +1,58 @@
 configuration:
+  title:
+    name: "Title"
+    description: "Currently not shown anywhere (kept for compatibility). Default «Энергосистема»."
+  in1_name:
+    name: "Input 1: name"
+    description: "Label of the first grid input on the schematic (input block, ATS, input selector). Default «Рыбхоз»."
+  in2_name:
+    name: "Input 2: name"
+    description: "Label of the second grid input on the schematic (input block, ATS, input selector). Default «Зелёный»."
+  pv1_label:
+    name: "PV: field 1 label"
+    description: "Caption under the first PV field gauge. Default «Поле 1»."
+  pv2_label:
+    name: "PV: field 2 label"
+    description: "Caption under the second PV field gauge. Default «Поле 2»."
+  pv3_label:
+    name: "PV: field 3 label"
+    description: "Caption under the third PV field gauge. Default «Поле 3»."
   batt_capacity_kwh:
     name: "Battery capacity (fallback), kWh"
     description: "Used only until the inverter and BMS are read. Primary source: Ah from the inverter (register 102, set on the inverter page) × BMS module count × 51.2 V."
+  home_max:
+    name: "House: scale max, kW"
+    description: "Currently unused: the house gauge scale is fixed at 45 kW (inverter peak power). Default 30."
+  home_t1:
+    name: "House: green zone end, kW"
+    description: "House load gauge: green from 0 up to this value. Default 3."
+  home_t2:
+    name: "House: yellow zone end, kW"
+    description: "Yellow from the previous threshold up to this value. Default 5."
+  home_t3:
+    name: "House: orange zone end, kW"
+    description: "Orange up to this value, then red up to the inverter continuous max and dark red (overload) up to 45 kW. Default 25."
+  pv_max:
+    name: "Inverter: continuous max, kW"
+    description: "Continuous inverter power: start of the red zone on the house gauge and on the total PV bar (scale up to 39 kW); also the forecast AC limit when that is not set. Default 33."
+  pv_t1:
+    name: "PV: yellow zone end, kW"
+    description: "Total PV generation bar: yellow from 0 up to this value (little sun). Default 5."
+  pv_t2:
+    name: "PV: green zone end, kW"
+    description: "Green from the previous threshold up to this value. Default 20."
+  pv_t3:
+    name: "PV: orange zone end, kW"
+    description: "Orange up to this value, then red up to the inverter continuous max and dark red up to 39 kW. Default 25."
+  pv_day_clear_kwh:
+    name: "PV: clear-day yield, kWh"
+    description: "Fallback for the autonomy forecast until statistics exist (normally the best day of the last ~10 days is used). Default 100."
+  pv_ac_limit_kw:
+    name: "PV: forecast AC limit, kW"
+    description: "Inverter output ceiling that clips the summed per-string generation forecast. 0 or empty: the inverter continuous max is used. Default 33."
+  pv_strings:
+    name: "PV: strings for the forecast"
+    description: "Panel geometry for the generation forecast. name: name; field: field (strings of one field are summed, empty = name); kwp: power, kW; tilt: tilt, °; azimuth: compass azimuth (0 N, 90 E, 180 S, 270 W); bifacial: rear-side gain (0.12 = +12 %); controllable: not used yet. Empty list: geometry forecast off."
   charge_max_a_limit:
     name: "Charge: total limit slider max, A"
     description: "Upper bound of the «Общий лимит» slider. Default 30 A."
@@ -41,3 +92,18 @@ configuration:
   charge_balance_done_mv:
     name: "Charge: balancing — done at delta, mV"
     description: "When the cell delta at the top of a cycle is at most this value, balancing is finished and the switch turns itself off. Default 40 mV."
+  refresh_seconds:
+    name: "Wrapper file refresh, s"
+    description: "How often the schematic reloads in /local/energy_schema.html (view-only page for dashboards and TVs outside ingress). The add-on panel refreshes every second regardless. Default 3."
+  control_users:
+    name: "Users allowed to control"
+    description: "HA user display names allowed to control (ATS, contactor, generator, inverter and charge settings). Empty: everyone. Others get view-only; their name is written to the add-on log."
+  bms_dashboard:
+    name: "Dashboard for BMS rows"
+    description: "url_path of the HA dashboard whose «Батарея» card gets the BMS rows (SOH, cells, balance, cycles) appended at start. Empty: leave dashboards alone. Default home-energy."
+  ha_url:
+    name: "HA URL (only with a token)"
+    description: "Used only when «HA token» is set. Without a token the add-on talks to HA through the Supervisor (http://supervisor/core) and this field is ignored."
+  ha_token:
+    name: "HA token (normally not needed)"
+    description: "Not needed: the add-on talks to HA through the Supervisor. Fallback: if a long-lived token is set, the add-on uses «HA URL» with this token instead of the Supervisor. Can be cleared."

@@ -15,9 +15,6 @@ homeassistant_api: true
 map:
   - homeassistant_config:rw
 options:
-  refresh_seconds: 3
-  ha_url: "http://homeassistant:8123"
-  ha_token: ""
   title: "Энергосистема"
   in1_name: "Рыбхоз"
   in2_name: "Зелёный"
@@ -34,9 +31,7 @@ options:
   pv_t2: 20
   pv_t3: 25
   pv_day_clear_kwh: 100
-  control_users: []
   pv_ac_limit_kw: 33
-  bms_dashboard: "home-energy"
   pv_strings:
     - name: "Поле 1"
       field: "Поле 1"
@@ -52,10 +47,12 @@ options:
       azimuth: 76
       bifacial: 0
       controllable: false
+  refresh_seconds: 3
+  control_users: []
+  bms_dashboard: "home-energy"
+  ha_url: "http://homeassistant:8123"
+  ha_token: ""
 schema:
-  refresh_seconds: int(1,60)
-  ha_url: str
-  ha_token: str?
   title: str?
   in1_name: str?
   in2_name: str?
@@ -73,7 +70,14 @@ schema:
   pv_t3: float?
   pv_day_clear_kwh: float?
   pv_ac_limit_kw: float?
-  bms_dashboard: str?
+  pv_strings:
+    - name: str
+      field: str?
+      kwp: float
+      tilt: float
+      azimuth: float
+      bifacial: float?
+      controllable: bool?
   charge_max_a_limit: float(1,185)?
   charge_grid_a_limit: float(1,185)?
   charge_full_days_max: int(1,90)?
@@ -87,13 +91,9 @@ schema:
   charge_balance_stop_v: float(3.4,3.65)?
   charge_balance_resume_soc: int(90,99)?
   charge_balance_done_mv: int(5,200)?
+  refresh_seconds: int(1,60)
   control_users:
     - str?
-  pv_strings:
-    - name: str
-      field: str?
-      kwp: float
-      tilt: float
-      azimuth: float
-      bifacial: float?
-      controllable: bool?
+  bms_dashboard: str?
+  ha_url: str?
+  ha_token: str?
