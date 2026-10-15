@@ -35,21 +35,33 @@ const (
 	cellMaxRedMV    = 3550 // близко к отсечке BMS — заряд только каплей
 )
 
-// cellVerdict — уровень (ok/warn/bad) и подсказка по разбегу и верхней ячейке.
+// cellVerdict — уровень (ok/warn/bad) и короткое описание разбега и верхней ячейки.
 func cellVerdict(maxMV, minMV int) (level, note string) {
 	d := maxMV - minMV
 	switch {
 	case maxMV >= cellMaxRedMV:
-		return "bad", "верхняя ячейка у отсечки — заряд каплей"
+		return "bad", "верхняя ячейка у отсечки"
 	case maxMV >= cellMaxWarnMV:
-		return "warn", "снизить ток заряда"
+		return "warn", "верхняя ячейка высоко"
 	case d > cellDeltaWarnmV:
-		return "bad", "разбаланс — заряжать малым током"
+		return "bad", "разбег большой"
 	case d > cellDeltaOKmV:
-		return "warn", "балансируется — не добавлять ток"
+		return "warn", "разбег повышен"
 	default:
-		return "ok", "выровнены — можно добавлять ток"
+		return "ok", "выровнены"
 	}
+}
+
+// balanceLabel — текст «Баланс ячеек»: во время балансировки по верху — её фаза
+// (из статуса балансировки, обновляется тиком заряда), иначе — описание cellVerdict.
+func balanceLabel(on bool, phase, note string) string {
+	switch {
+	case on && phase == balCharge:
+		return "балансировка — заряд"
+	case on && phase == balRest:
+		return "балансировка — разряд"
+	}
+	return note
 }
 
 func (s *Server) loopBMS() {
@@ -106,7 +118,7 @@ func (s *Server) publishBMS(r map[int]int) (string, error) {
 		{"sensor.energy_schema_bms_cell_delta", strconv.Itoa(maxMV - minMV), map[string]any{
 			"friendly_name": "Разбег ячеек", "unit_of_measurement": "mV", "state_class": "measurement", "icon": "mdi:delta",
 			"cell_min": fmt.Sprintf("%.3f В", float64(minMV)/1000), "cell_max": fmt.Sprintf("%.3f В", float64(maxMV)/1000), "verdict": note}},
-		{"sensor.energy_schema_bms_balance", note, map[string]any{"friendly_name": "Баланс ячеек", "level": level,
+		{"sensor.energy_schema_bms_balance", balanceLabel(s.store.On(chargeBalanceEntity), s.store.Attr(chargeBalanceStatus, "phase"), note), map[string]any{"friendly_name": "Баланс ячеек", "level": level,
 			"delta_mv": maxMV - minMV, "icon": map[string]string{"ok": "mdi:check-circle", "warn": "mdi:alert", "bad": "mdi:alert-octagon"}[level]}},
 		{"sensor.energy_schema_bms_cycles", strconv.Itoa(cyc), map[string]any{"friendly_name": "Циклы (BMS)",
 			"state_class": "total_increasing", "icon": "mdi:battery-sync", "source": "register 10046"}},

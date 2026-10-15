@@ -29,6 +29,24 @@ func TestCellVerdict(t *testing.T) {
 	}
 }
 
+func TestBalanceLabel(t *testing.T) {
+	cases := []struct {
+		on          bool
+		phase, want string
+	}{
+		{true, balCharge, "балансировка — заряд"},
+		{true, balRest, "балансировка — разряд"},
+		{true, balDone, "выровнены"},
+		{false, balCharge, "выровнены"}, // хелпер уже выключен, фаза ещё не сброшена
+		{false, "", "выровнены"},
+	}
+	for _, c := range cases {
+		if got := balanceLabel(c.on, c.phase, "выровнены"); got != c.want {
+			t.Errorf("balanceLabel(%v,%q) = %q, want %q", c.on, c.phase, got, c.want)
+		}
+	}
+}
+
 func TestPublishBMS(t *testing.T) {
 	posted := map[string]string{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
