@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 )
 
 // Config holds all runtime options for the renderer and HA client.
 type Config struct {
 	Refresh int    // seconds between HTML auto-reloads
-	APIBase string // HA REST API base via the Supervisor proxy
-	Token   string // SUPERVISOR_TOKEN
+	APIBase string // HA REST API base, e.g. http://homeassistant:8123/api
+	Token   string // bearer token (LLAT or Supervisor)
 
 	Title    string
 	In1Name  string
@@ -73,6 +74,8 @@ func Default() Config {
 // options mirrors the add-on options schema in config.yaml.
 type options struct {
 	RefreshSeconds int      `json:"refresh_seconds"`
+	HaURL          string   `json:"ha_url"`
+	HaToken        string   `json:"ha_token"`
 	Title          string   `json:"title"`
 	In1Name        string   `json:"in1_name"`
 	In2Name        string   `json:"in2_name"`
@@ -187,5 +190,14 @@ func (c *Config) apply(o options) {
 	c.PVACLimitKW = c.PVMax // дефолт — потолок PV-входа
 	if o.PVACLimit > 0 {
 		c.PVACLimitKW = o.PVACLimit
+	}
+	// LLAT path: only switch APIBase off the Supervisor default when a token is given.
+	if o.HaToken != "" {
+		c.Token = o.HaToken
+		u := o.HaURL
+		if u == "" {
+			u = "http://homeassistant:8123"
+		}
+		c.APIBase = strings.TrimRight(u, "/") + "/api"
 	}
 }

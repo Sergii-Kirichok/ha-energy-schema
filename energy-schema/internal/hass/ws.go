@@ -16,7 +16,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -24,16 +23,6 @@ import (
 type wsConn struct {
 	c net.Conn
 	r *bufio.Reader
-}
-
-// wsPath maps the REST base path to the WebSocket endpoint:
-// Supervisor proxy /core/api -> /core/websocket, plain HA /api -> /api/websocket.
-func wsPath(apiPath string) string {
-	p := strings.TrimRight(apiPath, "/")
-	if strings.HasSuffix(p, "/core/api") {
-		return strings.TrimSuffix(p, "/api") + "/websocket"
-	}
-	return p + "/websocket"
 }
 
 // wsDial performs the HTTP upgrade handshake and returns a ready wsConn.
@@ -63,7 +52,7 @@ func wsDial(apiBase string) (*wsConn, error) {
 	keyb := make([]byte, 16)
 	_, _ = rand.Read(keyb)
 	key := base64.StdEncoding.EncodeToString(keyb)
-	req := "GET " + wsPath(u.Path) + " HTTP/1.1\r\n" +
+	req := "GET /api/websocket HTTP/1.1\r\n" +
 		"Host: " + u.Host + "\r\n" +
 		"Upgrade: websocket\r\nConnection: Upgrade\r\n" +
 		"Sec-WebSocket-Key: " + key + "\r\nSec-WebSocket-Version: 13\r\n\r\n"

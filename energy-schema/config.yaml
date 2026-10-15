@@ -50,6 +50,8 @@ options:
   refresh_seconds: 3
   control_users: []
   bms_dashboard: "home-energy"
+  ha_url: "http://homeassistant:8123"
+  ha_token: ""
 schema:
   title: str?
   in1_name: str?
@@ -93,3 +95,5 @@ schema:
   control_users:
     - str?
   bms_dashboard: str?
+  ha_url: str?
+  ha_token: str?
