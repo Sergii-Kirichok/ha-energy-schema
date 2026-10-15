@@ -30,7 +30,7 @@ func TestLoadMissingFileKeepsDefaultsWithEnvToken(t *testing.T) {
 	if c.Token != "SUPERTOKEN" {
 		t.Errorf("Token = %q, want SUPERTOKEN", c.Token)
 	}
-	// No LLAT given => API base stays on the Supervisor proxy.
+	// API base is always the Supervisor proxy.
 	if c.APIBase != "http://supervisor/core/api" {
 		t.Errorf("APIBase = %q, want supervisor", c.APIBase)
 	}
@@ -61,11 +61,11 @@ func TestLoadOptionsOverlay(t *testing.T) {
 	if c.Refresh != 7 {
 		t.Errorf("Refresh = %d, want 7", c.Refresh)
 	}
-	// LLAT present => token overrides env token and APIBase switches to it (trailing slash trimmed).
-	if c.Token != "LLAT123" {
-		t.Errorf("Token = %q, want LLAT123", c.Token)
+	// Leftover ha_url/ha_token keys from old saved options are ignored: Supervisor path only.
+	if c.Token != "ENVTOK" {
+		t.Errorf("Token = %q, want ENVTOK", c.Token)
 	}
-	if c.APIBase != "http://homeassistant:8123/api" {
+	if c.APIBase != "http://supervisor/core/api" {
 		t.Errorf("APIBase = %q", c.APIBase)
 	}
 	if c.Title != "ДОМ" {

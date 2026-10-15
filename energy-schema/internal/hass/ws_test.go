@@ -93,3 +93,12 @@ func TestCallSkipsOtherIDs(t *testing.T) {
 		t.Errorf("got %v err %v", got, err)
 	}
 }
+
+// Supervisor proxy serves the WS API at /core/websocket, plain HA at /api/websocket.
+func TestWSPath(t *testing.T) {
+	for in, want := range map[string]string{"/core/api": "/core/websocket", "/core/api/": "/core/websocket", "/api": "/api/websocket"} {
+		if got := wsPath(in); got != want {
+			t.Errorf("wsPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

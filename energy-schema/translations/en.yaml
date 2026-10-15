@@ -101,9 +101,3 @@ configuration:
   bms_dashboard:
     name: "Dashboard for BMS rows"
     description: "url_path of the HA dashboard whose «Батарея» card gets the BMS rows (SOH, cells, balance, cycles) appended at start. Empty: leave dashboards alone. Default home-energy."
-  ha_url:
-    name: "HA URL (only with a token)"
-    description: "Used only when «HA token» is set. Without a token the add-on talks to HA through the Supervisor (http://supervisor/core) and this field is ignored."
-  ha_token:
-    name: "HA token (normally not needed)"
-    description: "Not needed: the add-on talks to HA through the Supervisor. Fallback: if a long-lived token is set, the add-on uses «HA URL» with this token instead of the Supervisor. Can be cleared."
