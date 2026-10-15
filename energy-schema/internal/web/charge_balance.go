@@ -107,3 +107,27 @@ func balanceText(st *chargeState, on, auto bool, delta, resume float64) string {
 	}
 	return fmt.Sprintf("заряд · разбег %.0f мВ · циклов %d", delta, st.BalCycles)
 }
+
+// exclusive — «Балансировка по верху» и «Полный заряд сейчас» взаимоисключающие:
+// выигрывает включённый последним. Возвращает хелпер, который надо выключить ("" — ничего).
+func exclusive(prevBal, bal, prevFull, full bool) string {
+	switch {
+	case !prevBal && bal && full:
+		return chargeFullNowEntity
+	case !prevFull && full && bal:
+		return chargeBalanceEntity
+	}
+	return ""
+}
+
+// exclusiveToggles — шаг exclusive по текущим состояниям хелперов; prev* — с прошлого вызова.
+func (s *Server) exclusiveToggles(prevBal, prevFull *bool) {
+	bal, full := s.store.On(chargeBalanceEntity), s.store.On(chargeFullNowEntity)
+	if off := exclusive(*prevBal, bal, *prevFull, full); off != "" {
+		log.Printf("charge: balance and full-now are exclusive — turning off %s", off)
+		if err := s.client.CallService("input_boolean", "turn_off", map[string]any{"entity_id": off}); err != nil {
+			log.Println("charge: exclusive toggles:", err)
+		}
+	}
+	*prevBal, *prevFull = bal, full
+}

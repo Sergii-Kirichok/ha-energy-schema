@@ -46,10 +46,31 @@ func TestPatchPeriodCharts(t *testing.T) {
 	if strings.Count(string(b), "energy_schema_bms_cell_delta") != 2 {
 		t.Errorf("standalone 24h chart must be gone, 1 per stack expected")
 	}
-	if !strings.Contains(string(b), `"id":"kw_r"`) || strings.Count(string(b), `"minWidth":44`) < 12 {
+	if strings.Contains(string(b), "kw_r") || strings.Contains(string(b), "maxWidth") || !strings.Contains(string(b), `"id":"kw"`) || strings.Count(string(b), `"minWidth":44`) < 10 {
 		t.Errorf("axes not aligned: %s", b)
 	}
 	if changed, _ := patchBMSCards(cfg); changed {
+		t.Error("second run must be a no-op")
+	}
+}
+
+// Старый вид: призрачная правая ось kw_r с невидимой серией и maxWidth в
+// подписях — убираются; повтор — no-op.
+func TestAlignAxesMigratesGhostAxis(t *testing.T) {
+	src := `{"yaxis":[{"id":"kw","apex_config":{"labels":{"minWidth":44,"maxWidth":44}}},{"id":"kw_r","opposite":true}],
+	  "series":[{"entity":"a","yaxis_id":"kw"},{"entity":"a","yaxis_id":"kw_r","name":" ","opacity":0}]}`
+	var chart map[string]any
+	if err := json.Unmarshal([]byte(src), &chart); err != nil {
+		t.Fatal(err)
+	}
+	if !alignAxes(chart) {
+		t.Fatal("must change")
+	}
+	b, _ := json.Marshal(chart)
+	if strings.Contains(string(b), "kw_r") || strings.Contains(string(b), "maxWidth") || len(chart["series"].([]any)) != 1 || !strings.Contains(string(b), `"minWidth":44`) {
+		t.Errorf("not migrated: %s", b)
+	}
+	if alignAxes(chart) {
 		t.Error("second run must be a no-op")
 	}
 }

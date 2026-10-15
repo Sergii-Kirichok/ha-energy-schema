@@ -65,7 +65,7 @@ func patchGridRows(node any) (bool, error) {
 			if entityID(e) != gridPowerEntity(ph) {
 				continue
 			}
-			if m, ok := e.(map[string]any); ok {
+			if m, ok := innerRow(e).(map[string]any); ok {
 				m["entity"] = gridRowEntity(ph)
 			} else {
 				ents[i] = map[string]any{"entity": gridRowEntity(ph), "name": fmt.Sprintf("L%d", ph)}

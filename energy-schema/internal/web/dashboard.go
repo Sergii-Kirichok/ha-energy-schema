@@ -21,107 +21,6 @@ var dashBMSRows = []map[string]any{
 	{"entity": "sensor.energy_schema_bms_cycles", "name": "Циклы (BMS)"},
 }
 
-// Карточка «Заряд АКБ» — хелперы регулятора + его сенсоры; добавляется в ту же
-// секцию, где карточка «Батарея», если её ещё нет (маркер — переключатель авто).
-const dashChargeMarker = "input_boolean.energy_schema_charge_auto"
-
-const (
-	dashSetpointEntity  = "sensor.energy_schema_charge_setpoint"
-	dashSetpointName    = "Текущее ограничение тока заряда"
-	dashSetpointOldName = "Уставка тока"
-)
-
-var dashChargeCard = map[string]any{
-	"type":               "entities",
-	"show_header_toggle": false,
-	"title":              "Заряд АКБ",
-	"entities": []any{
-		map[string]any{"entity": dashChargeMarker, "name": "Авто-регулятор"},
-		map[string]any{"entity": dashSetpointEntity, "name": dashSetpointName},
-		map[string]any{"entity": "input_number.energy_schema_charge_max_a", "name": "Общий лимит, А"},
-		map[string]any{"entity": "input_number.energy_schema_charge_grid_a", "name": "Лимит от сети, А"},
-		map[string]any{"entity": "input_number.energy_schema_charge_target_soc", "name": "Цель на ночь, %"},
-		map[string]any{"entity": "input_number.energy_schema_charge_full_days", "name": "Полный заряд раз в, дней"},
-		map[string]any{"entity": chargePending, "name": "Изменения"},
-		map[string]any{"entity": chargeApplyBt, "name": "Применить изменения"},
-		map[string]any{"entity": "input_boolean.energy_schema_charge_full_now", "name": "Полный заряд сейчас"},
-		map[string]any{"entity": chargeBalanceEntity, "name": "Балансировка по верху"},
-		map[string]any{"entity": chargeBalanceStatus, "name": "Балансировка"},
-		map[string]any{"entity": chargeFullPlan, "name": "Полный заряд: прогноз"},
-		map[string]any{"entity": gridChargeSwitch, "name": "Заряд от сети (вручную)"},
-		map[string]any{"entity": "sensor.energy_schema_charge_next_full", "name": "Следующий 100 %"},
-	},
-}
-
-// patchChargeCard appends dashChargeCard next to the battery card unless a card
-// with the marker entity already exists anywhere in the dashboard.
-func patchChargeCard(node any) (bool, error) {
-	card := findCardWith(node, dashChargeMarker)
-	if card == nil {
-		return appendCardOnce(node, false, dashChargeCard)
-	}
-	changed := false
-	// общий переключатель в заголовке включал бы ВСЕ тумблеры сразу (в т.ч.
-	// «Полный заряд сейчас») — убираем
-	// строка уставки со старым названием — переименовать (своё имя пользователя не трогаем)
-	for _, e := range card["entities"].([]any) {
-		if m, ok := e.(map[string]any); ok && m["entity"] == dashSetpointEntity && m["name"] == dashSetpointOldName {
-			m["name"], changed = dashSetpointName, true
-		}
-	}
-	if card["show_header_toggle"] != false {
-		card["show_header_toggle"], changed = false, true
-	}
-	// «Снижать ток с» убран (0.6.12, без спада) — строку удалить
-	if ents, ok := card["entities"].([]any); ok {
-		kept := ents[:0:0]
-		for _, e := range ents {
-			if entityID(e) == "input_number.energy_schema_charge_taper_soc" {
-				changed = true
-				continue
-			}
-			kept = append(kept, e)
-		}
-		card["entities"] = kept
-	}
-	// хелпер «Без заряда от сети днём» убран (0.6.11): его строку — на переключатель Deye
-	for _, e := range card["entities"].([]any) {
-		if m, ok := e.(map[string]any); ok && m["entity"] == "input_boolean.energy_schema_charge_no_grid_day" {
-			m["entity"], m["name"], changed = gridChargeSwitch, "Заряд от сети (вручную)", true
-		}
-	}
-	// карточка есть — дорисовать строки, появившиеся в новых версиях, на их
-	// место по шаблону (строки пользователя и порядок сохраняются)
-	ents, _ := card["entities"].([]any)
-	have := map[string]bool{}
-	for _, e := range ents {
-		have[entityID(e)] = true
-	}
-	tmpl := dashChargeCard["entities"].([]any)
-	for i, r := range tmpl {
-		id := entityID(r)
-		if have[id] {
-			continue
-		}
-		pos := 0 // сразу после ближайшей предыдущей строки шаблона, что уже есть
-	prev:
-		for k := i - 1; k >= 0; k-- {
-			for j, e := range ents {
-				if entityID(e) == entityID(tmpl[k]) {
-					pos = j + 1
-					break prev
-				}
-			}
-		}
-		ents = append(ents[:pos], append([]any{r}, ents[pos:]...)...)
-		have[id], changed = true, true
-	}
-	if changed {
-		card["entities"] = ents
-	}
-	return changed, nil
-}
-
 // appendCardOnce appends card to the cards list holding the battery card
 // unless `present` says it is already there.
 func appendCardOnce(node any, present bool, card map[string]any) (bool, error) {
@@ -193,7 +92,7 @@ func patchBatteryCard(node any) (bool, error) {
 		id := entityID(e)
 		have[id] = true
 		if id == flowBattHalved {
-			if m, ok := e.(map[string]any); ok {
+			if m, ok := innerRow(e).(map[string]any); ok {
 				m["entity"] = flowBattCorrect
 			} else {
 				ents[i] = map[string]any{"entity": flowBattCorrect, "name": "Мощность"}
@@ -223,7 +122,7 @@ func patchBatteryCard(node any) (bool, error) {
 	seen := map[string]bool{}
 	ded := out[:0]
 	for _, e := range out {
-		if id := entityID(e); id != "" && seen[id] {
+		if id := rowKey(e); id != "" && seen[id] {
 			continue
 		} else if id != "" {
 			seen[id] = true

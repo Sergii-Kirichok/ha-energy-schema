@@ -94,7 +94,9 @@ func (s *Server) loopCharge() {
 		s.applied.apply(s.store.Num)
 	}
 	lastBtn := s.store.State(chargeApplyBt)
+	prevBal, prevFull := s.store.On(chargeBalanceEntity), s.store.On(chargeFullNowEntity) // старт: только запомнить
 	for {
+		s.exclusiveToggles(&prevBal, &prevFull)
 		// «Применить» на дашборде: черновик хелперов → применённые настройки
 		if b := s.store.State(chargeApplyBt); b != lastBtn {
 			if lastBtn != "" && b != "" {

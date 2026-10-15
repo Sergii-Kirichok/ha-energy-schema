@@ -40,6 +40,9 @@ func entityID(e any) string {
 	case string:
 		return v
 	case map[string]any:
+		if v["type"] == "conditional" {
+			return entityID(v["row"]) // условная строка entities-card — по её строке
+		}
 		id, _ := v["entity"].(string)
 		return id
 	}
@@ -224,4 +227,12 @@ func removeCard(node any, card map[string]any) bool {
 	}
 	holder[key] = kept
 	return true
+}
+
+// innerRow — сама строка (у условной строки — вложенная row).
+func innerRow(e any) any {
+	if m, ok := e.(map[string]any); ok && m["type"] == "conditional" {
+		return m["row"]
+	}
+	return e
 }

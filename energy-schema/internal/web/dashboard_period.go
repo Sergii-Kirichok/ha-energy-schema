@@ -7,12 +7,12 @@ import "fmt"
 // input_boolean.sglazhivanie_grafikov), в каждой vertical-stack из «Последний
 // час» и «Батарея». Сюда же третьим графиком кладём «Ячейки» с тем же периодом
 // и сглаживанием, отдельный суточный убираем. И выравниваем поля осей у всех
-// трёх (фиксированная ширина подписей слева и справа), чтобы одно время
+// трёх (минимальная ширина подписей осей), чтобы одно время
 // приходилось на одну вертикаль.
 
 const (
 	periodSelect = "input_select.diapazon_grafika"
-	axisLabelW   = 44 // px подписей каждой оси — одинаково у всех графиков
+	axisLabelW   = 44 // минимум px подписей каждой оси — одинаково у всех графиков
 )
 
 // periodStacks — vertical-stack внутри условных карточек выбора периода.
@@ -162,51 +162,69 @@ func findChartSelf(m map[string]any) bool {
 	return c != nil && sameMap(c, m)
 }
 
-// alignAxes — одинаковые поля: подписи каждой оси фиксированной ширины, две оси
-// (слева и справа) у каждого графика. У графика без осей («Последний час»)
-// заводим «кВт» слева и справа; правую держит невидимая копия первой серии.
+// alignAxes — одинаковые поля: подписи каждой оси не уже axisLabelW (без
+// maxWidth — иначе длинные подписи и заголовок оси обрезаются). У графика без
+// осей («Последний час») заводим одну ось «кВт» слева. Старый «призрак» правой
+// оси (ось kw_r и невидимая серия на ней) — убираем.
 func alignAxes(chart map[string]any) bool {
-	labels := map[string]any{"minWidth": axisLabelW, "maxWidth": axisLabelW}
+	labels := func() map[string]any { return map[string]any{"minWidth": axisLabelW} }
 	ys, _ := chart["yaxis"].([]any)
+	ss, _ := chart["series"].([]any)
 	if len(ys) == 0 {
-		ss, _ := chart["series"].([]any)
 		if len(ss) == 0 {
 			return false
 		}
-		ax := func(id string, right bool) map[string]any {
-			return map[string]any{"id": id, "opposite": right, "decimals": 1,
-				"apex_config": map[string]any{"title": map[string]any{"text": "кВт"}, "labels": labels}}
-		}
-		chart["yaxis"] = []any{ax("kw", false), ax("kw_r", true)}
+		chart["yaxis"] = []any{map[string]any{"id": "kw", "decimals": 1,
+			"apex_config": map[string]any{"title": map[string]any{"text": "кВт"}, "labels": labels()}}}
 		for _, s := range ss {
 			if m, ok := s.(map[string]any); ok {
 				m["yaxis_id"] = "kw"
 			}
 		}
-		ghost := map[string]any{}
-		for k, v := range ss[0].(map[string]any) {
-			ghost[k] = v
-		}
-		ghost["yaxis_id"], ghost["name"], ghost["opacity"], ghost["stroke_width"] = "kw_r", " ", 0, 0
-		ghost["show"] = map[string]any{"in_header": false, "in_legend": false}
-		chart["series"] = append(ss, ghost)
 		return true
 	}
 	changed := false
+	keptS := ss[:0:0]
+	for _, s := range ss {
+		if m, ok := s.(map[string]any); ok && m["yaxis_id"] == "kw_r" {
+			changed = true
+			continue
+		}
+		keptS = append(keptS, s)
+	}
+	if changed {
+		chart["series"] = keptS
+	}
+	keptY := ys[:0:0]
 	for _, y := range ys {
 		m, ok := y.(map[string]any)
 		if !ok {
+			keptY = append(keptY, y)
 			continue
 		}
+		if m["id"] == "kw_r" {
+			changed = true
+			continue
+		}
+		keptY = append(keptY, y)
 		ac, _ := m["apex_config"].(map[string]any)
 		if ac == nil {
 			ac = map[string]any{}
 			m["apex_config"] = ac
 		}
-		if l, ok := ac["labels"].(map[string]any); ok && l["minWidth"] != nil {
+		l, ok := ac["labels"].(map[string]any)
+		if !ok {
+			ac["labels"], changed = labels(), true
 			continue
 		}
-		ac["labels"], changed = labels, true
+		if _, ok := l["maxWidth"]; ok {
+			delete(l, "maxWidth")
+			changed = true
+		}
+		if l["minWidth"] == nil {
+			l["minWidth"], changed = axisLabelW, true
+		}
 	}
+	chart["yaxis"] = keptY
 	return changed
 }
