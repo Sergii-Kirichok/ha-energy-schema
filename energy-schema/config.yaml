@@ -84,6 +84,9 @@ schema:
   charge_full_tail_soc: int(50,100)?
   charge_full_tail_a: float(1,185)?
   charge_zero_on_target: bool?
+  charge_balance_stop_v: float(3.4,3.65)?
+  charge_balance_resume_soc: int(90,99)?
+  charge_balance_done_mv: int(5,200)?
   control_users:
     - str?
   pv_strings:

@@ -6,36 +6,43 @@ package config
 // (лимиты, пороги SOC) — хелперы HA на дашборде; здесь — их потолки и пороги
 // логики, которые меняют редко.
 type ChargeTuning struct {
-	MaxALimit    float64 // потолок ползунка «Общий лимит», А
-	GridALimit   float64 // потолок ползунка «Лимит от сети», А
-	FullDaysMax  float64 // потолок ползунка «Полный заряд раз в», дней
-	NightBelowW  float64 // PV ниже — ночной режим (полный лимит к утру), Вт
-	DayAboveW    float64 // PV выше — снова дневная логика, Вт
-	CellCapA     float64 // при разбалансе ячеек ток не выше, А
-	CellCapSOC   float64 // …начиная с этого SOC, %
-	FullTailSOC  float64 // полный заряд: с этого SOC — ток хвоста, %
-	FullTailA    float64 // полный заряд: ток хвоста (факт), А
-	ZeroOnTarget bool    // на цели на ночь писать 0 (стоп заряда), иначе 1
+	MaxALimit        float64 // потолок ползунка «Общий лимит», А
+	GridALimit       float64 // потолок ползунка «Лимит от сети», А
+	FullDaysMax      float64 // потолок ползунка «Полный заряд раз в», дней
+	NightBelowW      float64 // PV ниже — ночной режим (полный лимит к утру), Вт
+	DayAboveW        float64 // PV выше — снова дневная логика, Вт
+	CellCapA         float64 // при разбалансе ячеек ток не выше, А
+	CellCapSOC       float64 // …начиная с этого SOC, %
+	FullTailSOC      float64 // полный заряд: с этого SOC — ток хвоста, %
+	FullTailA        float64 // полный заряд: ток хвоста (факт), А
+	ZeroOnTarget     bool    // на цели на ночь писать 0 (стоп заряда), иначе 1
+	BalanceStopV     float64 // балансировка: заряд до этого напряжения макс. ячейки, В
+	BalanceResumeSOC float64 // …отдых (без заряда) до этого SOC, %
+	BalanceDoneMV    float64 // …выровнено, если разбег на верху не больше, мВ
 }
 
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
 func DefaultCharge() ChargeTuning {
 	return ChargeTuning{MaxALimit: 30, GridALimit: 15, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
-		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true}
+		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true,
+		BalanceStopV: 3.60, BalanceResumeSOC: 97, BalanceDoneMV: 40}
 }
 
 // chargeOptions — зеркало необязательных опций config.yaml (nil/0 = по умолчанию).
 type chargeOptions struct {
-	MaxALimit    float64 `json:"charge_max_a_limit"`
-	GridALimit   float64 `json:"charge_grid_a_limit"`
-	FullDaysMax  float64 `json:"charge_full_days_max"`
-	NightBelowW  float64 `json:"charge_night_below_w"`
-	DayAboveW    float64 `json:"charge_day_above_w"`
-	CellCapA     float64 `json:"charge_cell_cap_a"`
-	CellCapSOC   float64 `json:"charge_cell_cap_soc"`
-	FullTailSOC  float64 `json:"charge_full_tail_soc"`
-	FullTailA    float64 `json:"charge_full_tail_a"`
-	ZeroOnTarget *bool   `json:"charge_zero_on_target"`
+	MaxALimit        float64 `json:"charge_max_a_limit"`
+	GridALimit       float64 `json:"charge_grid_a_limit"`
+	FullDaysMax      float64 `json:"charge_full_days_max"`
+	NightBelowW      float64 `json:"charge_night_below_w"`
+	DayAboveW        float64 `json:"charge_day_above_w"`
+	CellCapA         float64 `json:"charge_cell_cap_a"`
+	CellCapSOC       float64 `json:"charge_cell_cap_soc"`
+	FullTailSOC      float64 `json:"charge_full_tail_soc"`
+	FullTailA        float64 `json:"charge_full_tail_a"`
+	ZeroOnTarget     *bool   `json:"charge_zero_on_target"`
+	BalanceStopV     float64 `json:"charge_balance_stop_v"`
+	BalanceResumeSOC float64 `json:"charge_balance_resume_soc"`
+	BalanceDoneMV    float64 `json:"charge_balance_done_mv"`
 }
 
 func (t *ChargeTuning) apply(o chargeOptions) {
@@ -46,6 +53,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 		{&t.MaxALimit, o.MaxALimit}, {&t.GridALimit, o.GridALimit}, {&t.FullDaysMax, o.FullDaysMax},
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
 		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
+		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceResumeSOC, o.BalanceResumeSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV},
 	} {
 		if p.v > 0 {
 			*p.dst = p.v

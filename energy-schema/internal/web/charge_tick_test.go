@@ -9,8 +9,8 @@ import (
 
 // Базовая картина дня: SOC 86 %, общий лимит 24 А, спад 80→90 %, от сети 6 А,
 // солнце 5 кВт, авто-регулятор включён; инвертор: 108=10, 110=1 (×2 канала).
-func tickSetup(t *testing.T, states map[string]string, regs map[int]int) (*Server, *haFake) {
-	t.Helper()
+// tickStates — базовые состояния tickSetup поверх states.
+func tickStates(states map[string]string) map[string]string {
 	base := map[string]string{
 		"sensor.deye_sun_30k_battery":                  "86",
 		"input_number.energy_schema_charge_max_a":      "24",
@@ -24,6 +24,11 @@ func tickSetup(t *testing.T, states map[string]string, regs map[int]int) (*Serve
 	for k, v := range states {
 		base[k] = v
 	}
+	return base
+}
+
+func tickSetup(t *testing.T, states map[string]string, regs map[int]int) (*Server, *haFake) {
+	t.Helper()
 	r := map[int]int{108: 10, 109: 50, 110: 1}
 	for k, v := range regs {
 		r[k] = v
@@ -31,7 +36,7 @@ func tickSetup(t *testing.T, states map[string]string, regs map[int]int) (*Serve
 	f := &haFake{regs: r}
 	s := newHAFakeServer(t, f)
 	s.cfg.Charge = config.DefaultCharge()
-	s.store.ReplaceStates(base)
+	s.store.ReplaceStates(tickStates(states))
 	return s, f
 }
 

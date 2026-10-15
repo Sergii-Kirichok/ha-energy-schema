@@ -41,6 +41,7 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+		{Domain: "input_boolean", ID: chargeBalanceEntity[len("input_boolean."):], Name: "Заряд: балансировка", Icon: "mdi:scale-balance"},
 		{Domain: "input_button", ID: chargeApplyBt[len("input_button."):], Name: "Заряд: применить", Icon: "mdi:content-save"},
 	}
 }
@@ -184,6 +185,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		// в инверторе навсегда остался бы последний авто-ответ (например, 0 = стоп)
 		amps, mode = in.MaxA, "manual"
 	}
+	if a, m, ok := s.balanceTick(st, soc, in.MaxA, auto); ok {
+		amps, mode = a, m // балансировка по верху (charge_balance.go)
+	}
 	st.Holding = strings.Contains(mode, "/hold")
 	defer s.publishWrites()
 	nf := "—"
@@ -211,7 +215,11 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}()
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
 	if auto {
-		s.fullCharge(st, fullDue, soc, in.MaxA, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
+		fd, fa := fullDue, in.MaxA
+		if st.balanceActive() {
+			fd, fa = mode == "balance/charge", amps // заряд — как полный (током хвоста), отдых — ToU как было
+		}
+		s.fullCharge(st, fd, soc, fa, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
 	} else {
 		s.touRestore(st) // ручной режим: ToU — как было
 	}
@@ -249,6 +257,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	// в chargeMinWriteGap; сразу — стоп (0), смена день/ночь,
 	// защита ячеек и полный заряд; в ручном режиме — когда ползунок отпустили
 	urgent := maxReg == 0 || strings.Contains(mode, "/cells") || strings.HasPrefix(mode, "full") ||
+		strings.HasPrefix(mode, "balance") || strings.HasPrefix(st.LastMode, "balance") || // фазы балансировки и выход из неё
 		strings.HasPrefix(mode, "night-ready") != strings.HasPrefix(st.LastMode, "night-ready")
 	st.LastMode = mode
 	due := urgent || time.Since(st.Wrote108) >= chargeMinWriteGap

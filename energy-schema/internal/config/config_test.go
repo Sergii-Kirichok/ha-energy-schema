@@ -95,11 +95,12 @@ func TestLoadOptionsOverlay(t *testing.T) {
 
 func TestChargeTuningOptions(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "options.json")
-	if err := os.WriteFile(p, []byte(`{"charge_max_a_limit":60,"charge_night_below_w":800,"charge_day_above_w":700,"charge_zero_on_target":false}`), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(`{"charge_max_a_limit":60,"charge_night_below_w":800,"charge_day_above_w":700,"charge_zero_on_target":false,"charge_balance_stop_v":3.55}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	c := Load(p, "")
-	if c.Charge.MaxALimit != 60 || c.Charge.GridALimit != 15 || c.Charge.NightBelowW != 800 {
+	if c.Charge.MaxALimit != 60 || c.Charge.GridALimit != 15 || c.Charge.NightBelowW != 800 ||
+		c.Charge.BalanceStopV != 3.55 || c.Charge.BalanceResumeSOC != 97 || c.Charge.BalanceDoneMV != 40 {
 		t.Errorf("charge = %+v", c.Charge)
 	}
 	if c.Charge.DayAboveW != 1300 {
