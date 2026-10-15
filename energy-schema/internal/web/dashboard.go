@@ -158,7 +158,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		name  string
 		patch func(any) (bool, error)
 	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows},
-		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}} {
+		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}} {
 		if c2, err := p.patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, p.name, err)
 		} else {
