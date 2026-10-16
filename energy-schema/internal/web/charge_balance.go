@@ -70,8 +70,8 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 		st.BalPhase, st.BalCycles, st.BalTopMV = balRest, st.BalCycles+1, delta
 		log.Printf("charge: balancing — top of cycle %d: cell max %.3f V, delta %.0f mV, BMS limit 0: %v, SOC %.0f%%",
 			st.BalCycles, cellMax, delta, bmsZero, soc)
-		// разбег судим только у колена: на плоской части он мал при любом балансе
-		if s.store.Available(bmsCellDeltaEntity) && delta <= t.BalanceDoneMV && cellMax >= t.BalanceSoftV {
+		// разбег судим только на верху колена (3,60 В): ниже он мал при любом балансе
+		if s.store.Available(bmsCellDeltaEntity) && delta <= t.BalanceDoneMV && cellMax >= t.BalanceStopV {
 			st.BalPhase = balDone
 			st.BalNote = fmt.Sprintf("выровнено: разбег на верху %.0f мВ за %d циклов", delta, st.BalCycles)
 			log.Printf("charge: balancing done — %s", st.BalNote)

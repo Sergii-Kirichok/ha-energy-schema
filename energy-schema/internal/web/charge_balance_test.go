@@ -231,3 +231,15 @@ func TestBalanceSOC100OnFlatIsNotTop(t *testing.T) {
 		t.Error("BMS limit 0 on the flat part — rest, not done")
 	}
 }
+
+// «Выровнено» — только на верху колена: BMS запретила заряд при 3,50 В с
+// разбегом 30 мВ — отдых, но не конец балансировки.
+func TestBalanceDoneOnlyAtStopV(t *testing.T) {
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.500", bmsCellDeltaEntity: "30"}, nil, "0")
+	st := recentState()
+	st.BalPhase = balCharge
+	balTick(t, s, &st)
+	if st.BalPhase != balRest || len(f.find("/services/input_boolean/turn_off")) != 0 {
+		t.Errorf("phase %q — want rest, not done", st.BalPhase)
+	}
+}
