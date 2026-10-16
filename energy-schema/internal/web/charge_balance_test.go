@@ -122,11 +122,11 @@ func TestBalanceNoWriteWhenUnchanged(t *testing.T) {
 }
 
 func TestBalanceDone(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.580",
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.600",
 		bmsCellDeltaEntity: "35"}, nil, "100")
 	st := recentState()
 	st.BalPhase, st.BalCycles = balCharge, 2
-	balTick(t, s, &st) // SOC 100 — верх цикла 3, разбег 35 ≤ 40 → выровнено
+	balTick(t, s, &st) // 3,60 В — верх цикла 3, разбег 35 ≤ 40 → выровнено
 	const note = "выровнено: разбег на верху 35 мВ за 3 циклов"
 	offs := f.find("/services/input_boolean/turn_off")
 	if len(offs) != 1 || offs[0].body["entity_id"] != chargeBalanceEntity {
@@ -209,5 +209,25 @@ func TestBalanceMaxCycles(t *testing.T) {
 	}
 	if want := "остановлено после 5 циклов: разбег на верху 80 мВ"; st.BalNote != want {
 		t.Errorf("note = %q, want %q", st.BalNote, want)
+	}
+}
+
+// 16.10: BMS досчитала SOC до 100 % при 3,36 В — это не верх: заряд малым
+// током продолжается, «выровнено» по разбегу плоской части не ставится. Если
+// BMS при этом запретила заряд — отдых, но тоже без «выровнено».
+func TestBalanceSOC100OnFlatIsNotTop(t *testing.T) {
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.361", bmsCellDeltaEntity: "2"}, map[int]int{108: 3}, "100")
+	st := recentState()
+	st.BalPhase = balCharge
+	balTick(t, s, &st)
+	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 2 мВ · циклов 0")
+	if len(f.find("/services/input_boolean/turn_off")) != 0 {
+		t.Error("must not finish on the flat part")
+	}
+	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.361", bmsCellDeltaEntity: "2"}, nil, "0")
+	balTick(t, s, &st)
+	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 2 мВ · циклов 1")
+	if len(f.find("/services/input_boolean/turn_off")) != 0 {
+		t.Error("BMS limit 0 on the flat part — rest, not done")
 	}
 }
