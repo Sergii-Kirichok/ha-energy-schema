@@ -188,3 +188,26 @@ func TestBalanceSoftTop(t *testing.T) {
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 3)
 	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 5 мВ · циклов 0")
 }
+
+// Предел циклов: верх 5-го цикла без «выровнено» — балансировка выключается
+// сама; верх 4-го — ещё отдых и следующий цикл.
+func TestBalanceMaxCycles(t *testing.T) {
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.600"}, nil, "100")
+	st := recentState()
+	st.BalPhase, st.BalCycles = balCharge, 3
+	balTick(t, s, &st)
+	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 4")
+	if len(f.find("/services/input_boolean/turn_off")) != 0 {
+		t.Error("cycle 4 of 5 — keep going")
+	}
+	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.600"}, nil, "100")
+	st.BalPhase = balCharge
+	balTick(t, s, &st)
+	offs := f.find("/services/input_boolean/turn_off")
+	if st.BalPhase != balDone || len(offs) != 1 || offs[0].body["entity_id"] != chargeBalanceEntity {
+		t.Fatalf("phase %q, turn_off %v", st.BalPhase, offs)
+	}
+	if want := "остановлено после 5 циклов: разбег на верху 80 мВ"; st.BalNote != want {
+		t.Errorf("note = %q, want %q", st.BalNote, want)
+	}
+}

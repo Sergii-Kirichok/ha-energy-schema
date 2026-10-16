@@ -93,6 +93,7 @@ schema:
   charge_balance_soft_v: float(3.3,3.6)?
   charge_balance_resume_soc: int(90,99)?
   charge_balance_done_mv: int(5,200)?
+  charge_balance_max_cycles: int(1,50)?
   refresh_seconds: int(1,60)
   control_users:
     - str?

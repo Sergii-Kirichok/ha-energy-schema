@@ -98,6 +98,9 @@ configuration:
   charge_balance_done_mv:
     name: "Charge: balancing — done at delta, mV"
     description: "When the cell delta at the top of a cycle is at most this value, balancing is finished and the switch turns itself off. Default 40 mV."
+  charge_balance_max_cycles:
+    name: "Charge: balancing — at most cycles"
+    description: "After this many cycles balancing turns itself off even if the delta has not reached the done threshold: the BMS balancer is weak and keeping the battery near the top for long is harmful. Default 5."
   refresh_seconds:
     name: "Wrapper file refresh, s"
     description: "How often the schematic reloads in /local/energy_schema.html (view-only page for dashboards and TVs outside ingress). The add-on panel refreshes every second regardless. Default 3."

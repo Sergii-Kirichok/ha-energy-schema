@@ -21,13 +21,14 @@ type ChargeTuning struct {
 	BalanceSoftV     float64 // …с этого напряжения макс. ячейки — минимальный ток до конца цикла, В
 	BalanceResumeSOC float64 // …отдых (без заряда) до этого SOC, %
 	BalanceDoneMV    float64 // …выровнено, если разбег на верху не больше, мВ
+	BalanceMaxCycles float64 // …выключить после стольких циклов, даже если не выровнено (0 — без предела)
 }
 
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
 func DefaultCharge() ChargeTuning {
 	return ChargeTuning{MaxALimit: 30, GridALimit: 15, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
 		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true,
-		BalanceStopV: 3.60, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalanceResumeSOC: 97, BalanceDoneMV: 40}
+		BalanceStopV: 3.60, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalanceResumeSOC: 97, BalanceDoneMV: 40, BalanceMaxCycles: 5}
 }
 
 // chargeOptions — зеркало необязательных опций config.yaml (nil/0 = по умолчанию).
@@ -47,6 +48,7 @@ type chargeOptions struct {
 	BalanceSoftV     float64 `json:"charge_balance_soft_v"`
 	BalanceResumeSOC float64 `json:"charge_balance_resume_soc"`
 	BalanceDoneMV    float64 `json:"charge_balance_done_mv"`
+	BalanceMaxCycles float64 `json:"charge_balance_max_cycles"`
 }
 
 func (t *ChargeTuning) apply(o chargeOptions) {
@@ -57,7 +59,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 		{&t.MaxALimit, o.MaxALimit}, {&t.GridALimit, o.GridALimit}, {&t.FullDaysMax, o.FullDaysMax},
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
 		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
-		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceSoftMV, o.BalanceSoftMV}, {&t.BalanceSoftV, o.BalanceSoftV}, {&t.BalanceResumeSOC, o.BalanceResumeSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV},
+		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceSoftMV, o.BalanceSoftMV}, {&t.BalanceSoftV, o.BalanceSoftV}, {&t.BalanceResumeSOC, o.BalanceResumeSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV}, {&t.BalanceMaxCycles, o.BalanceMaxCycles},
 	} {
 		if p.v > 0 {
 			*p.dst = p.v

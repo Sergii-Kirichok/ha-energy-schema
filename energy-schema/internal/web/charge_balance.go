@@ -73,6 +73,12 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 			st.BalNote = fmt.Sprintf("выровнено: разбег на верху %.0f мВ за %d циклов", delta, st.BalCycles)
 			log.Printf("charge: balancing done — %s", st.BalNote)
 			s.balanceOff()
+		} else if n := int(t.BalanceMaxCycles); n > 0 && st.BalCycles >= n {
+			// пассивный балансир слабый: часами у верха батарею не держим
+			st.BalPhase = balDone
+			st.BalNote = fmt.Sprintf("остановлено после %d циклов: разбег на верху %.0f мВ", st.BalCycles, delta)
+			log.Printf("charge: balancing stopped — %s", st.BalNote)
+			s.balanceOff()
 		}
 		st.save(chargeFile)
 	}
