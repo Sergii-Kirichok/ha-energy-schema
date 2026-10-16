@@ -219,7 +219,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if auto {
 		fd, fa := fullDue, in.MaxA
 		if st.balanceActive() {
-			fd, fa = mode == "balance/charge", amps // заряд — как полный (током хвоста), отдых — ToU как было
+			fd, fa = mode == "balance/charge" || mode == "balance/soft", amps // заряд — как полный (током хвоста), отдых — ToU как было
 		}
 		s.fullCharge(st, fd, soc, fa, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
 	} else {

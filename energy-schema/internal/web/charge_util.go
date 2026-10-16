@@ -101,6 +101,7 @@ type chargeState struct {
 	BalPhase    string    `json:"bal_phase,omitempty"`  // балансировка: charge | rest | done (charge_balance.go)
 	BalCycles   int       `json:"bal_cycles,omitempty"` // …циклов «заряд → отдых»
 	BalTopMV    float64   `json:"bal_top_mv,omitempty"` // …разбег на верху последнего цикла, мВ
+	BalSoft     bool      `json:"bal_soft,omitempty"`   // …верх цикла: минимальный ток до его конца (BalanceSoftV)
 	BalNote     string    `json:"bal_note,omitempty"`   // …итог («выровнено: …»)
 	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
 	touSince    time.Time // …с этого момента

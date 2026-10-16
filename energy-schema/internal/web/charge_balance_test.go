@@ -15,7 +15,7 @@ func balSetup(t *testing.T, states map[string]string, regs map[int]int, limitA s
 	prev := chargeFile
 	chargeFile = filepath.Join(t.TempDir(), "charge.json")
 	t.Cleanup(func() { chargeFile = prev })
-	base := map[string]string{chargeBalanceEntity: "on", bmsCellMaxEntity: "3.450", bmsCellDeltaEntity: "80"}
+	base := map[string]string{chargeBalanceEntity: "on", bmsCellMaxEntity: "3.400", bmsCellDeltaEntity: "80"}
 	for k, v := range states {
 		base[k] = v
 	}
@@ -155,4 +155,28 @@ func TestBalanceOffResetsAndAutoOffPauses(t *testing.T) {
 	s, f = balSetup(t, map[string]string{chargeAutoHelper: "off"}, nil, "")
 	balTick(t, s, &st)
 	wantBal(t, f, &st, "", "manual", "пауза — авто-регулятор выключен")
+}
+
+// Верх цикла: с 3,45 В — минимальный ток (1 в регистре) до конца цикла, без
+// возврата на ток хвоста, даже если ячейка просела от снижения тока; новый
+// цикл заряда — снова ток хвоста.
+func TestBalanceSoftTop(t *testing.T) {
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98", bmsCellMaxEntity: "3.460"}, map[int]int{108: 3}, "100")
+	st := recentState()
+	st.BalPhase = balCharge
+	balTick(t, s, &st)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 1)
+	wantBal(t, f, &st, balCharge, "balance/soft", "заряд · разбег 80 мВ · циклов 0")
+	if !loadChargeState(chargeFile).BalSoft {
+		t.Error("soft must be persisted")
+	}
+	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98", bmsCellMaxEntity: "3.440"}, map[int]int{108: 1}, "100")
+	balTick(t, s, &st)
+	wantVals(t, "max", f.setValues(chargeMaxEntity))
+	wantBal(t, f, &st, balCharge, "balance/soft", "заряд · разбег 80 мВ · циклов 0")
+	st.BalPhase = balRest
+	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "97"}, map[int]int{108: 0}, "100")
+	balTick(t, s, &st)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 3)
+	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 80 мВ · циклов 0")
 }

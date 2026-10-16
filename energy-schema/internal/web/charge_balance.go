@@ -51,6 +51,7 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 		return 0, "", false // пауза: ручной режим не трогаем
 	case st.BalPhase == "":
 		st.BalPhase, st.BalCycles, st.BalTopMV, st.BalNote = balCharge, 0, 0, ""
+		st.BalSoft = false
 		st.save(chargeFile)
 		log.Printf("charge: balancing on — cycles to %.2f V, rest to %.0f %%", t.BalanceStopV, t.BalanceResumeSOC)
 	}
@@ -59,6 +60,7 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 	bmsZero := known && limit <= 0
 	if st.BalPhase == balRest && soc <= t.BalanceResumeSOC && known && limit > 0 {
 		st.BalPhase = balCharge
+		st.BalSoft = false
 		st.save(chargeFile)
 		log.Printf("charge: balancing — SOC %.0f%%, charge again (cycle %d)", soc, st.BalCycles+1)
 	}
@@ -74,8 +76,17 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 		}
 		st.save(chargeFile)
 	}
+	// верх цикла — минимальный ток до его конца (без возврата: одна запись за цикл)
+	if st.BalPhase == balCharge && !st.BalSoft && t.BalanceSoftV > 0 && s.store.Num(bmsCellMaxEntity) >= t.BalanceSoftV {
+		st.BalSoft = true
+		st.save(chargeFile)
+		log.Printf("charge: balancing — cell max %.3f V, minimum current to the top", s.store.Num(bmsCellMaxEntity))
+	}
 	switch st.BalPhase {
 	case balCharge:
+		if st.BalSoft {
+			return chargeMinA, "balance/soft", true
+		}
 		return math.Min(maxA, math.Max(chargeMinA, t.FullTailA)), "balance/charge", true
 	case balRest:
 		return 0, "balance/rest", true

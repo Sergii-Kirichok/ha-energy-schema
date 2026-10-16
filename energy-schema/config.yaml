@@ -89,6 +89,7 @@ schema:
   charge_full_tail_a: float(1,185)?
   charge_zero_on_target: bool?
   charge_balance_stop_v: float(3.4,3.65)?
+  charge_balance_soft_v: float(3.3,3.6)?
   charge_balance_resume_soc: int(90,99)?
   charge_balance_done_mv: int(5,200)?
   refresh_seconds: int(1,60)
