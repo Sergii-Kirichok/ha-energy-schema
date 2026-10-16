@@ -88,7 +88,7 @@ func TestBalanceRestOnBMSLimitZero(t *testing.T) {
 	f.reset()
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 0)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 1")
+	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 0")
 }
 
 func TestBalanceRestToCharge(t *testing.T) {
@@ -226,7 +226,7 @@ func TestBalanceSOC100OnFlatIsNotTop(t *testing.T) {
 	}
 	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.361", bmsCellDeltaEntity: "2"}, nil, "0")
 	balTick(t, s, &st)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 2 мВ · циклов 1")
+	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 2 мВ · циклов 0")
 	if len(f.find("/services/input_boolean/turn_off")) != 0 {
 		t.Error("BMS limit 0 on the flat part — rest, not done")
 	}

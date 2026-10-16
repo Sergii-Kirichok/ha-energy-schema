@@ -67,7 +67,10 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 	// верх — по ячейке или запрету заряда BMS; SOC 100 % не верх: счётчик BMS
 	// доходит до 100 % и на плоской части (16.10: 100 % при 3,36 В)
 	if cellMax := s.store.Num(bmsCellMaxEntity); st.BalPhase == balCharge && (cellMax >= t.BalanceStopV || bmsZero) {
-		st.BalPhase, st.BalCycles, st.BalTopMV = balRest, st.BalCycles+1, delta
+		st.BalPhase, st.BalTopMV = balRest, delta
+		if cellMax >= t.BalanceStopV { // цикл — только настоящий верх; запрет BMS на плоской части — просто отдых
+			st.BalCycles++
+		}
 		log.Printf("charge: balancing — top of cycle %d: cell max %.3f V, delta %.0f mV, BMS limit 0: %v, SOC %.0f%%",
 			st.BalCycles, cellMax, delta, bmsZero, soc)
 		// разбег судим только на верху колена (3,60 В): ниже он мал при любом балансе
