@@ -109,3 +109,16 @@ func TestAlignAxesMirrorFix3(t *testing.T) {
 		t.Error("second run must be a no-op")
 	}
 }
+
+func TestCellsPrecision(t *testing.T) {
+	m := map[string]any{"series": []any{map[string]any{"entity": "sensor.energy_schema_bms_cell_max"},
+		map[string]any{"entity": "sensor.energy_schema_bms_cell_min", "float_precision": 3.0},
+		map[string]any{"entity": "sensor.energy_schema_bms_cell_delta"}}}
+	if !cellsPrecision(m) || cellsPrecision(m) {
+		t.Fatal("one change, then no-op")
+	}
+	ss := m["series"].([]any)
+	if ss[0].(map[string]any)["float_precision"] != 3 || ss[2].(map[string]any)["float_precision"] != nil {
+		t.Errorf("series: %v", ss)
+	}
+}

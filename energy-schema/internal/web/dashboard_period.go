@@ -81,7 +81,7 @@ func cellsChartFor(span, dur string) map[string]any {
 		col = "5m"
 	}
 	line := func(entity, name, color, fn string) map[string]any {
-		s := map[string]any{"entity": entity, "name": name, "yaxis_id": "v", "color": color, "stroke_width": 2, "type": "line"}
+		s := map[string]any{"entity": entity, "name": name, "yaxis_id": "v", "color": color, "stroke_width": 2, "type": "line", "float_precision": 3}
 		if dur != "" {
 			s["group_by"] = map[string]any{"func": fn, "duration": dur} // max/min — пики не съедаются
 		}
@@ -125,6 +125,9 @@ func patchPeriodCharts(node any) bool {
 				changed = true
 			}
 			if m, ok := c.(map[string]any); ok && renameChart(m) {
+				changed = true
+			}
+			if m, ok := c.(map[string]any); ok && cellsPrecision(m) {
 				changed = true
 			}
 		}
@@ -282,15 +285,4 @@ func mirror(chart, y0 map[string]any, ss, ys []any) ([]any, []any) {
 		sub(yac, "title")["offsetX"] = f.titleX
 	}
 	return ss, ys
-}
-
-// renameChart — «Последний час (живое)» вводил в заблуждение: период задаёт
-// переключатель над графиками, поэтому название — по содержанию.
-func renameChart(m map[string]any) bool {
-	h, _ := m["header"].(map[string]any)
-	if h == nil || h["title"] != "Последний час (живое)" {
-		return false
-	}
-	h["title"] = "Мощность: сеть, солнце, нагрузка"
-	return true
 }
