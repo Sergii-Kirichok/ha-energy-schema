@@ -54,6 +54,13 @@ func TestPatchPeriodCharts(t *testing.T) {
 	}
 }
 
+func TestRenameChart(t *testing.T) {
+	m := map[string]any{"header": map[string]any{"title": "Последний час (живое)"}}
+	if !renameChart(m) || m["header"].(map[string]any)["title"] != "Мощность: сеть, солнце, нагрузка" || renameChart(m) {
+		t.Errorf("rename: %v", m)
+	}
+}
+
 // Старый вид (призрак kw_r из одной невидимой серии, maxWidth) → зеркало:
 // правая ось-копия и прозрачные копии всех серий, подсказка только по
 // настоящим; повтор — no-op.

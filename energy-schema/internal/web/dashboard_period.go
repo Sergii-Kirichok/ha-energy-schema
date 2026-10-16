@@ -124,6 +124,9 @@ func patchPeriodCharts(node any) bool {
 			if m, ok := c.(map[string]any); ok && m["type"] == "custom:apexcharts-card" && alignAxes(m) {
 				changed = true
 			}
+			if m, ok := c.(map[string]any); ok && renameChart(m) {
+				changed = true
+			}
 		}
 	}
 	// отдельный (суточный) график ячеек вне блока периода — убрать
@@ -279,4 +282,15 @@ func mirror(chart, y0 map[string]any, ss, ys []any) ([]any, []any) {
 		sub(yac, "title")["offsetX"] = f.titleX
 	}
 	return ss, ys
+}
+
+// renameChart — «Последний час (живое)» вводил в заблуждение: период задаёт
+// переключатель над графиками, поэтому название — по содержанию.
+func renameChart(m map[string]any) bool {
+	h, _ := m["header"].(map[string]any)
+	if h == nil || h["title"] != "Последний час (живое)" {
+		return false
+	}
+	h["title"] = "Мощность: сеть, солнце, нагрузка"
+	return true
 }

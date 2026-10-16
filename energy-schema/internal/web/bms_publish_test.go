@@ -83,3 +83,15 @@ func TestWithLoc(t *testing.T) {
 		t.Errorf("withLoc = %v", a)
 	}
 }
+
+// Подписи «М·№»: 10053 — модуль (до 12), 10054 — ячейка (до 16); старая
+// статистика с перепутанными ключами перекладывается один раз.
+func TestCellLocModuleFirst(t *testing.T) {
+	if regCellMaxMod != 10053 || regCellMaxN != 10054 || regCellMinMod != 10056 || regCellMinN != 10057 {
+		t.Fatal("module/cell registers swapped")
+	}
+	got := swapLocs(map[string]int{"М15·№1": 3, "М4·№10": 2})
+	if got["М1·№15"] != 3 || got["М10·№4"] != 2 || len(got) != 2 {
+		t.Errorf("swapLocs = %v", got)
+	}
+}

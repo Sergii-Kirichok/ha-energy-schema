@@ -15,14 +15,18 @@ import (
 // крайних ячеек — номер ячейки И номер модуля («local»): по ним копим
 // статистику и ищем слабую ячейку.
 const (
-	regCellMaxMod = 10054 // модуль с самой высокой ячейкой
-	regCellMinMod = 10057 // модуль с самой низкой ячейкой
+	// 10053/10056 — модуль (1..12), 10054/10057 — ячейка в модуле (1..16):
+	// по истории 16.10 первое бывает только до 12, второе — до 16
+	regCellMaxMod = 10053 // модуль с самой высокой ячейкой
+	regCellMinMod = 10056 // модуль с самой низкой ячейкой
+	regCellMaxN   = 10054 // …ячейка в модуле
+	regCellMinN   = 10057
 	regTempMax    = 10059 // °C + 40
-	regTempMaxN   = 10060
-	regTempMaxMod = 10061
+	regTempMaxMod = 10060
+	regTempMaxN   = 10061
 	regTempMin    = 10062
-	regTempMinN   = 10063
-	regTempMinMod = 10064
+	regTempMinMod = 10063
+	regTempMinN   = 10064
 	regChgLimit   = 10065 // 0.1 A
 	regDsgLimit   = 10066 // 0.1 A
 	regPacks      = 10070
@@ -55,6 +59,7 @@ type cellStats struct {
 	MaxChg map[string]int `json:"max_on_charge"`
 	Rack   string         `json:"rack"`   // серийник BMU стойки (10032..10039)
 	Cycles int            `json:"cycles"` // счётчик циклов BMS при последней выборке
+	LocV2  bool           `json:"loc_v2"` // подписи «М·№» исправлены (16.10): модуль и ячейка были перепутаны
 	saved  time.Time
 }
 
@@ -68,6 +73,9 @@ func loadCellStats(path string) *cellStats {
 	}
 	if c.MaxChg == nil {
 		c.MaxChg = map[string]int{}
+	}
+	if !c.LocV2 { // старые ключи «М<ячейка>·№<модуль>» → «М<модуль>·№<ячейка>»
+		c.MinDsg, c.MaxChg, c.LocV2 = swapLocs(c.MinDsg), swapLocs(c.MaxChg), true
 	}
 	return c
 }
@@ -204,4 +212,16 @@ func (c *cellStats) sameRack(serial string, cycles int) bool {
 	}
 	c.Cycles = cycles
 	return same
+}
+
+func swapLocs(m map[string]int) map[string]int {
+	out := make(map[string]int, len(m))
+	for k, v := range m {
+		var a, b int
+		if n, _ := fmt.Sscanf(k, "М%d·№%d", &a, &b); n == 2 {
+			k = cellLoc(b, a)
+		}
+		out[k] += v
+	}
+	return out
 }

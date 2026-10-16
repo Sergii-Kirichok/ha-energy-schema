@@ -18,12 +18,10 @@ const (
 	bmsDeviceEntity = "sensor.deye_sun_30k_battery" // любая сущность устройства Solarman
 	bmsSOHEntity    = "sensor.energy_schema_bms_soh"
 
-	regSOH      = 10006
-	regCycles   = 10046
-	regCellMax  = 10052
-	regCellMaxN = 10053
-	regCellMin  = 10055
-	regCellMinN = 10056
+	regSOH     = 10006
+	regCycles  = 10046
+	regCellMax = 10052
+	regCellMin = 10055
 )
 
 // Пороги для LFP-ячеек. ponytail: эмпирика по типичным HV LFP (3.2 В номинал);
