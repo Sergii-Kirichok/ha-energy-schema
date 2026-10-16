@@ -96,9 +96,9 @@ func cellsChartFor(span, dur string) map[string]any {
 			map[string]any{"id": "d", "opposite": true, "min": 0, "decimals": 0, "apex_config": map[string]any{"title": map[string]any{"text": "мВ"}}},
 		},
 		"series": []any{
-			line("sensor.energy_schema_bms_cell_max", "макс", "#f59e0b", "max"),
-			line("sensor.energy_schema_bms_cell_min", "мин", "#60a5fa", "min"),
-			map[string]any{"entity": "sensor.energy_schema_bms_cell_delta", "name": "разбег", "yaxis_id": "d", "type": "column", "color": "#a78bfa",
+			line("sensor.energy_schema_bms_cell_max", "▲ макс", "#f59e0b", "max"),
+			line("sensor.energy_schema_bms_cell_min", "▼ мин", "#60a5fa", "min"),
+			map[string]any{"entity": "sensor.energy_schema_bms_cell_delta", "name": "Δ разбег", "yaxis_id": "d", "type": "column", "color": "#a78bfa",
 				"group_by": map[string]any{"func": "max", "duration": col}},
 		},
 	}

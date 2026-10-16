@@ -13,15 +13,26 @@ func renameChart(m map[string]any) bool {
 	return true
 }
 
-// cellsPrecision — напряжения ячеек в заголовке и легенде до тысячных
-// (по умолчанию карточка округляет до десятых: «3,3 V»).
+// cellsNames — подписи серий «Ячеек» со значками (в шапке значение крупно,
+// подпись под ним — значок перед числом карточка поставить не даёт).
+var cellsNames = map[string]string{"sensor.energy_schema_bms_cell_max": "▲ макс",
+	"sensor.energy_schema_bms_cell_min": "▼ мин", "sensor.energy_schema_bms_cell_delta": "Δ разбег"}
+
+// cellsPrecision — серии «Ячеек»: напряжения в шапке и легенде до тысячных
+// (по умолчанию карточка округляет до десятых: «3,3 V») и подписи со значками.
 func cellsPrecision(m map[string]any) bool {
 	changed := false
 	ss, _ := m["series"].([]any)
 	for _, s := range ss {
 		sm, ok := s.(map[string]any)
-		if ok && (sm["entity"] == "sensor.energy_schema_bms_cell_max" || sm["entity"] == "sensor.energy_schema_bms_cell_min") &&
-			fmt.Sprint(sm["float_precision"]) != "3" {
+		if !ok {
+			continue
+		}
+		e, _ := sm["entity"].(string)
+		if n, ok := cellsNames[e]; ok && sm["name"] != n {
+			sm["name"], changed = n, true
+		}
+		if (e == "sensor.energy_schema_bms_cell_max" || e == "sensor.energy_schema_bms_cell_min") && fmt.Sprint(sm["float_precision"]) != "3" {
 			sm["float_precision"], changed = 3, true
 		}
 	}

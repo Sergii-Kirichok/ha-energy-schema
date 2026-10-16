@@ -118,7 +118,8 @@ func TestCellsPrecision(t *testing.T) {
 		t.Fatal("one change, then no-op")
 	}
 	ss := m["series"].([]any)
-	if ss[0].(map[string]any)["float_precision"] != 3 || ss[2].(map[string]any)["float_precision"] != nil {
+	if ss[0].(map[string]any)["float_precision"] != 3 || ss[2].(map[string]any)["float_precision"] != nil ||
+		ss[0].(map[string]any)["name"] != "▲ макс" || ss[2].(map[string]any)["name"] != "Δ разбег" {
 		t.Errorf("series: %v", ss)
 	}
 }
