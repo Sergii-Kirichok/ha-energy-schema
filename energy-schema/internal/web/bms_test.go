@@ -35,7 +35,7 @@ func TestBalanceLabel(t *testing.T) {
 		phase, want string
 	}{
 		{true, balCharge, "балансировка — заряд"},
-		{true, balRest, "балансировка — разряд"},
+		{true, balRest, "балансировка — пауза"},
 		{true, balDone, "выровнены"},
 		{false, balCharge, "выровнены"}, // хелпер уже выключен, фаза ещё не сброшена
 		{false, "", "выровнены"},

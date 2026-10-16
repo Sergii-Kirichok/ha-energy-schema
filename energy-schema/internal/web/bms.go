@@ -57,7 +57,7 @@ func balanceLabel(on bool, phase, note string) string {
 	case on && phase == balCharge:
 		return "балансировка — заряд"
 	case on && phase == balRest:
-		return "балансировка — разряд"
+		return "балансировка — пауза"
 	}
 	return note
 }

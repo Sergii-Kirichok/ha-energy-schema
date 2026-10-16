@@ -35,6 +35,9 @@ func balSetup(t *testing.T, states map[string]string, regs map[int]int, limitA s
 func balTick(t *testing.T, s *Server, st *chargeState) {
 	t.Helper()
 	st.Wrote108 = time.Now() // смена фазы — запись сразу, без chargeMinWriteGap
+	if st.Factor == 0 {
+		st.Factor = 2 // как после первого тика: 110 = 1 — каналы ×2
+	}
 	runTick(s, st)
 }
 
@@ -56,21 +59,24 @@ func TestBalanceStartsWithTailCurrent(t *testing.T) {
 	st := recentState()
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 3) // хвост 6 А / 2 канала
-	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 5 мВ · циклов 0")
-	if loadChargeState(chargeFile).BalPhase != balCharge {
-		t.Error("phase must be persisted")
+	wantBal(t, f, &st, balCharge, "balance/charge", "заряд 6 А · разбег 5 мВ · порций 0")
+	if p := loadChargeState(chargeFile); p.BalPhase != balCharge || time.Since(p.BalStart) > time.Minute {
+		t.Error("phase and session start must be persisted")
 	}
 }
 
 func TestBalanceChargeToRestOnCellVoltage(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.600"}, nil, "100")
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.550"}, nil, "100")
 	st := recentState()
 	st.BalPhase = balCharge
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 0)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 1")
-	if st.BalCycles != 1 || st.BalTopMV != 80 {
-		t.Errorf("cycles %d top %v", st.BalCycles, st.BalTopMV)
+	wantBal(t, f, &st, balRest, "balance/rest", "пауза: ещё 60 мин / до ≤3,45 В · разбег на верху 80 мВ · порций 1")
+	if st.BalCycles != 1 || st.BalTopMV != 80 || !st.BalSoft || time.Since(st.BalRestAt) > time.Minute {
+		t.Errorf("pulses %d top %v soft %v pause %v", st.BalCycles, st.BalTopMV, st.BalSoft, st.BalRestAt)
+	}
+	if p := loadChargeState(chargeFile); p.BalRestAt.IsZero() || !p.BalSoft {
+		t.Error("pause start and soft must be persisted")
 	}
 	if len(f.find("/services/input_boolean/turn_off")) != 0 {
 		t.Error("80 mV > 40 — not done yet")
@@ -80,32 +86,15 @@ func TestBalanceChargeToRestOnCellVoltage(t *testing.T) {
 func TestBalanceRestOnBMSLimitZero(t *testing.T) {
 	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "97"}, nil, "0")
 	st := recentState()
-	st.BalPhase = balRest // SOC 97 ≤ 97, но BMS запретил заряд — отдых, ток 0
+	st.BalPhase = balRest // пауза из старой версии (без начала): отсчёт с сейчас, BMS запретил заряд — ток 0
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 0)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 0 мВ · циклов 0")
+	wantBal(t, f, &st, balRest, "balance/rest", "пауза: ещё 60 мин / разрешения BMS · разбег на верху 0 мВ · порций 0")
 	st.BalPhase = balCharge
 	f.reset()
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 0)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 0")
-}
-
-func TestBalanceRestToCharge(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98"}, map[int]int{108: 0}, "100")
-	st := recentState()
-	st.BalPhase, st.BalCycles, st.BalTopMV = balRest, 2, 60
-	balTick(t, s, &st) // 98 % > 97 — отдыхаем дальше, 0 уже стоит — записей нет
-	wantVals(t, "max", f.setValues(chargeMaxEntity))
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 60 мВ · циклов 2")
-	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "96"}, map[int]int{108: 0}, "") // лимит BMS неизвестен — ждём
-	balTick(t, s, &st)
-	wantVals(t, "max", f.setValues(chargeMaxEntity))
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 60 мВ · циклов 2")
-	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "97", bmsCellDeltaEntity: "5"}, map[int]int{108: 0}, "100")
-	balTick(t, s, &st)
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 3)
-	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 5 мВ · циклов 2")
+	wantBal(t, f, &st, balRest, "balance/rest", "пауза: ещё 60 мин / разрешения BMS · разбег на верху 80 мВ · порций 0")
 }
 
 func TestBalanceNoWriteWhenUnchanged(t *testing.T) {
@@ -122,12 +111,12 @@ func TestBalanceNoWriteWhenUnchanged(t *testing.T) {
 }
 
 func TestBalanceDone(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.600",
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.550",
 		bmsCellDeltaEntity: "35"}, nil, "100")
 	st := recentState()
 	st.BalPhase, st.BalCycles = balCharge, 2
-	balTick(t, s, &st) // 3,60 В — верх цикла 3, разбег 35 ≤ 40 → выровнено
-	const note = "выровнено: разбег на верху 35 мВ за 3 циклов"
+	balTick(t, s, &st) // 3,55 В — верх порции 3, разбег 35 ≤ 40 → выровнено
+	const note = "выровнено: разбег на верху 35 мВ за 3 порций"
 	offs := f.find("/services/input_boolean/turn_off")
 	if len(offs) != 1 || offs[0].body["entity_id"] != chargeBalanceEntity {
 		t.Fatalf("helper turn_off: %v", offs)
@@ -157,9 +146,9 @@ func TestBalanceOffResetsAndAutoOffPauses(t *testing.T) {
 	wantBal(t, f, &st, "", "manual", "пауза — авто-регулятор выключен")
 }
 
-// Верх цикла: минимальный ток (1 в регистре) — по тому, что раньше: разбег
-// ≥ 10 мВ или верхняя ячейка ≥ 3,45 В; до конца цикла, без возврата на ток
-// хвоста; новый цикл заряда — снова ток хвоста.
+// У верха: минимальный ток (1 в регистре) — по тому, что раньше: разбег
+// ≥ 10 мВ или верхняя ячейка ≥ 3,45 В; до конца сессии, без возврата на ток
+// хвоста; после паузы следующая порция — сразу минимальный ток.
 func TestBalanceSoftTop(t *testing.T) {
 	for _, c := range []struct{ cell, delta string }{{"3.460", "5"}, {"3.380", "12"}} { // ячейка раньше, разбег раньше
 		s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98", bmsCellMaxEntity: c.cell, bmsCellDeltaEntity: c.delta}, map[int]int{108: 3}, "100")
@@ -176,40 +165,17 @@ func TestBalanceSoftTop(t *testing.T) {
 	st.BalPhase = balCharge
 	balTick(t, s, &st) // 8 мВ и 3,38 В — ещё ток хвоста, записей нет
 	wantVals(t, "max", f.setValues(chargeMaxEntity))
-	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 8 мВ · циклов 0")
+	wantBal(t, f, &st, balCharge, "balance/charge", "заряд 6 А · разбег 8 мВ · порций 0")
 	st.BalSoft = true
 	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98", bmsCellMaxEntity: "3.380", bmsCellDeltaEntity: "8"}, map[int]int{108: 1}, "100")
 	balTick(t, s, &st) // ниже порогов — минимальный ток остаётся
 	wantVals(t, "max", f.setValues(chargeMaxEntity))
-	wantBal(t, f, &st, balCharge, "balance/soft", "заряд · разбег 8 мВ · циклов 0")
-	st.BalPhase = balRest
+	wantBal(t, f, &st, balCharge, "balance/soft", "заряд 2 А · разбег 8 мВ · порций 0")
+	st.BalPhase, st.BalRestAt = balRest, time.Now().Add(-61*time.Minute) // пауза прошла — следующая порция сразу 2 А
 	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "97", bmsCellDeltaEntity: "5"}, map[int]int{108: 0}, "100")
 	balTick(t, s, &st)
-	wantVals(t, "max", f.setValues(chargeMaxEntity), 3)
-	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 5 мВ · циклов 0")
-}
-
-// Предел циклов: верх 5-го цикла без «выровнено» — балансировка выключается
-// сама; верх 4-го — ещё отдых и следующий цикл.
-func TestBalanceMaxCycles(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.600"}, nil, "100")
-	st := recentState()
-	st.BalPhase, st.BalCycles = balCharge, 3
-	balTick(t, s, &st)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 80 мВ · циклов 4")
-	if len(f.find("/services/input_boolean/turn_off")) != 0 {
-		t.Error("cycle 4 of 5 — keep going")
-	}
-	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.600"}, nil, "100")
-	st.BalPhase = balCharge
-	balTick(t, s, &st)
-	offs := f.find("/services/input_boolean/turn_off")
-	if st.BalPhase != balDone || len(offs) != 1 || offs[0].body["entity_id"] != chargeBalanceEntity {
-		t.Fatalf("phase %q, turn_off %v", st.BalPhase, offs)
-	}
-	if want := "остановлено после 5 циклов: разбег на верху 80 мВ"; st.BalNote != want {
-		t.Errorf("note = %q, want %q", st.BalNote, want)
-	}
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 1)
+	wantBal(t, f, &st, balCharge, "balance/soft", "заряд 2 А · разбег 5 мВ · порций 0")
 }
 
 // 16.10: BMS досчитала SOC до 100 % при 3,36 В — это не верх: заряд малым
@@ -220,13 +186,13 @@ func TestBalanceSOC100OnFlatIsNotTop(t *testing.T) {
 	st := recentState()
 	st.BalPhase = balCharge
 	balTick(t, s, &st)
-	wantBal(t, f, &st, balCharge, "balance/charge", "заряд · разбег 2 мВ · циклов 0")
+	wantBal(t, f, &st, balCharge, "balance/charge", "заряд 6 А · разбег 2 мВ · порций 0")
 	if len(f.find("/services/input_boolean/turn_off")) != 0 {
 		t.Error("must not finish on the flat part")
 	}
 	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.361", bmsCellDeltaEntity: "2"}, nil, "0")
 	balTick(t, s, &st)
-	wantBal(t, f, &st, balRest, "balance/rest", "отдых до 97 % и разрешения BMS · разбег на верху 2 мВ · циклов 0")
+	wantBal(t, f, &st, balRest, "balance/rest", "пауза: ещё 60 мин / разрешения BMS · разбег на верху 2 мВ · порций 0")
 	if len(f.find("/services/input_boolean/turn_off")) != 0 {
 		t.Error("BMS limit 0 on the flat part — rest, not done")
 	}
@@ -241,25 +207,5 @@ func TestBalanceDoneOnlyAtStopV(t *testing.T) {
 	balTick(t, s, &st)
 	if st.BalPhase != balRest || len(f.find("/services/input_boolean/turn_off")) != 0 {
 		t.Errorf("phase %q — want rest, not done", st.BalPhase)
-	}
-}
-
-// 16.10: при SOC 100 % на плоской части сеть помогать не переставала — ToU
-// выключен на фазу заряда без оглядки на SOC и прогноз, возвращён на отдыхе.
-func TestBalanceGridIgnoresSOC(t *testing.T) {
-	grid := map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.340", bmsCellDeltaEntity: "2",
-		"binary_sensor.deye_sun_30k_grid": "on", gridChargeSwitch: "on"}
-	s, f := balSetup(t, grid, map[int]int{108: 3, 146: 255}, "31")
-	st := recentState()
-	st.BalPhase = balCharge
-	balTick(t, s, &st)
-	if st.TouWas == nil || *st.TouWas != 255 || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
-		t.Fatalf("ToU must be off for the charge phase: was %v, writes %v", st.TouWas, f.find("/services/solarman/write_multiple_holding_registers"))
-	}
-	grid[bmsCellMaxEntity], grid[bmsCellDeltaEntity] = "3.600", "80"
-	s, f = balSetup(t, grid, map[int]int{108: 3, 146: 254}, "0")
-	balTick(t, s, &st)
-	if st.BalPhase != balRest || st.TouWas != nil || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
-		t.Errorf("rest must restore ToU: phase %q was %v", st.BalPhase, st.TouWas)
 	}
 }

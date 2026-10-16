@@ -217,7 +217,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}()
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
 	if auto && st.balanceActive() {
-		s.balanceGrid(st, mode != "balance/rest")
+		s.balanceGrid(st) // ToU выкл. всю сессию: запись 146 только в начале и в конце
 	} else if auto {
 		s.fullCharge(st, fullDue, soc, in.MaxA, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
 	} else {

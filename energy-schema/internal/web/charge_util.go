@@ -90,19 +90,21 @@ func driftMargin(floorA, battV, hoursLeft, capKWh float64) float64 {
 
 type chargeState struct {
 	LastFull    time.Time `json:"last_full"`
-	Factor      float64   `json:"-"`                    // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
-	ZeroBroken  bool      `json:"zero_broken"`          // проверено: Deye не останавливает заряд по 108=0
-	ZeroFloorA  float64   `json:"zero_floor_a"`         // остаточный ток заряда при 108=0 (измерен), А
-	ZeroChecked bool      `json:"zero_checked"`         // остаток измерен самопроверкой
-	ZeroSince   time.Time `json:"-"`                    // когда записали 0 (для самопроверки)
-	Night       bool      `json:"-"`                    // ночной режим (гистерезис по генерации)
-	Holding     bool      `json:"holding"`              // удержание у цели (гистерезис holdHyst)
-	TouWas      *int      `json:"tou_was,omitempty"`    // рег. 146 до выключения ToU на время полного заряда от сети
-	BalPhase    string    `json:"bal_phase,omitempty"`  // балансировка: charge | rest | done (charge_balance.go)
-	BalCycles   int       `json:"bal_cycles,omitempty"` // …циклов «заряд → отдых»
-	BalTopMV    float64   `json:"bal_top_mv,omitempty"` // …разбег на верху последнего цикла, мВ
-	BalSoft     bool      `json:"bal_soft,omitempty"`   // …верх цикла: минимальный ток до его конца (BalanceSoftV)
-	BalNote     string    `json:"bal_note,omitempty"`   // …итог («выровнено: …»)
+	Factor      float64   `json:"-"`                     // множитель регистр→факт (1 или 2), 0 = ещё не прочитан
+	ZeroBroken  bool      `json:"zero_broken"`           // проверено: Deye не останавливает заряд по 108=0
+	ZeroFloorA  float64   `json:"zero_floor_a"`          // остаточный ток заряда при 108=0 (измерен), А
+	ZeroChecked bool      `json:"zero_checked"`          // остаток измерен самопроверкой
+	ZeroSince   time.Time `json:"-"`                     // когда записали 0 (для самопроверки)
+	Night       bool      `json:"-"`                     // ночной режим (гистерезис по генерации)
+	Holding     bool      `json:"holding"`               // удержание у цели (гистерезис holdHyst)
+	TouWas      *int      `json:"tou_was,omitempty"`     // рег. 146 до выключения ToU на время полного заряда от сети
+	BalPhase    string    `json:"bal_phase,omitempty"`   // балансировка: charge | rest | done (charge_balance.go)
+	BalCycles   int       `json:"bal_cycles,omitempty"`  // …порций до верха (ячейка ≥ BalanceStopV)
+	BalTopMV    float64   `json:"bal_top_mv,omitempty"`  // …разбег на верху последней порции, мВ
+	BalSoft     bool      `json:"bal_soft,omitempty"`    // …минимальный ток до конца сессии (BalanceSoftMV/V, первый верх)
+	BalStart    time.Time `json:"bal_start,omitempty"`   // …начало сессии (BalanceMaxDays)
+	BalRestAt   time.Time `json:"bal_rest_at,omitempty"` // …начало паузы (BalancePauseMin)
+	BalNote     string    `json:"bal_note,omitempty"`    // …итог («выровнено: …»)
 	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
 	touSince    time.Time // …с этого момента
 	LastMode    string    `json:"-"` // режим прошлого тика (смена день/ночь — запись сразу)
