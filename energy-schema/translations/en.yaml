@@ -86,9 +86,12 @@ configuration:
   charge_balance_stop_v:
     name: "Charge: balancing — up to cell voltage, V"
     description: "Balancing mode (dashboard switch): charge with the tail current until the highest cell reaches this voltage (or the BMS drops the charge limit, or SOC 100 %), then rest without charging. Default 3.60 V."
+  charge_balance_soft_mv:
+    name: "Charge: balancing — minimum current from cell delta, mV"
+    description: "Once the cell delta during a balancing charge reaches this value, the current drops to the minimum (1 in the register, 2 A actual) and stays there until the cycle ends. One inverter write per cycle. Default 10 mV."
   charge_balance_soft_v:
     name: "Charge: balancing — minimum current from cell voltage, V"
-    description: "Once the highest cell reaches this voltage, the balancing charge current drops to the minimum (1 in the register, 2 A actual) and stays there until the cycle ends: the top is passed slowly so the BMS can equalise. One inverter write per cycle. Default 3.45 V."
+    description: "Backup threshold for the delta: the same current drop if the highest cell reaches this voltage first (or the delta sensor is unavailable). Default 3.45 V."
   charge_balance_resume_soc:
     name: "Charge: balancing — rest down to SOC, %"
     description: "While resting the current is 0 and Time of Use is restored, so the house runs from the battery; the next charge cycle starts once SOC is at or below this value AND the BMS allows charging again (charge limit above 0 — after declaring full the BMS holds charging until about 97 %). Default 97."

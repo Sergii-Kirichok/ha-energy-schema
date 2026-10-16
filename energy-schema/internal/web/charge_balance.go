@@ -76,11 +76,14 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 		}
 		st.save(chargeFile)
 	}
-	// верх цикла — минимальный ток до его конца (без возврата: одна запись за цикл)
-	if st.BalPhase == balCharge && !st.BalSoft && t.BalanceSoftV > 0 && s.store.Num(bmsCellMaxEntity) >= t.BalanceSoftV {
+	// разбег пошёл (или ячейка у колена) — минимальный ток до конца цикла
+	// (без возврата: одна запись за цикл)
+	cellMax := s.store.Num(bmsCellMaxEntity)
+	byDelta := t.BalanceSoftMV > 0 && s.store.Available(bmsCellDeltaEntity) && delta >= t.BalanceSoftMV
+	if st.BalPhase == balCharge && !st.BalSoft && (byDelta || t.BalanceSoftV > 0 && cellMax >= t.BalanceSoftV) {
 		st.BalSoft = true
 		st.save(chargeFile)
-		log.Printf("charge: balancing — cell max %.3f V, minimum current to the top", s.store.Num(bmsCellMaxEntity))
+		log.Printf("charge: balancing — delta %.0f mV, cell max %.3f V: minimum current to the top", delta, cellMax)
 	}
 	switch st.BalPhase {
 	case balCharge:
