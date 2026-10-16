@@ -216,12 +216,10 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto, st.ZeroFloorA, in.TargetSOC)
 	}()
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
-	if auto {
-		fd, fa := fullDue, in.MaxA
-		if st.balanceActive() {
-			fd, fa = mode == "balance/charge" || mode == "balance/soft", amps // заряд — как полный (током хвоста), отдых — ToU как было
-		}
-		s.fullCharge(st, fd, soc, fa, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
+	if auto && st.balanceActive() {
+		s.balanceGrid(st, mode != "balance/rest")
+	} else if auto {
+		s.fullCharge(st, fullDue, soc, in.MaxA, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
 	} else {
 		s.touRestore(st) // ручной режим: ToU — как было
 	}

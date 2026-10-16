@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"time"
 )
 
 // Балансировка «по верху» (хелпер «Заряд: балансировка», только при включённом
@@ -156,4 +157,17 @@ func (s *Server) exclusiveToggles(prevBal, prevFull *bool) {
 		}
 	}
 	*prevBal, *prevFull = bal, full
+}
+
+// balanceGrid — в цикле балансировки сеть помогает без прогноза и без SOC:
+// SOC BMS у верха врёт (16.10: 100 % при 3,36 В, ToU вернулся — заряд встал).
+// ToU выкл. на фазу заряда, вернуть на отдыхе — две записи 146 за цикл.
+func (s *Server) balanceGrid(st *chargeState, charging bool) {
+	if charging && s.store.On("binary_sensor.deye_sun_30k_grid") && s.store.On(gridChargeSwitch) {
+		s.touPatchNow(st, time.Now())
+		_ = s.client.SetState(chargeFullPlan, "балансировка: заряд от сети", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
+		return
+	}
+	s.touRestore(st)
+	_ = s.client.SetState(chargeFullPlan, "—", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
 }

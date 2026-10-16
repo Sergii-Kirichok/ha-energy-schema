@@ -243,3 +243,23 @@ func TestBalanceDoneOnlyAtStopV(t *testing.T) {
 		t.Errorf("phase %q — want rest, not done", st.BalPhase)
 	}
 }
+
+// 16.10: при SOC 100 % на плоской части сеть помогать не переставала — ToU
+// выключен на фазу заряда без оглядки на SOC и прогноз, возвращён на отдыхе.
+func TestBalanceGridIgnoresSOC(t *testing.T) {
+	grid := map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.340", bmsCellDeltaEntity: "2",
+		"binary_sensor.deye_sun_30k_grid": "on", gridChargeSwitch: "on"}
+	s, f := balSetup(t, grid, map[int]int{108: 3, 146: 255}, "31")
+	st := recentState()
+	st.BalPhase = balCharge
+	balTick(t, s, &st)
+	if st.TouWas == nil || *st.TouWas != 255 || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
+		t.Fatalf("ToU must be off for the charge phase: was %v, writes %v", st.TouWas, f.find("/services/solarman/write_multiple_holding_registers"))
+	}
+	grid[bmsCellMaxEntity], grid[bmsCellDeltaEntity] = "3.600", "80"
+	s, f = balSetup(t, grid, map[int]int{108: 3, 146: 254}, "0")
+	balTick(t, s, &st)
+	if st.BalPhase != balRest || st.TouWas != nil || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
+		t.Errorf("rest must restore ToU: phase %q was %v", st.BalPhase, st.TouWas)
+	}
+}
