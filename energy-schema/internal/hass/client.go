@@ -177,10 +177,32 @@ type HistPoint struct {
 	Value float64
 }
 
+// HistState is one raw historical state (incl. "unavailable"/"unknown").
+type HistState struct {
+	Time  time.Time
+	State string
+}
+
 // History returns numeric samples for an entity from `since` to now, read from
 // the recorder via the REST history API. Used to seed the rolling 24h windows
 // at startup so the min/max survive add-on restarts.
 func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
+	sts, err := c.HistoryStates(entity, since)
+	if sts == nil {
+		return nil, err
+	}
+	out := make([]HistPoint, 0, len(sts))
+	for _, p := range sts {
+		if f, err := strconv.ParseFloat(strings.TrimSpace(p.State), 64); err == nil {
+			out = append(out, HistPoint{Time: p.Time, Value: f})
+		}
+	}
+	return out, nil
+}
+
+// HistoryStates returns the raw state changes of an entity from `since` to now
+// (the first one is the state at `since`), non-numeric states included.
+func (c *Client) HistoryStates(entity string, since time.Time) ([]HistState, error) {
 	start := since.UTC().Format("2006-01-02T15:04:05")
 	u := c.APIBase + "/history/period/" + url.QueryEscape(start) +
 		"?filter_entity_id=" + url.QueryEscape(entity) + "&minimal_response"
@@ -200,12 +222,8 @@ func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
 	if len(arr) == 0 {
 		return nil, nil
 	}
-	out := make([]HistPoint, 0, len(arr[0]))
+	out := make([]HistState, 0, len(arr[0]))
 	for _, p := range arr[0] {
-		f, err := strconv.ParseFloat(strings.TrimSpace(p.State), 64)
-		if err != nil {
-			continue
-		}
 		ts := p.LastChanged
 		if ts == "" {
 			ts = p.LastUpdated
@@ -214,7 +232,7 @@ func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, HistPoint{Time: t, Value: f})
+		out = append(out, HistState{Time: t, State: p.State})
 	}
 	return out, nil
 }

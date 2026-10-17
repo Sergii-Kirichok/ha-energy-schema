@@ -30,6 +30,7 @@ func (s *Server) gridRowText(ph int) (string, float64, float64, bool) {
 // loopGridRows публикует строки фаз раз в 5 с, только при изменении.
 func (s *Server) loopGridRows() {
 	last := map[int]string{}
+	var nextOutage time.Time // итоги отключений за 24 ч — раз в 5 мин
 	for {
 		for ph := 1; ph <= 3; ph++ {
 			txt, p, v, ok := s.gridRowText(ph)
@@ -46,6 +47,10 @@ func (s *Server) loopGridRows() {
 				continue
 			}
 			last[ph] = txt
+		}
+		if now := time.Now(); now.After(nextOutage) {
+			s.publishOutages()
+			nextOutage = now.Add(5 * time.Minute)
 		}
 		time.Sleep(5 * time.Second)
 	}
