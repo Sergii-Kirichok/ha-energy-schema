@@ -123,3 +123,15 @@ func TestCellsPrecision(t *testing.T) {
 		t.Errorf("series: %v", ss)
 	}
 }
+
+func TestStepLines(t *testing.T) {
+	m := map[string]any{"series": []any{map[string]any{"entity": "a", "type": "line"},
+		map[string]any{"entity": "b"}, map[string]any{"entity": "c", "type": "column"}}}
+	if !stepLines(m) || stepLines(m) {
+		t.Fatal("one change, then no-op")
+	}
+	ss := m["series"].([]any)
+	if ss[0].(map[string]any)["curve"] != "stepline" || ss[1].(map[string]any)["curve"] != "stepline" || ss[2].(map[string]any)["curve"] != nil {
+		t.Errorf("series: %v", ss)
+	}
+}

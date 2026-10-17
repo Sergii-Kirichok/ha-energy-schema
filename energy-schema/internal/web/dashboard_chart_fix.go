@@ -38,3 +38,17 @@ func cellsPrecision(m map[string]any) bool {
 	}
 	return changed
 }
+
+// stepLines — линии графиков ступенькой: состояние HA держится до следующего
+// изменения, а сглаженная кривая между редкими точками рисовала то, чего не
+// было (17.10: сеть «нарастала» 40 мин, пока света не было и точек не писалось).
+func stepLines(m map[string]any) bool {
+	changed := false
+	ss, _ := m["series"].([]any)
+	for _, s := range ss {
+		if sm, ok := s.(map[string]any); ok && sm["type"] != "column" && sm["curve"] != "stepline" {
+			sm["curve"], changed = "stepline", true
+		}
+	}
+	return changed
+}
