@@ -100,18 +100,33 @@ func outageStatsOf(sts []hass.HistState, since, now time.Time) outageStats {
 	return st
 }
 
-func fmtDurMin(min float64) string {
+// fmtDurMin — «2 ч 15 мин»; unit — подпись минут («мин» или короткая «м»).
+func fmtDurMin(min float64, unit string) string {
 	m := int(math.Round(min))
 	switch h, mm := m/60, m%60; {
 	case m < 1:
-		return "<1 мин"
+		return "<1 " + unit
 	case h > 0 && mm > 0:
-		return fmt.Sprintf("%d ч %d мин", h, mm)
+		return fmt.Sprintf("%d ч %d %s", h, mm, unit)
 	case h > 0:
 		return fmt.Sprintf("%d ч", h)
 	default:
-		return fmt.Sprintf("%d мин", m)
+		return fmt.Sprintf("%d %s", m, unit)
 	}
+}
+
+// outageParts — непустые части итога («нет 2 ч 15 мин ×3», «низкое 10 мин ×1»).
+func outageParts(st outageStats) []string {
+	var parts []string
+	for _, c := range []struct {
+		name string
+		c    outageCat
+	}{{"нет", st.Off}, {"низкое", st.Low}} {
+		if c.c.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%s %s ×%d", c.name, fmtDurMin(c.c.Minutes, "мин"), c.c.Count))
+		}
+	}
+	return parts
 }
 
 // outageText — «нет 2 ч 15 мин ×3 · низкое 10 мин ×1», «норма», «нет данных».
@@ -119,19 +134,19 @@ func outageText(st outageStats) string {
 	if !st.Known {
 		return "нет данных"
 	}
-	var parts []string
-	for _, c := range []struct {
-		name string
-		c    outageCat
-	}{{"нет", st.Off}, {"низкое", st.Low}} {
-		if c.c.Count > 0 {
-			parts = append(parts, fmt.Sprintf("%s %s ×%d", c.name, fmtDurMin(c.c.Minutes), c.c.Count))
-		}
+	if p := outageParts(st); len(p) > 0 {
+		return strings.Join(p, " · ")
 	}
-	if len(parts) == 0 {
-		return "норма"
+	return "норма"
+}
+
+// gridRowName — имя строки фазы: «L1», если за сутки напряжение не пропадало,
+// иначе «L1 · нет 14 ч 21 м ×4» (просадки — только в sensor…grid_outage_lN).
+func gridRowName(ph int, st outageStats) string {
+	if st.Off.Count == 0 {
+		return fmt.Sprintf("L%d", ph)
 	}
-	return strings.Join(parts, " · ")
+	return fmt.Sprintf("L%d · нет %s ×%d", ph, fmtDurMin(st.Off.Minutes, "м"), st.Off.Count)
 }
 
 func isoOrEmpty(t time.Time) string {
@@ -143,8 +158,9 @@ func isoOrEmpty(t time.Time) string {
 
 func gridOutageEntity(ph int) string { return fmt.Sprintf("sensor.energy_schema_grid_outage_l%d", ph) }
 
-// publishOutages публикует итоги за 24 ч по каждой фазе (из истории HA).
-func (s *Server) publishOutages() {
+// publishOutages публикует итоги за 24 ч по каждой фазе (из истории HA) и
+// обновляет names[ph] — имя строки фазы (при ошибке остаётся прежним).
+func (s *Server) publishOutages(names map[int]string) {
 	now := time.Now()
 	since := now.Add(-24 * time.Hour)
 	for ph := 1; ph <= 3; ph++ {
@@ -154,6 +170,7 @@ func (s *Server) publishOutages() {
 			continue
 		}
 		st := outageStatsOf(sts, since, now)
+		names[ph] = gridRowName(ph, st)
 		attrs := map[string]any{
 			"friendly_name": fmt.Sprintf("L%d без напряжения / низкое · 24 ч", ph),
 			"icon":          "mdi:transmission-tower-off",
@@ -168,26 +185,36 @@ func (s *Server) publishOutages() {
 	}
 }
 
-// patchGridOutage adds the three outage rows right after the L1..L3 rows of
-// the «Сеть и фазы» card (runs after patchGridRows); no-op once present.
-func patchGridOutage(node any) (bool, error) {
-	card := findCardWith(node, gridRowEntity(1))
-	if card == nil || findCardWith(node, gridOutageEntity(1)) != nil {
-		return false, nil
-	}
-	ents, _ := card["entities"].([]any)
-	at := -1
-	for i, e := range ents {
-		switch entityID(e) {
-		case gridRowEntity(1), gridRowEntity(2), gridRowEntity(3):
-			at = i
+// patchGridRowNames removes the old separate outage rows (0.6.56) and drops the
+// static name of the L1..L3 rows so HA shows the sensor's friendly_name with
+// the 24 h summary; runs after patchGridRows, no-op once done.
+func patchGridRowNames(node any) (bool, error) {
+	changed := false
+	for ph := 1; ph <= 3; ph++ {
+		for card := findCardWith(node, gridOutageEntity(ph)); card != nil; card = findCardWith(node, gridOutageEntity(ph)) {
+			ents, _ := card["entities"].([]any)
+			kept := make([]any, 0, len(ents))
+			for _, e := range ents {
+				if entityID(e) != gridOutageEntity(ph) {
+					kept = append(kept, e)
+				}
+			}
+			card["entities"] = kept
+			changed = true
+		}
+		card := findCardWith(node, gridRowEntity(ph))
+		if card == nil {
+			continue
+		}
+		ents, _ := card["entities"].([]any)
+		for _, e := range ents {
+			if m, ok := innerRow(e).(map[string]any); ok && entityID(e) == gridRowEntity(ph) {
+				if _, has := m["name"]; has {
+					delete(m, "name")
+					changed = true
+				}
+			}
 		}
 	}
-	rows := make([]any, 0, len(ents)+3)
-	rows = append(rows, ents[:at+1]...)
-	for ph := 1; ph <= 3; ph++ {
-		rows = append(rows, map[string]any{"entity": gridOutageEntity(ph)})
-	}
-	card["entities"] = append(rows, ents[at+1:]...)
-	return true, nil
+	return changed, nil
 }

@@ -58,7 +58,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 	for _, p := range []struct {
 		name  string
 		patch func(any) (bool, error)
-	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid outage", patchGridOutage},
+	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid row names", patchGridRowNames},
 		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}} {
 		if c2, err := p.patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, p.name, err)
