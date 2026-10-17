@@ -124,6 +124,9 @@ func patchPeriodCharts(node any) bool {
 			if m, ok := c.(map[string]any); ok && m["type"] == "custom:apexcharts-card" && stepLines(m) { // до alignAxes: копии серий берут curve
 				changed = true
 			}
+			if m, ok := c.(map[string]any); ok && m["type"] == "custom:apexcharts-card" && startWithLast(m) {
+				changed = true
+			}
 			if m, ok := c.(map[string]any); ok && m["type"] == "custom:apexcharts-card" && alignAxes(m) {
 				changed = true
 			}

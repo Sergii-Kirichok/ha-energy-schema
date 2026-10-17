@@ -136,3 +136,14 @@ func TestStepLines(t *testing.T) {
 		t.Errorf("series: %v", ss)
 	}
 }
+
+func TestStartWithLast(t *testing.T) {
+	m := map[string]any{"series": []any{map[string]any{"entity": "a", "group_by": map[string]any{"func": "avg"}},
+		map[string]any{"entity": "b"}}}
+	if !startWithLast(m) || startWithLast(m) {
+		t.Fatal("one change, then no-op")
+	}
+	if m["series"].([]any)[0].(map[string]any)["group_by"].(map[string]any)["start_with_last"] != true {
+		t.Error("start_with_last not set")
+	}
+}

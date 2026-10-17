@@ -64,3 +64,19 @@ func stepLines(m map[string]any) bool {
 	}
 	return changed
 }
+
+// startWithLast — группировке нужно значение на начало окна: без него редко
+// меняющиеся серии (SOC, напряжения ячеек) начинались с первого изменения
+// внутри окна, левая часть графика была пустой (17.10, проверено в браузере).
+func startWithLast(m map[string]any) bool {
+	changed := false
+	ss, _ := m["series"].([]any)
+	for _, s := range ss {
+		sm, _ := s.(map[string]any)
+		g, _ := sm["group_by"].(map[string]any)
+		if g != nil && g["start_with_last"] != true {
+			g["start_with_last"], changed = true, true
+		}
+	}
+	return changed
+}
