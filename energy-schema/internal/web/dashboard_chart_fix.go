@@ -39,14 +39,26 @@ func cellsPrecision(m map[string]any) bool {
 	return changed
 }
 
-// stepLines — линии графиков ступенькой: состояние HA держится до следующего
+// stepLines — сырые линии ступенькой: состояние HA держится до следующего
 // изменения, а сглаженная кривая между редкими точками рисовала то, чего не
-// было (17.10: сеть «нарастала» 40 мин, пока света не было и точек не писалось).
+// было (17.10: сеть «нарастала» 40 мин, пока света не было). Линии со
+// сглаживанием (group_by с усреднением) — плавные, как было: ступенька
+// превращала их в лесенку.
 func stepLines(m map[string]any) bool {
 	changed := false
 	ss, _ := m["series"].([]any)
 	for _, s := range ss {
-		if sm, ok := s.(map[string]any); ok && sm["type"] != "column" && sm["curve"] != "stepline" {
+		sm, ok := s.(map[string]any)
+		if !ok || sm["type"] == "column" {
+			continue
+		}
+		g, _ := sm["group_by"].(map[string]any)
+		smooth := g != nil && g["func"] != nil && g["func"] != "raw"
+		switch {
+		case smooth && sm["curve"] == "stepline":
+			delete(sm, "curve")
+			changed = true
+		case !smooth && sm["curve"] != "stepline":
 			sm["curve"], changed = "stepline", true
 		}
 	}
