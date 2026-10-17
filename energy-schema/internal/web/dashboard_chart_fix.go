@@ -1,6 +1,9 @@
 package web
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // renameChart — «Последний час (живое)» вводил в заблуждение: период задаёт
 // переключатель над графиками, поэтому название — по содержанию.
@@ -53,7 +56,7 @@ func stepLines(m map[string]any) bool {
 			continue
 		}
 		g, _ := sm["group_by"].(map[string]any)
-		smooth := g != nil && g["func"] != nil && g["func"] != "raw"
+		smooth := g != nil && g["func"] != nil && g["func"] != "raw" || sm["statistics"] != nil
 		switch {
 		case smooth && sm["curve"] == "stepline":
 			delete(sm, "curve")
@@ -77,6 +80,37 @@ func startWithLast(m map[string]any) bool {
 		if g != nil && g["start_with_last"] != true {
 			g["start_with_last"], changed = true, true
 		}
+	}
+	return changed
+}
+
+// statsSmooth — сглаживание на 4–24 ч из 5-минутной статистики HA, а не
+// группировкой истории: группировка не видит значение, державшееся с момента
+// до начала окна (17.10: сеть стояла на 0 с 09:48 до 16:21 — на 12 ч линии не
+// было 6 ч), а статистика пишется каждые 5 мин независимо от изменений.
+// Проверено в браузере: линии с края окна, поля осей 97/98. Час остаётся на
+// группировке — статистики там лишь 12 точек и последние 5–10 мин ещё нет.
+func statsSmooth(m map[string]any) bool {
+	span, _ := m["graph_span"].(string)
+	if h, err := time.ParseDuration(span); err != nil || h < 4*time.Hour {
+		return false
+	}
+	changed := false
+	ss, _ := m["series"].([]any)
+	for _, s := range ss {
+		sm, _ := s.(map[string]any)
+		g, _ := sm["group_by"].(map[string]any)
+		fn, _ := g["func"].(string)
+		if g == nil || fn == "" || fn == "raw" {
+			continue
+		}
+		typ := map[string]string{"max": "max", "min": "min"}[fn]
+		if typ == "" {
+			typ = "mean"
+		}
+		sm["statistics"] = map[string]any{"type": typ, "period": "5minute"}
+		delete(sm, "group_by")
+		changed = true
 	}
 	return changed
 }

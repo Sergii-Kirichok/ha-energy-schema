@@ -37,9 +37,11 @@ func TestPatchPeriodCharts(t *testing.T) {
 		if len(cards) != 3 || cells["graph_span"] != want.span {
 			t.Fatalf("stack %d: %d cards, span %v", i, len(cards), cells["graph_span"])
 		}
-		g, _ := cells["series"].([]any)[0].(map[string]any)["group_by"].(map[string]any)
-		if (want.linesGroup == "") != (g == nil) || g != nil && g["duration"] != want.linesGroup {
-			t.Errorf("stack %d: smoothing mismatch %v", i, g)
+		// сглаженный 12 ч — из статистики (statsSmooth), без сглаживания — сырые
+		line := cells["series"].([]any)[0].(map[string]any)
+		st, _ := line["statistics"].(map[string]any)
+		if (want.linesGroup == "") != (st == nil) || st != nil && st["type"] != "max" {
+			t.Errorf("stack %d: smoothing mismatch %v", i, line)
 		}
 	}
 	b, _ := json.Marshal(cfg)
@@ -145,5 +147,29 @@ func TestStartWithLast(t *testing.T) {
 	}
 	if m["series"].([]any)[0].(map[string]any)["group_by"].(map[string]any)["start_with_last"] != true {
 		t.Error("start_with_last not set")
+	}
+}
+
+func TestStatsSmooth(t *testing.T) {
+	mk := func(span string) map[string]any {
+		return map[string]any{"graph_span": span, "series": []any{
+			map[string]any{"entity": "a", "group_by": map[string]any{"func": "avg", "duration": "5m"}},
+			map[string]any{"entity": "b", "group_by": map[string]any{"func": "max", "duration": "5m"}},
+			map[string]any{"entity": "c", "group_by": map[string]any{"func": "raw"}}}}
+	}
+	if statsSmooth(mk("1h")) {
+		t.Error("1 h stays on group_by")
+	}
+	m := mk("12h")
+	if !statsSmooth(m) || statsSmooth(m) {
+		t.Fatal("one change, then no-op")
+	}
+	ss := m["series"].([]any)
+	a, b, c := ss[0].(map[string]any), ss[1].(map[string]any), ss[2].(map[string]any)
+	if a["group_by"] != nil || a["statistics"].(map[string]any)["type"] != "mean" || b["statistics"].(map[string]any)["type"] != "max" || c["statistics"] != nil {
+		t.Errorf("series: %v", ss)
+	}
+	if stepLines(m); a["curve"] != nil || c["curve"] != "stepline" {
+		t.Errorf("statistics lines stay smooth, raw ones step: %v", ss)
 	}
 }
