@@ -78,11 +78,11 @@ func TestHistory(t *testing.T) {
 		t.Errorf("last_updated fallback time = %v", pts[1].Time)
 	}
 	r := seen()[0]
-	if r.Method != "GET" || r.Path != "/api/history/period/2026-10-12T08:00:00" || r.Auth != "Bearer TK" {
-		t.Errorf("request = %+v (since must be sent in UTC)", r)
+	if r.Method != "GET" || r.Path != "/api/history/period/2026-10-12T08:00:00Z" || r.Auth != "Bearer TK" {
+		t.Errorf("request = %+v (since must be sent in UTC with Z — HA reads a bare time as local)", r)
 	}
 	q, _ := url.ParseQuery(r.Query)
-	if q.Get("filter_entity_id") != "sensor.p" || !q.Has("minimal_response") {
+	if e, err := time.Parse(time.RFC3339, q.Get("end_time")); q.Get("filter_entity_id") != "sensor.p" || !q.Has("minimal_response") || err != nil || time.Since(e) > time.Minute {
 		t.Errorf("query = %q", r.Query)
 	}
 }

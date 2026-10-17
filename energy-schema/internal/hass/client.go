@@ -203,9 +203,11 @@ func (c *Client) History(entity string, since time.Time) ([]HistPoint, error) {
 // HistoryStates returns the raw state changes of an entity from `since` to now
 // (the first one is the state at `since`), non-numeric states included.
 func (c *Client) HistoryStates(entity string, since time.Time) ([]HistState, error) {
-	start := since.UTC().Format("2006-01-02T15:04:05")
+	// время с «Z»: без пояса HA читает его как местное, и окно съезжало на
+	// часовой пояс (17.10: отключение «кончилось» за 3 ч до сейчас); конец — явно
+	start, end := since.UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339)
 	u := c.APIBase + "/history/period/" + url.QueryEscape(start) +
-		"?filter_entity_id=" + url.QueryEscape(entity) + "&minimal_response"
+		"?filter_entity_id=" + url.QueryEscape(entity) + "&end_time=" + url.QueryEscape(end) + "&minimal_response"
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
