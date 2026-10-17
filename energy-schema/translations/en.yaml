@@ -99,8 +99,8 @@ configuration:
     name: "Charge: balancing — next pulse from cell voltage, V"
     description: "The pause lasts while the highest cell is above this voltage (together with the time and BMS conditions). Default 3.45 V."
   charge_balance_resume_soc:
-    name: "Charge: balancing — rest down to SOC, % (unused)"
-    description: "Unused since 0.6.54: the BMS SOC is wrong near the top, the pause now goes by time and cell voltage. The key is kept so saved options stay valid."
+    name: "Charge: balancing — fast charge below SOC, %"
+    description: "If the battery has discharged (e.g. a power cut) and SOC is below this value while the cells are still on the flat part (below the minimum-current threshold), the pulse runs at the total limit to get back to the top quickly; the minimum current is reset and engages again at the knee. Default 97."
   charge_balance_done_mv:
     name: "Charge: balancing — done at delta, mV"
     description: "When the cell delta at the top of a pulse (cell reached the top voltage) is at most this value, balancing is finished and the switch turns itself off. Default 40 mV."

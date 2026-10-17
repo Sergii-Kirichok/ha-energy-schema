@@ -106,6 +106,16 @@ func (s *Server) balanceTick(st *chargeState, soc, maxA float64, auto bool) (amp
 		}
 		st.save(chargeFile)
 	}
+	// батарея разрядилась (пропал свет) — к верху быстро, «Общим лимитом»;
+	// минимальный ток снова включится у колена
+	if st.BalPhase == balCharge && soc < t.BalanceFastSOC && cellMax < t.BalanceSoftV {
+		if st.BalSoft {
+			st.BalSoft = false
+			st.save(chargeFile)
+			log.Printf("charge: balancing — SOC %.0f%%, fast charge to the top", soc)
+		}
+		return math.Max(chargeMinA, maxA), "balance/fast", true
+	}
 	// разбег пошёл (или ячейка у колена) — минимальный ток до конца сессии
 	// (без возврата: одна запись)
 	byDelta := t.BalanceSoftMV > 0 && s.store.Available(bmsCellDeltaEntity) && delta >= t.BalanceSoftMV
@@ -199,11 +209,15 @@ func (s *Server) exclusiveToggles(prevBal, prevFull *bool) {
 // вернулся — заряд встал). ToU пишется только в начале и конце сессии (в паузе
 // заряд всё равно 0 по рег. 108); вернёт его обычный путь (fullCharge/touRestore).
 func (s *Server) balanceGrid(st *chargeState) {
-	if s.store.On("binary_sensor.deye_sun_30k_grid") && s.store.On(gridChargeSwitch) {
-		s.touPatchNow(st, time.Now())
-		_ = s.client.SetState(chargeFullPlan, "балансировка: заряд от сети", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
+	if !s.store.On(gridChargeSwitch) { // «Заряд от сети» выключен вручную — ToU как было
+		s.touRestore(st)
+		_ = s.client.SetState(chargeFullPlan, "—", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
 		return
 	}
-	s.touRestore(st)
-	_ = s.client.SetState(chargeFullPlan, "—", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
+	// пропал свет — ToU не трогаем: выключенный ToU без сети безвреден, а
+	// возврат и повторное выключение — 2 записи 146 на каждое пропадание (17.10)
+	if s.store.On("binary_sensor.deye_sun_30k_grid") {
+		s.touPatchNow(st, time.Now())
+		_ = s.client.SetState(chargeFullPlan, "балансировка: заряд от сети", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
+	}
 }

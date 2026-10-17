@@ -82,3 +82,40 @@ func TestBalanceGridIgnoresSOC(t *testing.T) {
 		t.Errorf("balancing off must restore ToU: phase %q was %v writes %v", st.BalPhase, st.TouWas, w)
 	}
 }
+
+// 17.10: свет пропадал, батарея 92 % — порция «Общим лимитом», минимальный
+// ток со вчерашнего верха сброшен; у колена (3,45 В) — снова минимум.
+func TestBalanceFastBelowSOC(t *testing.T) {
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "92", bmsCellMaxEntity: "3.330", bmsCellDeltaEntity: "2"}, map[int]int{108: 1}, "38")
+	st := recentState()
+	st.BalPhase, st.BalSoft, st.BalStart = balCharge, true, time.Now()
+	balTick(t, s, &st)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 12) // «Общий лимит» теста 24 А / 2 канала
+	if st.BalSoft {
+		t.Error("minimum current must be reset after discharge")
+	}
+	s, f = balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "92", bmsCellMaxEntity: "3.460", bmsCellDeltaEntity: "12"}, map[int]int{108: 12}, "38")
+	balTick(t, s, &st)
+	wantVals(t, "max", f.setValues(chargeMaxEntity), 1)
+}
+
+// Пропала сеть в балансировке — ToU не возвращаем (иначе 2 записи 146 на
+// каждое пропадание); «Заряд от сети» выключен вручную — возвращаем.
+func TestBalanceGridLossKeepsToU(t *testing.T) {
+	was := 255
+	states := map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.400", bmsCellDeltaEntity: "5",
+		"binary_sensor.deye_sun_30k_grid": "off", gridChargeSwitch: "on"}
+	s, f := balSetup(t, states, map[int]int{108: 3, 146: 254}, "38")
+	st := recentState()
+	st.BalPhase, st.BalStart, st.TouWas = balCharge, time.Now(), &was
+	balTick(t, s, &st)
+	if st.TouWas == nil || len(f.find("/services/solarman/write_multiple_holding_registers")) != 0 {
+		t.Fatal("grid loss must not restore ToU")
+	}
+	states[gridChargeSwitch] = "off"
+	s, f = balSetup(t, states, map[int]int{108: 3, 146: 254}, "38")
+	balTick(t, s, &st)
+	if st.TouWas != nil || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
+		t.Error("grid charge switched off by hand — ToU restored")
+	}
+}

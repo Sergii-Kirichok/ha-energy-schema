@@ -55,7 +55,7 @@ func wantBal(t *testing.T, f *haFake, st *chargeState, phase, mode, status strin
 }
 
 func TestBalanceStartsWithTailCurrent(t *testing.T) {
-	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "96", bmsCellDeltaEntity: "5"}, nil, "100")
+	s, f := balSetup(t, map[string]string{"sensor.deye_sun_30k_battery": "98", bmsCellDeltaEntity: "5"}, nil, "100")
 	st := recentState()
 	balTick(t, s, &st)
 	wantVals(t, "max", f.setValues(chargeMaxEntity), 3) // хвост 6 А / 2 канала
