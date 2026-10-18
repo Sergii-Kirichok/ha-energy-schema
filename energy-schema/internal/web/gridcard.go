@@ -6,6 +6,10 @@ package web
 // scada/theme.go): 207–253 В зелёная, выше — красная, 20–207 — оранжевая,
 // <20 В или нет данных — красная mdi:transmission-tower-off. Имя фазы берётся
 // из friendly_name сенсора (итог отключений за 24 ч), значение — его state.
+
+// gridCardMark finds an already converted card (also with an older template).
+const gridCardMark = "'sensor.energy_schema_grid_l' ~ n"
+
 const gridCardMD = `<table width="100%">
 <tr><td width="40"><ha-icon icon="mdi:transmission-tower"></ha-icon></td><td>Мощность сети</td><td align="right">{{ states('sensor.deye_sun_30k_grid_power') }} W</td></tr>
 <tr><td width="40"><ha-icon icon="mdi:sine-wave"></ha-icon></td><td>Частота</td><td align="right">{{ states('sensor.deye_sun_30k_grid_frequency') }} Hz</td></tr>
@@ -21,7 +25,7 @@ const gridCardMD = `<table width="100%">
 // card in place (title, visibility and position kept; old rows incl. 0.6.56
 // outage rows dropped) and refreshes the template of an already converted card.
 func patchGridCard(node any) (bool, error) {
-	if md := findMarkdownWith(node, gridRowEntity(1)); md != nil {
+	if md := findMarkdownWith(node, gridCardMark); md != nil {
 		if md["content"] == gridCardMD {
 			return false, nil
 		}

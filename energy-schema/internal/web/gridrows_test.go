@@ -78,7 +78,7 @@ func TestPatchGridCard(t *testing.T) {
 		t.Fatalf("card not converted in place: %v", cards)
 	}
 	// старый шаблон обновляется
-	md["content"] = "{{ states('sensor.energy_schema_grid_l1') }}"
+	md["content"] = "{% set g = " + gridCardMark + " %}"
 	if changed, _ := patchGridCard(cfg); !changed || md["content"] != gridCardMD {
 		t.Error("stale template must be refreshed")
 	}
