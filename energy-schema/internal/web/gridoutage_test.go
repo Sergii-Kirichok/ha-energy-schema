@@ -1,8 +1,6 @@
 package web
 
 import (
-	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -67,39 +65,12 @@ func TestGridRowName(t *testing.T) {
 	}{
 		{outageStats{Known: true}, "L1"},
 		{outageStats{Low: outageCat{Minutes: 10, Count: 2}}, "L1"},
-		{outageStats{Off: outageCat{Minutes: 861, Count: 4}, Low: outageCat{Minutes: 1, Count: 3}}, "L1 · нет 14 ч 21 м ×4"},
-		{outageStats{Off: outageCat{Minutes: 35, Count: 1}}, "L1 · нет 35 м ×1"},
-		{outageStats{Off: outageCat{Minutes: 0.2, Count: 1}}, "L1 · нет <1 м ×1"},
+		{outageStats{Off: outageCat{Minutes: 861, Count: 4}, Low: outageCat{Minutes: 1, Count: 3}}, "L1 · ⏱ 14 ч 21 м ×4"},
+		{outageStats{Off: outageCat{Minutes: 35, Count: 1}}, "L1 · ⏱ 35 м ×1"},
+		{outageStats{Off: outageCat{Minutes: 0.2, Count: 1}}, "L1 · ⏱ <1 м ×1"},
 	} {
 		if got := gridRowName(1, c.st); got != c.want {
 			t.Errorf("gridRowName(%+v) = %q, want %q", c.st, got, c.want)
 		}
-	}
-}
-
-func TestPatchGridRowNames(t *testing.T) {
-	// дашборд после 0.6.56: отдельные строки отключений + статичные имена L1..L3
-	src := `{"views":[{"cards":[{"type":"entities","title":"Сеть и фазы","entities":[
-	  {"entity":"sensor.deye_sun_30k_grid_power"},
-	  {"entity":"sensor.energy_schema_grid_l1","name":"L1"},
-	  {"entity":"sensor.energy_schema_grid_l2","name":"L2"},
-	  {"entity":"sensor.energy_schema_grid_l3","name":"L3"},
-	  {"entity":"sensor.energy_schema_grid_outage_l1"},
-	  {"entity":"sensor.energy_schema_grid_outage_l2"},
-	  {"entity":"sensor.energy_schema_grid_outage_l3"},
-	  {"entity":"sensor.deye_sun_30k_grid_frequency"}]}]}]}`
-	var cfg any
-	_ = json.Unmarshal([]byte(src), &cfg)
-	if changed, err := patchGridRowNames(cfg); err != nil || !changed {
-		t.Fatalf("changed=%v err=%v", changed, err)
-	}
-	if changed, _ := patchGridRowNames(cfg); changed {
-		t.Error("second run must be a no-op")
-	}
-	b, _ := json.Marshal(cfg)
-	want := `{"entity":"sensor.energy_schema_grid_l1"},{"entity":"sensor.energy_schema_grid_l2"},` +
-		`{"entity":"sensor.energy_schema_grid_l3"},{"entity":"sensor.deye_sun_30k_grid_frequency"}`
-	if !strings.Contains(string(b), want) || strings.Contains(string(b), "grid_outage") {
-		t.Errorf("rows not migrated: %s", b)
 	}
 }

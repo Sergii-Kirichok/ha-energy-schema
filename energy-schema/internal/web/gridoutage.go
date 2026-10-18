@@ -141,12 +141,13 @@ func outageText(st outageStats) string {
 }
 
 // gridRowName — имя строки фазы: «L1», если за сутки напряжение не пропадало,
-// иначе «L1 · нет 14 ч 21 м ×4» (просадки — только в sensor…grid_outage_lN).
+// иначе «L1 · ⏱ 14 ч 21 м ×4» — ⏱ значит «накоплено за 24 ч», а не «нет сейчас»
+// (просадки — только в sensor…grid_outage_lN).
 func gridRowName(ph int, st outageStats) string {
 	if st.Off.Count == 0 {
 		return fmt.Sprintf("L%d", ph)
 	}
-	return fmt.Sprintf("L%d · нет %s ×%d", ph, fmtDurMin(st.Off.Minutes, "м"), st.Off.Count)
+	return fmt.Sprintf("L%d · ⏱ %s ×%d", ph, fmtDurMin(st.Off.Minutes, "м"), st.Off.Count)
 }
 
 func isoOrEmpty(t time.Time) string {
@@ -183,38 +184,4 @@ func (s *Server) publishOutages(names map[int]string) {
 			log.Printf("grid outage: L%d: %v", ph, err)
 		}
 	}
-}
-
-// patchGridRowNames removes the old separate outage rows (0.6.56) and drops the
-// static name of the L1..L3 rows so HA shows the sensor's friendly_name with
-// the 24 h summary; runs after patchGridRows, no-op once done.
-func patchGridRowNames(node any) (bool, error) {
-	changed := false
-	for ph := 1; ph <= 3; ph++ {
-		for card := findCardWith(node, gridOutageEntity(ph)); card != nil; card = findCardWith(node, gridOutageEntity(ph)) {
-			ents, _ := card["entities"].([]any)
-			kept := make([]any, 0, len(ents))
-			for _, e := range ents {
-				if entityID(e) != gridOutageEntity(ph) {
-					kept = append(kept, e)
-				}
-			}
-			card["entities"] = kept
-			changed = true
-		}
-		card := findCardWith(node, gridRowEntity(ph))
-		if card == nil {
-			continue
-		}
-		ents, _ := card["entities"].([]any)
-		for _, e := range ents {
-			if m, ok := innerRow(e).(map[string]any); ok && entityID(e) == gridRowEntity(ph) {
-				if _, has := m["name"]; has {
-					delete(m, "name")
-					changed = true
-				}
-			}
-		}
-	}
-	return changed, nil
 }
