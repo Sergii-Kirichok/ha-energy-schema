@@ -44,6 +44,7 @@ type Store struct {
 	cur       map[string]Entity
 	virt      map[string]Entity // значения, которые аддон вычислил сам (не из /states); переживают Replace
 	lastGood  map[string]Entity
+	spike     spikeGuard // одиночные выбросы мощности — не в пики
 	forecast  []ForecastDay
 	hourly    []ForecastDay // почасовой прогноз (несёт cloud_coverage)
 	dayMax    map[string]float64
@@ -114,15 +115,17 @@ func (s *Store) Replace(m map[string]Entity) {
 		if real(e.State) {
 			s.lastGood[id] = e
 			if v, ok := parseFloatOK(e.State); ok {
-				if v > s.dayMax[id] {
-					s.dayMax[id] = v
-				}
 				r := s.roll[id]
 				if r == nil {
 					r = &rollMax{}
 					s.roll[id] = r
 				}
-				r.add(now, v)
+				for _, pv := range s.spike.peaks(id, v) {
+					if pv > s.dayMax[id] {
+						s.dayMax[id] = pv
+					}
+					r.add(now, pv)
+				}
 				if dt > 0 && strings.HasSuffix(id, "_power") {
 					s.dayEnergy[id] += v / 1000 * dt // Вт→кВт × ч = кВт·ч
 				}
