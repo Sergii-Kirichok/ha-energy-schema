@@ -129,9 +129,17 @@ func liveHeader(sm map[string]any) bool {
 		show = map[string]any{}
 		sm["show"] = show
 	}
-	if show["in_header"] == false || show["in_header"] == "raw" {
+	if show["in_header"] == false {
 		return false
 	}
-	show["in_header"] = "raw"
-	return true
+	changed := false
+	if show["in_header"] != "raw" {
+		show["in_header"], changed = "raw", true
+	}
+	// в легенде — последняя точка статистики (у разбега — максимум за 5 мин),
+	// она расходилась с живой шапкой (18.10: 132 против 129): только название
+	if show["legend_value"] != false {
+		show["legend_value"], changed = false, true
+	}
+	return changed
 }
