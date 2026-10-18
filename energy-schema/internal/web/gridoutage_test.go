@@ -65,9 +65,9 @@ func TestGridRowName(t *testing.T) {
 	}{
 		{outageStats{Known: true}, "L1"},
 		{outageStats{Low: outageCat{Minutes: 10, Count: 2}}, "L1"},
-		{outageStats{Off: outageCat{Minutes: 861, Count: 4}, Low: outageCat{Minutes: 1, Count: 3}}, "L1 · ⏱ 14 ч 21 м ×4"},
-		{outageStats{Off: outageCat{Minutes: 35, Count: 1}}, "L1 · ⏱ 35 м ×1"},
-		{outageStats{Off: outageCat{Minutes: 0.2, Count: 1}}, "L1 · ⏱ <1 м ×1"},
+		{outageStats{Off: outageCat{Minutes: 861, Count: 4}, Low: outageCat{Minutes: 1, Count: 3}}, "L1 · ⏱ Σ 14 ч 21 м ×4"},
+		{outageStats{Off: outageCat{Minutes: 35, Count: 1}}, "L1 · ⏱ Σ 35 м ×1"},
+		{outageStats{Off: outageCat{Minutes: 0.2, Count: 1}}, "L1 · ⏱ Σ <1 м ×1"},
 	} {
 		if got := gridRowName(1, c.st); got != c.want {
 			t.Errorf("gridRowName(%+v) = %q, want %q", c.st, got, c.want)

@@ -141,13 +141,13 @@ func outageText(st outageStats) string {
 }
 
 // gridRowName — имя строки фазы: «L1», если за сутки напряжение не пропадало,
-// иначе «L1 · ⏱ 14 ч 21 м ×4» — ⏱ значит «накоплено за 24 ч», а не «нет сейчас»
+// иначе «L1 · ⏱ Σ 14 ч 21 м ×4» — ⏱ Σ значит «сумма за 24 ч», а не «нет сейчас»
 // (просадки — только в sensor…grid_outage_lN).
 func gridRowName(ph int, st outageStats) string {
 	if st.Off.Count == 0 {
 		return fmt.Sprintf("L%d", ph)
 	}
-	return fmt.Sprintf("L%d · ⏱ %s ×%d", ph, fmtDurMin(st.Off.Minutes, "м"), st.Off.Count)
+	return fmt.Sprintf("L%d · ⏱ Σ %s ×%d", ph, fmtDurMin(st.Off.Minutes, "м"), st.Off.Count)
 }
 
 func isoOrEmpty(t time.Time) string {
