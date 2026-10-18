@@ -172,4 +172,7 @@ func TestStatsSmooth(t *testing.T) {
 	if stepLines(m); a["curve"] != nil || c["curve"] != "stepline" {
 		t.Errorf("statistics lines stay smooth, raw ones step: %v", ss)
 	}
+	if a["show"].(map[string]any)["in_header"] != "raw" || c["show"] != nil {
+		t.Errorf("statistics series show the live state in the header: %v", ss)
+	}
 }

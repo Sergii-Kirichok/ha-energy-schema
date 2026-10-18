@@ -99,6 +99,9 @@ func statsSmooth(m map[string]any) bool {
 	ss, _ := m["series"].([]any)
 	for _, s := range ss {
 		sm, _ := s.(map[string]any)
+		if sm["statistics"] != nil && liveHeader(sm) {
+			changed = true
+		}
 		g, _ := sm["group_by"].(map[string]any)
 		fn, _ := g["func"].(string)
 		if g == nil || fn == "" || fn == "raw" {
@@ -110,7 +113,25 @@ func statsSmooth(m map[string]any) bool {
 		}
 		sm["statistics"] = map[string]any{"type": typ, "period": "5minute"}
 		delete(sm, "group_by")
+		liveHeader(sm)
 		changed = true
 	}
 	return changed
+}
+
+// liveHeader — в шапке графика текущее значение датчика, а не последняя
+// 5-минутная статистика: у «макс»/«мин» это экстремумы из разных моментов, и
+// «макс − мин» не сходилось с разбегом (18.10: 3,408/3,357 при разбеге 40).
+// Серии, скрытые из шапки (копии для правой оси), не трогаем.
+func liveHeader(sm map[string]any) bool {
+	show, _ := sm["show"].(map[string]any)
+	if show == nil {
+		show = map[string]any{}
+		sm["show"] = show
+	}
+	if show["in_header"] == false || show["in_header"] == "raw" {
+		return false
+	}
+	show["in_header"] = "raw"
+	return true
 }
