@@ -24,6 +24,8 @@ func newFakeDash(t *testing.T, cfg string) (*Server, *fakeDash) {
 		switch req["type"] {
 		case "lovelace/config":
 			return d.cfg, true, ""
+		case "config/auth/list":
+			return json.RawMessage(`[{"id":"own1","name":"stari40k","username":"stari40k"},{"id":"v1","name":"Светуля","username":"archy"},{"id":"sys","name":"Supervisor","system_generated":true}]`), true, ""
 		case "lovelace/config/save":
 			d.cfg, _ = json.Marshal(req["config"])
 			d.saves++

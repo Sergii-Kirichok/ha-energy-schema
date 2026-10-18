@@ -29,3 +29,27 @@ func (c *Client) SaveLovelaceConfig(urlPath string, cfg json.RawMessage) error {
 	defer w.close()
 	return w.call(1, map[string]interface{}{"type": "lovelace/config/save", "url_path": urlPath, "config": cfg}, nil)
 }
+
+// AuthUser — пользователь HA из `config/auth/list` (только для админ-токена).
+type AuthUser struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Username        string `json:"username"`
+	SystemGenerated bool   `json:"system_generated"`
+}
+
+// AuthUsers lists HA users via WebSocket `config/auth/list`.
+func (c *Client) AuthUsers() ([]AuthUser, error) {
+	w, err := c.wsAuth()
+	if err != nil {
+		return nil, err
+	}
+	defer w.close()
+	var resp struct {
+		Result []AuthUser `json:"result"`
+	}
+	if err = w.call(1, map[string]interface{}{"type": "config/auth/list"}, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Result, nil
+}

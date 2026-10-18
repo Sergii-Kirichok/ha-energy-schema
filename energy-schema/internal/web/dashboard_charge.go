@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -67,7 +68,7 @@ func rowKey(e any) string {
 func patchChargeCard(node any) (bool, error) {
 	card := findCardWith(node, dashChargeMarker)
 	if card == nil {
-		return appendCardOnce(node, false, dashChargeCard)
+		return appendCardOnce(node, false, maps.Clone(dashChargeCard)) // копия: дальше патчи пишут в карточку
 	}
 	changed := false
 	// общий переключатель в заголовке включал бы ВСЕ тумблеры сразу — убираем

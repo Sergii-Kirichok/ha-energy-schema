@@ -49,3 +49,20 @@ func TestSaveLovelaceConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthUsers(t *testing.T) {
+	srv := hatest.NewServer(t, func(req map[string]any) (any, bool, string) {
+		if req["type"] != "config/auth/list" {
+			return nil, false, "unknown command"
+		}
+		return json.RawMessage(`[{"id":"a1","name":"stari40k","username":"stari40k","system_generated":false},
+		  {"id":"s1","name":"Supervisor","username":null,"system_generated":true}]`), true, ""
+	})
+	got, err := NewClient(srv.URL+"/api", hatest.Token).AuthUsers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != "a1" || got[0].Name != "stari40k" || !got[1].SystemGenerated {
+		t.Errorf("got %+v", got)
+	}
+}
