@@ -15,6 +15,7 @@ panel_admin: false
 homeassistant_api: true
 map:
   - homeassistant_config:rw
+  - share:rw
 options:
   title: "Энергосистема"
   in1_name: "Рыбхоз"

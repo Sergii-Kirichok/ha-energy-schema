@@ -142,6 +142,7 @@ func (s *Server) Run() error {
 	go s.loopForecast()
 	go s.loopPVHistory()
 	go s.loopBMS()
+	go s.loopImbalance()
 	go s.loopCharge()
 	go s.loopGridRows()
 	if s.cfg.BMSDashboard != "" {

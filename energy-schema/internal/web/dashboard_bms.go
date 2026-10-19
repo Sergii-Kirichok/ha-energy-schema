@@ -16,6 +16,7 @@ var dashBMSDetailCard = map[string]any{
 		map[string]any{"entity": "sensor.energy_schema_bms_limits", "name": "Лимиты BMS заряд / разряд"},
 		map[string]any{"entity": "sensor.energy_schema_bms_overcharge", "name": "Перезарядов за жизнь"},
 		map[string]any{"entity": "sensor.energy_schema_bms_insulation", "name": "Изоляция"},
+		map[string]any{"entity": imbEntity, "name": imbRowName},
 	},
 }
 
@@ -40,6 +41,7 @@ func patchBMSCards(node any) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	a = addImbalanceRow(node) || a
 	// есть блок выбора периода — «Ячейки» живут в нём (один переключатель на все графики)
 	if len(periodStacks(node)) > 0 {
 		return patchPeriodCharts(node) || a, nil
@@ -50,6 +52,18 @@ func patchBMSCards(node any) (bool, error) {
 	}
 	c := layoutChart(node)
 	return a || b || c, nil
+}
+
+const imbRowName = "Разбаланс (последний подъём)"
+
+// addImbalanceRow — строка журнала разбаланса в уже стоящую карточку стойки (0.6.72).
+func addImbalanceRow(node any) bool {
+	c := findCardWith(node, dashBMSMarker)
+	if c == nil || findCardWith(c, imbEntity) != nil {
+		return false
+	}
+	c["entities"] = append(c["entities"].([]any), map[string]any{"entity": imbEntity, "name": imbRowName})
+	return true
 }
 
 // layoutChart дописывает графику недостающее, каждое — один раз: высоту как у

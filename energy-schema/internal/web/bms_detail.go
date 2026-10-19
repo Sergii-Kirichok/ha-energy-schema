@@ -217,11 +217,16 @@ func (c *cellStats) sameRack(serial string, cycles int) bool {
 func swapLocs(m map[string]int) map[string]int {
 	out := make(map[string]int, len(m))
 	for k, v := range m {
-		var a, b int
-		if n, _ := fmt.Sscanf(k, "М%d·№%d", &a, &b); n == 2 {
-			k = cellLoc(b, a)
-		}
-		out[k] += v
+		out[swapLoc(k)] += v
 	}
 	return out
+}
+
+// swapLoc — «М<a>·№<b>» → «М<b>·№<a>» (подписи до исправления 16.10).
+func swapLoc(k string) string {
+	var a, b int
+	if n, _ := fmt.Sscanf(k, "М%d·№%d", &a, &b); n == 2 {
+		return cellLoc(b, a)
+	}
+	return k
 }
