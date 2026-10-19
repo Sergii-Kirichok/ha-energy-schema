@@ -204,12 +204,14 @@ func (s *Server) exclusiveToggles(prevBal, prevFull *bool) {
 	*prevBal, *prevFull = bal, full
 }
 
-// balanceGrid — всю сессию балансировки (порции и паузы) сеть помогает без
-// прогноза и без SOC: SOC BMS у верха врёт (16.10: 100 % при 3,36 В, ToU
-// вернулся — заряд встал). ToU пишется только в начале и конце сессии (в паузе
-// заряд всё равно 0 по рег. 108); вернёт его обычный путь (fullCharge/touRestore).
-func (s *Server) balanceGrid(st *chargeState) {
-	if !s.store.On(gridChargeSwitch) { // «Заряд от сети» выключен вручную — ToU как было
+// balanceGrid — на заряд порции сеть помогает без прогноза и без SOC (SOC BMS
+// у верха врёт: 16.10 — 100 % при 3,36 В). На паузу ToU возвращается: с
+// выключенным ToU Deye заряжал от сети ~1 А по своему лимиту и рег. 108 = 0 не
+// помогал (19.10 «пауза» дотянула до 3,58+ В, а на 3,60 В BMS объявляет 100 % и
+// не даёт заряда до 97 %); цели слотов ToU ниже SOC — сеть не заряжает.
+// Две записи 146 на порцию.
+func (s *Server) balanceGrid(st *chargeState, charging bool) {
+	if !charging || !s.store.On(gridChargeSwitch) { // пауза или «Заряд от сети» выключен вручную — ToU как было
 		s.touRestore(st)
 		_ = s.client.SetState(chargeFullPlan, "—", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
 		return

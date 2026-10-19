@@ -56,8 +56,8 @@ func TestBalanceMaxDays(t *testing.T) {
 }
 
 // 16.10: при SOC 100 % на плоской части сеть помогать не переставала — ToU
-// выключен всю сессию без оглядки на SOC и прогноз: в паузе не трогается,
-// возвращается, когда балансировку выключили.
+// выключен на заряд порции без оглядки на SOC и прогноз; на паузу возвращается
+// (19.10: с выключенным ToU пауза заряжала от сети ~1 А).
 func TestBalanceGridIgnoresSOC(t *testing.T) {
 	const tou = "/services/solarman/write_multiple_holding_registers"
 	grid := map[string]string{"sensor.deye_sun_30k_battery": "100", bmsCellMaxEntity: "3.340", bmsCellDeltaEntity: "2",
@@ -72,14 +72,14 @@ func TestBalanceGridIgnoresSOC(t *testing.T) {
 	grid[bmsCellMaxEntity], grid[bmsCellDeltaEntity] = "3.550", "80"
 	s, f = balSetup(t, grid, map[int]int{108: 3, 146: 254}, "0")
 	balTick(t, s, &st)
-	if st.BalPhase != balRest || st.TouWas == nil || len(f.find(tou)) != 0 {
-		t.Fatalf("pause must keep ToU off: phase %q was %v writes %v", st.BalPhase, st.TouWas, f.find(tou))
+	if st.BalPhase != balRest || st.TouWas != nil || len(f.find(tou)) != 1 {
+		t.Fatalf("pause must restore ToU: phase %q was %v writes %v", st.BalPhase, st.TouWas, f.find(tou))
 	}
 	grid[chargeBalanceEntity] = "off"
 	s, f = balSetup(t, grid, map[int]int{108: 0, 146: 254}, "0")
 	balTick(t, s, &st)
-	if w := f.find(tou); st.BalPhase != "" || st.TouWas != nil || len(w) != 1 {
-		t.Errorf("balancing off must restore ToU: phase %q was %v writes %v", st.BalPhase, st.TouWas, w)
+	if w := f.find(tou); st.BalPhase != "" || st.TouWas != nil || len(w) != 0 {
+		t.Errorf("ToU already restored in the pause — no extra write on off: phase %q was %v writes %v", st.BalPhase, st.TouWas, w)
 	}
 }
 
@@ -117,5 +117,20 @@ func TestBalanceGridLossKeepsToU(t *testing.T) {
 	balTick(t, s, &st)
 	if st.TouWas != nil || len(f.find("/services/solarman/write_multiple_holding_registers")) != 1 {
 		t.Error("grid charge switched off by hand — ToU restored")
+	}
+}
+
+// Новая порция после паузы снова выключает ToU (сеть помогает), пауза — возвращает.
+func TestBalancePulseTogglesToU(t *testing.T) {
+	const tou = "/services/solarman/write_multiple_holding_registers"
+	states := map[string]string{"sensor.deye_sun_30k_battery": "99", bmsCellMaxEntity: "3.440", bmsCellDeltaEntity: "60",
+		"binary_sensor.deye_sun_30k_grid": "on", gridChargeSwitch: "on"}
+	s, f := balSetup(t, states, map[int]int{108: 0, 146: 255}, "31")
+	st := recentState()
+	st.BalPhase, st.BalStart, st.BalSoft = balRest, time.Now(), true
+	st.BalRestAt = time.Now().Add(-2 * time.Hour)
+	balTick(t, s, &st)
+	if st.BalPhase != balCharge || st.TouWas == nil || len(f.find(tou)) != 1 {
+		t.Fatalf("new pulse must switch ToU off: phase %q was %v writes %v", st.BalPhase, st.TouWas, f.find(tou))
 	}
 }
