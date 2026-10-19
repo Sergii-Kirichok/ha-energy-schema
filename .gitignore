@@ -14,3 +14,6 @@
 
 # graphify (rebuilt by post-commit hook)
 /graphify-out/
+
+# battery evidence exports (private data, not for the public repo)
+evidence/
