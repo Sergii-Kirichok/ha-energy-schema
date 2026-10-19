@@ -56,6 +56,17 @@ func (s *Server) ensureChargeHelpers() {
 			log.Printf("charge: created %s.%s", h.Domain, h.ID)
 		}
 	}
+	var bools []string
+	for _, h := range chargeHelpers(s.cfg.Charge) {
+		if h.Domain == "input_boolean" {
+			bools = append(bools, h.ID)
+		}
+	}
+	if n, err := s.client.DropBoolInitial(bools); err != nil {
+		log.Printf("charge: helpers initial: %v", err)
+	} else if n > 0 {
+		log.Printf("charge: %d input_boolean helpers now restore their state after HA restart", n)
+	}
 	// уже созданные раньше в режиме box — перевести на компактный slider;
 	// режим читаем из атрибутов состояния (store наполняется первым опросом)
 	for i := 0; i < 30 && !s.store.Available(chargeFullNowEntity); i++ {

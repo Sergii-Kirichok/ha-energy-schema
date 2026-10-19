@@ -113,11 +113,13 @@ func TestEnsureHelperCreatesBoolean(t *testing.T) {
 	reqs := make(chan map[string]any, 4)
 	srv := haServer(t, 404, wsRec(reqs, nil))
 	h := Helper{Domain: "input_boolean", ID: "es_auto", Name: "Авто", Initial: 1, Max: 5}
-	if created, err := NewClient(srv.URL+"/api", hatest.Token).EnsureHelper(h); !created || err != nil {
+	// REST фейка отвечает 404 и на включение по умолчанию — ошибка «default on» ожидаема
+	if created, err := NewClient(srv.URL+"/api", hatest.Token).EnsureHelper(h); !created || err != nil && !strings.Contains(err.Error(), "default on") {
 		t.Fatalf("created=%v err=%v", created, err)
 	}
 	create := <-reqs
-	if create["type"] != "input_boolean/create" || create["initial"] != true {
+	// без initial: с ним HA при каждом запуске сбрасывает значение
+	if _, has := create["initial"]; create["type"] != "input_boolean/create" || has {
 		t.Errorf("create = %v", create)
 	}
 	for _, k := range []string{"min", "max", "step", "mode", "unit_of_measurement"} {
