@@ -145,6 +145,7 @@ func (s *Server) Run() error {
 	go s.loopImbalance()
 	go s.loopCharge()
 	go s.loopGridRows()
+	go s.loopGauges()
 	if s.cfg.BMSDashboard != "" {
 		go s.ensureDashboard(s.cfg.BMSDashboard)
 	}

@@ -59,7 +59,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 		name  string
 		patch func(any) (bool, error)
 	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid card", patchGridCard},
-		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower},
+		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}, {"gauges", patchGauges},
 		{"control visibility", s.patchControlVisibility}} { // последним: карточки, созданные выше, тоже
 		if c2, err := p.patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, p.name, err)

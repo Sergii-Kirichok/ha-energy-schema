@@ -79,6 +79,32 @@ func batterySOH(st State) float64 {
 	return st.Num("sensor.deye_sun_30k_battery_soh")
 }
 
+// batterySOCPrecise — SOC с десятыми (кулонометрия между целыми % BMS,
+// web/socest.go), если он рядом с целым значением BMS; иначе целый SOC.
+func batterySOCPrecise(st State) float64 {
+	soc := st.Num("sensor.deye_sun_30k_battery")
+	if f := st.Num(InvSOC); f > 0 && math.Abs(f-soc) <= 0.5 {
+		return f
+	}
+	return soc
+}
+
+// Usable — запас энергии до отключения: номинал × SOH × (SOC − порог отключения).
+type Usable struct{ CapNom, SOH, CapKWh, Cutoff, KWh float64 }
+
+// BattUsable считает запас так же, как карточка АКБ схемы («Доступно»).
+func BattUsable(st State, fallback float64) Usable {
+	u := Usable{SOH: batterySOH(st)}
+	if u.SOH <= 0 || u.SOH > 100 {
+		u.SOH = 100
+	}
+	u.CapNom, _ = BattCapKWh(st, fallback)
+	u.CapKWh = u.CapNom * u.SOH / 100 // эффективная ёмкость с учётом износа
+	u.Cutoff, _ = socLimits(st)
+	u.KWh = math.Max(0, u.CapKWh*(batterySOCPrecise(st)-u.Cutoff)/100)
+	return u
+}
+
 // battHours — «Только от АКБ»: часы и минуты до 48 ч, дальше дни и часы;
 // «—», пока нагрузки практически нет.
 func battHours(h, loadKW float64) string {

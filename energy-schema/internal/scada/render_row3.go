@@ -48,12 +48,8 @@ func (f *frame) battery() {
 	}
 	s.t(286, 547, 13, btc, "end", fmt.Sprintf("%.0f°C", btemp))
 
-	soc := st.Num("sensor.deye_sun_30k_battery")
-	socBMS := soc // на гейдже — целое значение BMS
-	// с десятыми для расчёта энергии (кулонометрия между целыми % BMS, web/socest.go)
-	if f := st.Num(InvSOC); f > 0 && math.Abs(f-soc) <= 0.5 {
-		soc = f
-	}
+	socBMS := st.Num("sensor.deye_sun_30k_battery") // на гейдже — целое значение BMS
+	soc := batterySOCPrecise(st)                    // с десятыми — для дуги и энергии
 	be := "sensor.deye_sun_30k_battery"
 	// прежний тип гейджа: дуга заливается ТОЛЬКО до текущего заряда (цвет по уровню),
 	// дальше тёмная. Просто уменьшен, чтобы выноски не вылезали за карточку. Пик
@@ -123,16 +119,8 @@ func (f *frame) battery() {
 	// ёмкость: паспортный номинал стойки (А·ч инвертора × модули BMS × 51,2 В,
 	// см. battcap.go) × деградацию (SOH). Оценка Solarman «Battery Capacity»
 	// и Ah×«живое» напряжение врут — не используем.
-	capNom, _ := BattCapKWh(st, cfg.BattCap)
-	soh := batterySOH(st)
-	if soh <= 0 || soh > 100 {
-		soh = 100
-	}
-	capKWh := capNom * soh / 100 // эффективная ёмкость с учётом износа
-	usableKWh := capKWh * (soc - cutoff) / 100
-	if usableKWh < 0 {
-		usableKWh = 0
-	}
+	u := BattUsable(st, cfg.BattCap) // тот же расчёт публикует web (sensor…battery_days)
+	capNom, soh, capKWh, usableKWh := u.CapNom, u.SOH, u.CapKWh, u.KWh
 	loadKW := load
 	pvKW := pvtot / 1000
 	// «ясный день» сезона — из реальной статистики (лучший суточный день за ~10
