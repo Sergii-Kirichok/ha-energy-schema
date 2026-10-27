@@ -95,7 +95,8 @@ func (s *Server) loopGauges() {
 }
 
 // battDaysCards — полукруглый гейдж apexcharts: подпись «2 д 05 ч» / «18 ч 40 м»
-// / «45 м». radialBar отдаёт в формат проценты шкалы — переводим обратно через
+// / «45 м». Ширина графика задана явно: иначе ApexCharts рисует 300 px и на
+// карточке в полширины подпись обрезается. radialBar отдаёт в формат проценты шкалы — переводим обратно через
 // battDaysGaugeTo. Цвет дуги по значению radialBar не умеет (colors-функция и
 // color_threshold игнорируются, проверено 27.10) — три копии с разным цветом,
 // видна одна по условию: < 1 дня красная, 1–2 жёлтая, дальше зелёная.
@@ -128,7 +129,7 @@ func battDaysCard(color string) map[string]any {
 		"series": []any{map[string]any{"entity": battDaysEntity, "name": "АКБ хватит", "min": 0, "max": battDaysGaugeTo,
 			"color": color, "show": map[string]any{"legend_value": false}}},
 		"apex_config": map[string]any{
-			"chart": map[string]any{"height": 200}, "legend": map[string]any{"show": false},
+			"chart": map[string]any{"height": 180, "width": 170}, "legend": map[string]any{"show": false},
 			"plotOptions": map[string]any{"radialBar": map[string]any{
 				"startAngle": -90, "endAngle": 90, "hollow": map[string]any{"size": "62%"},
 				"track": map[string]any{"background": "#2a2a2a"},
@@ -144,7 +145,7 @@ func battDaysCard(color string) map[string]any {
 }
 
 var pvTodayCard = map[string]any{"type": "gauge", "entity": pvTodayEntity, "name": "Солнце сегодня", "unit": "kWh",
-	"min": 0, "max": 150, "needle": false, "severity": map[string]any{"green": 0},
+	"min": 0, "max": 150, "needle": false, // без severity: с одним порогом HA карточку не рисует (27.10)
 	"grid_options": map[string]any{"columns": 6, "rows": "auto"}}
 
 // findApexWith — карточка apexcharts, у которой серия на entity.
