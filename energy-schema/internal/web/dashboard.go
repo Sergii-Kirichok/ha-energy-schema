@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 )
 
 // Карточка «Батарея» на дашборде Bobrixos-Energy (entities-card с
@@ -38,7 +39,14 @@ func appendCardOnce(node any, present bool, card map[string]any) (bool, error) {
 
 // ensureDashboard adds the BMS rows to the battery card and the charge card if missing.
 func (s *Server) ensureDashboard(urlPath string) {
+	// HA может ещё не принимать соединения (27.10: «connection refused» сразу
+	// после обновления аддона — дашборд остался неправленым) — повторяем
 	raw, err := s.client.LovelaceConfig(urlPath)
+	for try := 1; err != nil && try < 10; try++ {
+		log.Printf("dashboard %s: %v — retry in 30 s", urlPath, err)
+		time.Sleep(30 * time.Second)
+		raw, err = s.client.LovelaceConfig(urlPath)
+	}
 	if err != nil {
 		log.Printf("dashboard %s: %v", urlPath, err)
 		return
