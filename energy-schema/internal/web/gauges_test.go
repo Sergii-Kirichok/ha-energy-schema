@@ -29,35 +29,61 @@ func TestAvgPowerKW(t *testing.T) {
 	}
 }
 
-func TestPatchGauges(t *testing.T) {
+func sectionCards(cfg any, i int) []any {
+	return cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[i].(map[string]any)["cards"].([]any)
+}
+
+func roundTrip(cfg any) any {
+	b, _ := json.Marshal(cfg)
+	var out any
+	_ = json.Unmarshal(b, &out)
+	return out
+}
+
+func TestPatchGaugesFresh(t *testing.T) {
 	var cfg any
 	_ = json.Unmarshal([]byte(`{"views":[{"sections":[{"type":"grid","cards":[{"type":"heading"},
-		{"type":"gauge","entity":"sensor.deye_pv_power_kw"},
-		{"type":"gauge","entity":"sensor.energy_schema_battery_days"}]},
+		{"type":"gauge","entity":"sensor.deye_pv_power_kw"}]},
 		{"type":"grid","cards":[{"type":"gauge","entity":"sensor.energy_schema_grid_off_hours"},{"type":"markdown"}]}]}]}`), &cfg)
-	cards := func() []any {
-		return cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
-	}
 	if ch, _ := patchGauges(cfg); !ch {
 		t.Fatal("not patched")
 	}
-	c := cards()
-	if len(c) != 6 || c[2].(map[string]any)["type"] != "custom:apexcharts-card" || c[4].(map[string]any)["visibility"] == nil || c[5].(map[string]any)["entity"] != pvTodayEntity {
+	c := sectionCards(cfg, 0)
+	if len(c) != 4 || c[2].(map[string]any)["type"] != "custom:energy-schema-gauge" || c[3].(map[string]any)["entity"] != pvTodayEntity {
 		t.Fatalf("cards: %v", c)
 	}
-	if other := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[1].(map[string]any)["cards"].([]any); len(other) != 1 {
-		t.Fatalf("old gauge in another section not removed: %v", other)
+	if len(sectionCards(cfg, 1)) != 1 {
+		t.Fatal("outage gauge not removed")
 	}
-	// после сохранения в HA числа приходят float64 — повтор всё равно без изменений
-	b, _ := json.Marshal(cfg)
-	cfg = nil
-	_ = json.Unmarshal(b, &cfg)
-	if ch, _ := patchGauges(cfg); ch {
+	if ch, _ := patchGauges(roundTrip(cfg)); ch {
 		t.Fatal("second patch must be a no-op")
 	}
-	// устаревший конфиг apexcharts обновляется на месте
-	cards()[2].(map[string]any)["apex_config"] = map[string]any{}
-	if ch, _ := patchGauges(cfg); !ch || len(cards()) != 6 {
-		t.Fatal("stale apex card not refreshed")
+}
+
+// пользователь перенёс apexcharts-копии и «Солнце сегодня» в другую секцию —
+// замена на месте, в сетку с «Солнце (PV)» ничего не добавляется
+func TestPatchGaugesKeepsUserPlace(t *testing.T) {
+	var cfg any
+	_ = json.Unmarshal([]byte(`{"views":[{"sections":[{"type":"grid","cards":[{"type":"heading"},
+		{"type":"gauge","entity":"sensor.deye_pv_power_kw"}]},
+		{"type":"grid","cards":[{"type":"gauge","entity":"sensor.deye_sun_30k_today_production"},
+		{"type":"custom:apexcharts-card","series":[{"entity":"sensor.energy_schema_battery_days"}]},
+		{"type":"custom:apexcharts-card","series":[{"entity":"sensor.energy_schema_battery_days"}]},
+		{"type":"markdown"}]}]}]}`), &cfg)
+	if ch, _ := patchGauges(cfg); !ch {
+		t.Fatal("not patched")
+	}
+	if n := len(sectionCards(cfg, 0)); n != 2 {
+		t.Fatalf("PV grid got %d cards", n)
+	}
+	c := sectionCards(cfg, 1)
+	if len(c) != 3 || c[1].(map[string]any)["type"] != "custom:energy-schema-gauge" {
+		t.Fatalf("cards: %v", c)
+	}
+	// размер, заданный пользователем, не перетирается
+	c[1].(map[string]any)["grid_options"] = map[string]any{"columns": 12}
+	cfg = roundTrip(cfg)
+	if ch, _ := patchGauges(cfg); ch {
+		t.Fatal("user grid_options must be kept")
 	}
 }

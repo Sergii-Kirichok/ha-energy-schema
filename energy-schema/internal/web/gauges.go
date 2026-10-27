@@ -15,8 +15,9 @@ import (
 // Два гейджа в конце сетки гейджей «Сейчас» (рядом с «Солнце (PV)»):
 //   - «АКБ хватит» — сколько проработаем только от батареи при СРЕДНЕЙ нагрузке
 //     за последние сутки (мгновенная скачет: 8 кВт отопления давали «0,5 дн»).
-//     Запас — как «Доступно» на схеме (scada.BattUsable). Значение «2 д 05 ч»
-//     нативный gauge не умеет — карточка apexcharts radialBar со своей подписью;
+//     Запас — как «Доступно» на схеме (scada.BattUsable). Подпись «2 д 05 ч» —
+//     своя карточка custom:energy-schema-gauge (gaugecard.go): нативный гейдж
+//     HA с подменённым текстом значения;
 //   - «Солнце сегодня» — выработка PV за день (кВт·ч), нативный gauge.
 const (
 	battDaysEntity  = "sensor.energy_schema_battery_days"
@@ -94,56 +95,6 @@ func (s *Server) loopGauges() {
 	}
 }
 
-// battDaysCards — полукруглый гейдж apexcharts: подпись «2 д 05 ч» / «18 ч 40 м»
-// / «45 м». Ширина графика задана явно: иначе ApexCharts рисует 300 px и на
-// карточке в полширины подпись обрезается. radialBar отдаёт в формат проценты шкалы — переводим обратно через
-// battDaysGaugeTo. Цвет дуги по значению radialBar не умеет (colors-функция и
-// color_threshold игнорируются, проверено 27.10) — три копии с разным цветом,
-// видна одна по условию: < 1 дня красная, 1–2 жёлтая, дальше зелёная.
-func battDaysCards() []any {
-	var out []any
-	for _, b := range []struct {
-		color string
-		cond  map[string]any
-	}{
-		{"#db4437", map[string]any{"below": 1}},
-		{"#ffa600", map[string]any{"above": 0.999, "below": 2}},
-		{"#43a047", map[string]any{"above": 1.999}},
-	} {
-		c := battDaysCard(b.color)
-		cond := map[string]any{"condition": "numeric_state", "entity": battDaysEntity}
-		for k, v := range b.cond {
-			cond[k] = v
-		}
-		c["visibility"] = []any{cond}
-		out = append(out, c)
-	}
-	return out
-}
-
-func battDaysCard(color string) map[string]any {
-	to := strconv.Itoa(battDaysGaugeTo)
-	return map[string]any{
-		"type": "custom:apexcharts-card", "chart_type": "radialBar", "header": map[string]any{"show": false},
-		"grid_options": map[string]any{"columns": 6, "rows": "auto"},
-		"series": []any{map[string]any{"entity": battDaysEntity, "name": "АКБ хватит", "min": 0, "max": battDaysGaugeTo,
-			"color": color, "show": map[string]any{"legend_value": false}}},
-		"apex_config": map[string]any{
-			"chart": map[string]any{"height": 180, "width": 170}, "legend": map[string]any{"show": false},
-			"plotOptions": map[string]any{"radialBar": map[string]any{
-				"startAngle": -90, "endAngle": 90, "hollow": map[string]any{"size": "62%"},
-				"track": map[string]any{"background": "#2a2a2a"},
-				"dataLabels": map[string]any{
-					"name": map[string]any{"show": true, "offsetY": 24, "fontSize": "13px", "color": "#e5e5e5"},
-					"value": map[string]any{"show": true, "offsetY": -8, "fontSize": "22px", "color": "#e5e5e5",
-						"formatter": "EVAL:function(p){var m=Math.round(p*" + to + "*1440/100);var d=Math.floor(m/1440),h=Math.floor(m%1440/60),r=m%60;" +
-							"return d>0?d+' д '+String(h).padStart(2,'0')+' ч':(h>0?h+' ч '+String(r).padStart(2,'0')+' м':r+' м');}"},
-				},
-			}},
-		},
-	}
-}
-
 var pvTodayCard = map[string]any{"type": "gauge", "entity": pvTodayEntity, "name": "Солнце сегодня", "unit": "kWh",
 	"min": 0, "max": 150, "needle": false, // без severity: с одним порогом HA карточку не рисует (27.10)
 	"grid_options": map[string]any{"columns": 6, "rows": "auto"}}
@@ -174,56 +125,95 @@ func findApexWith(node any, entity string) map[string]any {
 	return nil
 }
 
-// isOurGauge — карточка из нашего блока: гейджи «АКБ хватит» (любой версии),
-// отсчёт без света (0.6.74) и «Солнце сегодня».
-func isOurGauge(c any) bool {
-	m, ok := c.(map[string]any)
-	if !ok {
-		return false
-	}
-	switch m["type"] {
-	case "gauge":
-		e := m["entity"]
-		return e == battDaysEntity || e == gridOffEntity || e == pvTodayEntity
-	case "custom:apexcharts-card":
-		return findApexWith(m, battDaysEntity) != nil
-	}
-	return false
+// battDaysCard — своя карточка custom:energy-schema-gauge (gaugecard.js):
+// обычный гейдж HA с подписью «1 д 19 ч»; цвет дуги — штатные пороги
+// (< 1 дня красный, 1–2 жёлтый, дальше зелёный).
+func battDaysCard() map[string]any {
+	return map[string]any{"type": "custom:energy-schema-gauge", "entity": battDaysEntity, "name": "АКБ хватит",
+		"format": "days", "min": 0, "max": battDaysGaugeTo, "needle": false,
+		"severity":     map[string]any{"red": 0, "yellow": 1, "green": 2},
+		"grid_options": map[string]any{"columns": 6, "rows": "auto"}}
 }
 
-// patchGauges держит в конце сетки с «Солнце (PV)» блок: три цветные копии
-// «АКБ хватит» и «Солнце сегодня». Если блок отличается (нет, старый, лишние
-// карточки 0.6.74) — наши карточки убираются и блок ставится заново в конец.
-func patchGauges(node any) (bool, error) {
-	pv := findOwnEntityCard(node, "gauge", "sensor.deye_pv_power_kw")
-	if pv == nil {
-		return false, nil
-	}
-	h := findCardsHolding(node, pv)
+// cardPos — список карточек и индекс card в нём.
+func cardPos(node any, card map[string]any) (map[string]any, string, int) {
+	h := findCardsHolding(node, card)
 	if h == nil {
-		return false, nil
+		return nil, "", -1
 	}
-	// нативные гейджи 0.6.74 убираем, где бы они ни стояли (их переносили в «Сеть и фазы»)
-	removed := removeOwnEntityCard(node, "gauge", battDaysEntity)
-	removed = removeOwnEntityCard(node, "gauge", gridOffEntity) || removed
 	holder, key := h[0].(map[string]any), h[1].(string)
-	want := append(battDaysCards(), map[string]any{})
-	for k, v := range pvTodayCard {
-		want[len(want)-1].(map[string]any)[k] = v
-	}
-	var kept, ours []any
-	for _, c := range holder[key].([]any) {
-		if isOurGauge(c) {
-			ours = append(ours, c)
-		} else {
-			kept = append(kept, c)
+	for i, c := range holder[key].([]any) {
+		if m, ok := c.(map[string]any); ok && sameMap(m, card) {
+			return holder, key, i
 		}
 	}
-	if mustJSON(ours) == mustJSON(want) {
-		return removed, nil
+	return nil, "", -1
+}
+
+func insertAt(holder map[string]any, key string, i int, card any) {
+	l := holder[key].([]any)
+	if i < 0 || i > len(l) {
+		i = len(l)
 	}
-	holder[key] = append(kept, want...)
-	return true, nil
+	holder[key] = append(l[:i:i], append([]any{card}, l[i:]...)...)
+}
+
+// patchGauges держит «АКБ хватит» (своя карточка) и «Солнце сегодня». Место,
+// куда их перенёс пользователь, сохраняется: прежние версии «АКБ хватит»
+// (нативный гейдж 0.6.74, три apexcharts 0.6.75–0.6.78) заменяются на месте;
+// новой карточки нет нигде — ставится в конец сетки с «Солнце (PV)». Наши
+// поля карточки обновляются, grid_options и прочее пользователя не трогаем.
+func patchGauges(node any) (bool, error) {
+	changed := removeOwnEntityCard(node, "gauge", gridOffEntity)
+	want := battDaysCard()
+	var holder map[string]any
+	key, at := "", -1
+	old := func() map[string]any {
+		if c := findOwnEntityCard(node, "gauge", battDaysEntity); c != nil {
+			return c
+		}
+		return findApexWith(node, battDaysEntity)
+	}
+	for c := old(); c != nil; c = old() {
+		if holder == nil {
+			holder, key, at = cardPos(node, c)
+		}
+		removeCard(node, c)
+		changed = true
+	}
+	if cur := findOwnEntityCard(node, "custom:energy-schema-gauge", battDaysEntity); cur != nil {
+		holder, key, at = cardPos(node, cur)
+		for k, v := range want {
+			if k != "grid_options" && mustJSON(cur[k]) != mustJSON(v) {
+				cur[k] = v
+				changed = true
+			}
+		}
+		at++ // «Солнце сегодня», если его нет, — сразу за ним
+	} else {
+		if holder == nil {
+			pv := findOwnEntityCard(node, "gauge", "sensor.deye_pv_power_kw")
+			if pv == nil {
+				return changed, nil
+			}
+			h := findCardsHolding(node, pv)
+			holder, key = h[0].(map[string]any), h[1].(string)
+		}
+		insertAt(holder, key, at, want)
+		if at >= 0 {
+			at++
+		}
+		changed = true
+	}
+	if findOwnEntityCard(node, "gauge", pvTodayEntity) == nil && holder != nil {
+		cp := map[string]any{}
+		for k, v := range pvTodayCard {
+			cp[k] = v
+		}
+		insertAt(holder, key, at, cp)
+		changed = true
+	}
+	return changed, nil
 }
 
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }

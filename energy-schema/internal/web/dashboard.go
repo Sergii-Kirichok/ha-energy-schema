@@ -56,7 +56,8 @@ func (s *Server) ensureDashboard(urlPath string) {
 		log.Printf("dashboard %s: decode: %v", urlPath, err)
 		return
 	}
-	mm, _ := patchMinMax(cfg) // первым: иначе карточка АКБ получит сводную строку дважды
+	cardOK := s.ensureGaugeCard() // модуль и ресурс custom:energy-schema-gauge — до правки дашборда
+	mm, _ := patchMinMax(cfg)     // первым: иначе карточка АКБ получит сводную строку дважды
 	changed, err := patchBatteryCard(cfg)
 	if err != nil {
 		log.Printf("dashboard %s: %v", urlPath, err)
@@ -67,7 +68,12 @@ func (s *Server) ensureDashboard(urlPath string) {
 		name  string
 		patch func(any) (bool, error)
 	}{{"charge card", patchChargeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid card", patchGridCard},
-		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}, {"gauges", patchGauges},
+		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}, {"gauges", func(n any) (bool, error) {
+			if !cardOK { // без ресурса карточка показала бы ошибку — дашборд не трогаем
+				return false, nil
+			}
+			return patchGauges(n)
+		}},
 		{"control visibility", s.patchControlVisibility}} { // последним: карточки, созданные выше, тоже
 		if c2, err := p.patch(cfg); err != nil {
 			log.Printf("dashboard %s: %s: %v", urlPath, p.name, err)
