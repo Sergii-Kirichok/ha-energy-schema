@@ -1,27 +1,30 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
-	"sort"
-	"strings"
+	"strconv"
 	"time"
 
 	"energy-schema/internal/hass"
 	"energy-schema/internal/scada"
 )
 
-// Два гейджа на дашборде рядом с «Солнце (PV)» и «Заряд АКБ»:
-//   - «АКБ хватит» — сколько дней проработаем только от батареи при текущей
-//     нагрузке (запас до отключения — как «Доступно» на схеме, scada.BattUsable);
-//   - отсчёт без света — часы с момента, когда последний раз были все три
-//     фазы; 0, пока свет есть. Имя гейджа берётся из friendly_name сенсора:
-//     «Свет есть» / «Нет света · с 14:05» / «Нет L3 · с 14:05».
+// Два гейджа в конце сетки гейджей «Сейчас» (рядом с «Солнце (PV)»):
+//   - «АКБ хватит» — сколько проработаем только от батареи при СРЕДНЕЙ нагрузке
+//     за последние сутки (мгновенная скачет: 8 кВт отопления давали «0,5 дн»).
+//     Запас — как «Доступно» на схеме (scada.BattUsable). Значение «2 д 05 ч»
+//     нативный gauge не умеет — карточка apexcharts radialBar со своей подписью;
+//   - «Солнце сегодня» — выработка PV за день (кВт·ч), нативный gauge.
 const (
-	battDaysEntity = "sensor.energy_schema_battery_days"
-	gridOffEntity  = "sensor.energy_schema_grid_off_hours"
-	battDaysMax    = 99.0 // нагрузки почти нет — «очень долго»
+	battDaysEntity  = "sensor.energy_schema_battery_days"
+	gridOffEntity   = "sensor.energy_schema_grid_off_hours" // гейдж убран 0.6.75 — карточку вычищаем
+	pvTodayEntity   = "sensor.deye_sun_30k_today_production"
+	loadEntity      = "sensor.deye_sun_30k_load_power"
+	battDaysMax     = 99.0 // нагрузки почти нет — «очень долго»
+	battDaysGaugeTo = 7    // шкала гейджа, дней
 )
 
 // battDays — дни работы только от АКБ при нагрузке loadKW.
@@ -32,118 +35,164 @@ func battDays(usableKWh, loadKW float64) float64 {
 	return math.Min(battDaysMax, usableKWh/loadKW/24)
 }
 
-// phasesOn — сколько фаз сейчас с напряжением (≥ voltOff) и есть ли данные по всем.
-func (s *Server) phasesOn() (on []bool, known bool) {
-	known = true
-	for ph := 1; ph <= 3; ph++ {
-		c := voltClass(s.store.State(gridVoltEntity(ph)))
-		known = known && c != clsNoData
-		on = append(on, c == clsLow || c == clsOK)
-	}
-	return on, known
-}
-
-// lastFullGrid — последний момент, когда напряжение было на всех трёх фазах,
-// по истории фаз за окно [since, now]; since, если за окно такого не было.
-func lastFullGrid(hist [3][]hass.HistState, since, now time.Time) time.Time {
-	type ev struct {
-		t  time.Time
-		ph int
-		on bool
-	}
-	var evs []ev
-	for ph, sts := range hist {
-		for _, p := range sts {
-			if c := voltClass(p.State); c != clsNoData {
-				evs = append(evs, ev{p.Time, ph, c != clsOff})
-			}
+// avgPowerKW — средняя по времени мощность (Вт в истории → кВт) за [since, now];
+// нечисловые отрезки (unavailable) не считаются. ok=false — данных нет.
+func avgPowerKW(sts []hass.HistState, since, now time.Time) (float64, bool) {
+	var sum, dur float64
+	for i, p := range sts {
+		v, err := strconv.ParseFloat(p.State, 64)
+		if err != nil || math.IsNaN(v) {
+			continue
+		}
+		t, end := p.Time, now
+		if i+1 < len(sts) && sts[i+1].Time.Before(now) {
+			end = sts[i+1].Time
+		}
+		if t.Before(since) {
+			t = since
+		}
+		if d := end.Sub(t).Hours(); d > 0 {
+			sum += v * d
+			dur += d
 		}
 	}
-	sort.SliceStable(evs, func(i, j int) bool { return evs[i].t.Before(evs[j].t) })
-	var on [3]bool
-	last := since
-	for _, e := range evs {
-		if on[0] && on[1] && on[2] && e.t.After(last) {
-			last = e.t // все три держались до этого события
-		}
-		on[e.ph] = e.on
+	if dur < 1 { // меньше часа данных — не среднее
+		return 0, false
 	}
-	if on[0] && on[1] && on[2] {
-		return now
-	}
-	return last
+	return sum / dur / 1000, true
 }
 
-// gridOffName — имя гейджа по фазам: «Свет есть», «Нет света · с …», «Нет L3 · с …».
-func gridOffName(on []bool, since, now time.Time) string {
-	var off []string
-	for i, o := range on {
-		if !o {
-			off = append(off, fmt.Sprintf("L%d", i+1))
-		}
-	}
-	if len(off) == 0 {
-		return "Свет есть"
-	}
-	what := "Нет света"
-	if len(off) < 3 {
-		what = "Нет " + strings.Join(off, ", ")
-	}
-	at := since.Local().Format("15:04")
-	if y, d := since.Local().YearDay(), now.Local().YearDay(); y != d {
-		at = since.Local().Format("02.01 15:04")
-	}
-	return fmt.Sprintf("%s · с %s", what, at)
-}
-
-// loopGauges публикует оба сенсора раз в 30 с. Отсчёт без света при старте
-// восстанавливается из истории фаз за 3 суток, дальше ведётся по живым значениям.
+// loopGauges публикует «АКБ хватит» раз в 30 с; среднюю нагрузку за сутки
+// пересчитывает по истории раз в 10 мин (до первого расчёта — текущая).
 func (s *Server) loopGauges() {
-	now := time.Now()
-	since := now.Add(-72 * time.Hour)
-	var hist [3][]hass.HistState
-	for ph := 1; ph <= 3; ph++ {
-		sts, err := s.client.HistoryStates(gridVoltEntity(ph), since)
-		if err != nil {
-			log.Printf("gauges: L%d history: %v", ph, err)
-		}
-		hist[ph-1] = sts
-	}
-	lastOn := lastFullGrid(hist, since, now)
+	var avg float64
+	var nextAvg time.Time
 	for {
-		now = time.Now()
+		now := time.Now()
+		if now.After(nextAvg) {
+			if sts, err := s.client.HistoryStates(loadEntity, now.Add(-24*time.Hour)); err != nil {
+				log.Printf("gauges: load history: %v", err)
+			} else if a, ok := avgPowerKW(sts, now.Add(-24*time.Hour), now); ok {
+				avg = a
+			}
+			nextAvg = now.Add(10 * time.Minute)
+		}
+		load := s.store.Num(loadEntity) / 1000
+		basis := avg
+		if basis <= 0 {
+			basis = load
+		}
 		u := scada.BattUsable(s.store, s.cfg.BattCap)
-		load := s.store.Num("sensor.deye_sun_30k_load_power") / 1000
-		days := battDays(u.KWh, load)
-		_ = s.client.SetState(battDaysEntity, fmt.Sprintf("%.1f", days), map[string]any{
+		days := battDays(u.KWh, basis)
+		_ = s.client.SetState(battDaysEntity, fmt.Sprintf("%.2f", days), map[string]any{
 			"friendly_name": "АКБ хватит", "icon": "mdi:battery-clock", "unit_of_measurement": "дн",
-			"state_class": "measurement", "usable_kwh": math.Round(u.KWh*10) / 10, "load_kw": math.Round(load*100) / 100,
+			"state_class": "measurement", "usable_kwh": math.Round(u.KWh*10) / 10,
+			"avg_load_kw_24h": math.Round(avg*100) / 100, "load_kw": math.Round(load*100) / 100,
 			"hours": math.Round(days*24*10) / 10,
 		})
-		if on, known := s.phasesOn(); known {
-			if on[0] && on[1] && on[2] {
-				lastOn = now
-			}
-			hours := now.Sub(lastOn).Hours()
-			_ = s.client.SetState(gridOffEntity, fmt.Sprintf("%.1f", hours), map[string]any{
-				"friendly_name": gridOffName(on, lastOn, now), "icon": "mdi:transmission-tower-off",
-				"unit_of_measurement": "ч", "state_class": "measurement", "since": lastOn.Local().Format(time.RFC3339),
-			})
-		}
 		time.Sleep(30 * time.Second)
 	}
 }
 
-// gaugeCards — карточки двух гейджей (в сетку гейджей раздела «Сейчас»).
-var gaugeCards = []map[string]any{
-	{"type": "gauge", "entity": battDaysEntity, "name": "АКБ хватит", "unit": "дн", "min": 0, "max": 10, "needle": false,
-		"severity": map[string]any{"red": 0, "yellow": 1, "green": 3}, "grid_options": map[string]any{"columns": 6, "rows": "auto"}},
-	{"type": "gauge", "entity": gridOffEntity, "unit": "ч", "min": 0, "max": 12, "needle": false, // имя — из friendly_name
-		"severity": map[string]any{"green": 0, "yellow": 2, "red": 6}, "grid_options": map[string]any{"columns": 6, "rows": "auto"}},
+// battDaysCards — полукруглый гейдж apexcharts: подпись «2 д 05 ч» / «18 ч 40 м»
+// / «45 м». radialBar отдаёт в формат проценты шкалы — переводим обратно через
+// battDaysGaugeTo. Цвет дуги по значению radialBar не умеет (colors-функция и
+// color_threshold игнорируются, проверено 27.10) — три копии с разным цветом,
+// видна одна по условию: < 1 дня красная, 1–2 жёлтая, дальше зелёная.
+func battDaysCards() []any {
+	var out []any
+	for _, b := range []struct {
+		color string
+		cond  map[string]any
+	}{
+		{"#db4437", map[string]any{"below": 1}},
+		{"#ffa600", map[string]any{"above": 0.999, "below": 2}},
+		{"#43a047", map[string]any{"above": 1.999}},
+	} {
+		c := battDaysCard(b.color)
+		cond := map[string]any{"condition": "numeric_state", "entity": battDaysEntity}
+		for k, v := range b.cond {
+			cond[k] = v
+		}
+		c["visibility"] = []any{cond}
+		out = append(out, c)
+	}
+	return out
 }
 
-// patchGauges добавляет гейджи в конец списка, где стоит гейдж «Солнце (PV)»
-// (sensor.deye_pv_power_kw); уже добавленные не трогает.
+func battDaysCard(color string) map[string]any {
+	to := strconv.Itoa(battDaysGaugeTo)
+	return map[string]any{
+		"type": "custom:apexcharts-card", "chart_type": "radialBar", "header": map[string]any{"show": false},
+		"grid_options": map[string]any{"columns": 6, "rows": "auto"},
+		"series": []any{map[string]any{"entity": battDaysEntity, "name": "АКБ хватит", "min": 0, "max": battDaysGaugeTo,
+			"color": color, "show": map[string]any{"legend_value": false}}},
+		"apex_config": map[string]any{
+			"chart": map[string]any{"height": 200}, "legend": map[string]any{"show": false},
+			"plotOptions": map[string]any{"radialBar": map[string]any{
+				"startAngle": -90, "endAngle": 90, "hollow": map[string]any{"size": "62%"},
+				"track": map[string]any{"background": "#2a2a2a"},
+				"dataLabels": map[string]any{
+					"name": map[string]any{"show": true, "offsetY": 30, "fontSize": "14px", "color": "#e5e5e5"},
+					"value": map[string]any{"show": true, "offsetY": -12, "fontSize": "30px", "color": "#e5e5e5",
+						"formatter": "EVAL:function(p){var m=Math.round(p*" + to + "*1440/100);var d=Math.floor(m/1440),h=Math.floor(m%1440/60),r=m%60;" +
+							"return d>0?d+' д '+String(h).padStart(2,'0')+' ч':(h>0?h+' ч '+String(r).padStart(2,'0')+' м':r+' м');}"},
+				},
+			}},
+		},
+	}
+}
+
+var pvTodayCard = map[string]any{"type": "gauge", "entity": pvTodayEntity, "name": "Солнце сегодня", "unit": "kWh",
+	"min": 0, "max": 150, "needle": false, "severity": map[string]any{"green": 0},
+	"grid_options": map[string]any{"columns": 6, "rows": "auto"}}
+
+// findApexWith — карточка apexcharts, у которой серия на entity.
+func findApexWith(node any, entity string) map[string]any {
+	switch v := node.(type) {
+	case map[string]any:
+		if v["type"] == "custom:apexcharts-card" {
+			if ss, ok := v["series"].([]any); ok && len(ss) > 0 {
+				if m, ok := ss[0].(map[string]any); ok && m["entity"] == entity {
+					return v
+				}
+			}
+		}
+		for _, c := range v {
+			if r := findApexWith(c, entity); r != nil {
+				return r
+			}
+		}
+	case []any:
+		for _, c := range v {
+			if r := findApexWith(c, entity); r != nil {
+				return r
+			}
+		}
+	}
+	return nil
+}
+
+// isOurGauge — карточка из нашего блока: гейджи «АКБ хватит» (любой версии),
+// отсчёт без света (0.6.74) и «Солнце сегодня».
+func isOurGauge(c any) bool {
+	m, ok := c.(map[string]any)
+	if !ok {
+		return false
+	}
+	switch m["type"] {
+	case "gauge":
+		e := m["entity"]
+		return e == battDaysEntity || e == gridOffEntity || e == pvTodayEntity
+	case "custom:apexcharts-card":
+		return findApexWith(m, battDaysEntity) != nil
+	}
+	return false
+}
+
+// patchGauges держит в конце сетки с «Солнце (PV)» блок: три цветные копии
+// «АКБ хватит» и «Солнце сегодня». Если блок отличается (нет, старый, лишние
+// карточки 0.6.74) — наши карточки убираются и блок ставится заново в конец.
 func patchGauges(node any) (bool, error) {
 	pv := findOwnEntityCard(node, "gauge", "sensor.deye_pv_power_kw")
 	if pv == nil {
@@ -154,17 +203,23 @@ func patchGauges(node any) (bool, error) {
 		return false, nil
 	}
 	holder, key := h[0].(map[string]any), h[1].(string)
-	changed := false
-	for _, c := range gaugeCards {
-		if findOwnEntityCard(node, "gauge", c["entity"].(string)) != nil {
-			continue
-		}
-		cp := map[string]any{}
-		for k, v := range c {
-			cp[k] = v
-		}
-		holder[key] = append(holder[key].([]any), cp)
-		changed = true
+	want := append(battDaysCards(), map[string]any{})
+	for k, v := range pvTodayCard {
+		want[len(want)-1].(map[string]any)[k] = v
 	}
-	return changed, nil
+	var kept, ours []any
+	for _, c := range holder[key].([]any) {
+		if isOurGauge(c) {
+			ours = append(ours, c)
+		} else {
+			kept = append(kept, c)
+		}
+	}
+	if mustJSON(ours) == mustJSON(want) {
+		return false, nil
+	}
+	holder[key] = append(kept, want...)
+	return true, nil
 }
+
+func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }

@@ -2,54 +2,24 @@ package web
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
 	"energy-schema/internal/hass"
 )
 
-func TestLastFullGrid(t *testing.T) {
-	t0 := time.Date(2026, 10, 26, 10, 0, 0, 0, time.UTC)
-	at := func(m int, s string) hass.HistState {
-		return hass.HistState{Time: t0.Add(time.Duration(m) * time.Minute), State: s}
+func TestAvgPowerKW(t *testing.T) {
+	t0 := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+	h := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Hour) }
+	sts := []hass.HistState{{Time: h(-2), State: "1000"}, {Time: h(2), State: "unavailable"},
+		{Time: h(3), State: "4000"}, {Time: h(4), State: "1000"}}
+	// окно [0, 6]: 1 кВт 2 ч, дыра 1 ч, 4 кВт 1 ч, 1 кВт 2 ч → 8 кВт·ч / 5 ч
+	if a, ok := avgPowerKW(sts, t0, h(6)); !ok || math.Abs(a-1.6) > 1e-9 {
+		t.Fatalf("avg %v %v", a, ok)
 	}
-	now := t0.Add(5 * time.Hour)
-	since := t0.Add(-time.Hour)
-	all := func(m int, s string) [3][]hass.HistState {
-		return [3][]hass.HistState{{at(0, "230"), at(m, s)}, {at(0, "231"), at(m, s)}, {at(0, "229"), at(m, s)}}
-	}
-	cases := []struct {
-		name string
-		hist [3][]hass.HistState
-		want time.Time
-	}{
-		{"всё время есть", all(30, "232"), now},
-		{"пропал в 10:30", all(30, "0"), t0.Add(30 * time.Minute)},
-		{"L3 раньше, потом все", [3][]hass.HistState{{at(0, "230"), at(60, "0")}, {at(0, "230"), at(60, "0")}, {at(0, "230"), at(20, "1")}},
-			t0.Add(20 * time.Minute)},
-		{"вернулся", [3][]hass.HistState{{at(0, "0"), at(90, "230")}, {at(0, "0"), at(90, "230")}, {at(0, "0"), at(90, "230")}}, now},
-		{"unavailable не отключение", all(30, "unavailable"), now},
-		{"за окно не было", [3][]hass.HistState{{at(0, "0")}, {at(0, "0")}, {at(0, "0")}}, since},
-	}
-	for _, c := range cases {
-		if got := lastFullGrid(c.hist, since, now); !got.Equal(c.want) {
-			t.Errorf("%s: got %v want %v", c.name, got, c.want)
-		}
-	}
-}
-
-func TestGridOffNameAndDays(t *testing.T) {
-	now := time.Now()
-	if n := gridOffName([]bool{true, true, true}, now, now); n != "Свет есть" {
-		t.Fatal(n)
-	}
-	since := now.Add(-time.Minute)
-	if n := gridOffName([]bool{false, false, false}, since, now); n != "Нет света · с "+since.Local().Format("15:04") &&
-		n != "Нет света · с "+since.Local().Format("02.01 15:04") {
-		t.Fatal(n)
-	}
-	if n := gridOffName([]bool{true, true, false}, since, now); n[:len("Нет L3")] != "Нет L3" {
-		t.Fatal(n)
+	if _, ok := avgPowerKW(sts[3:], h(5), h(5).Add(30*time.Minute)); ok {
+		t.Fatal("under an hour of data must not count")
 	}
 	if d := battDays(144, 2); d != 3 {
 		t.Fatalf("days %v", d)
@@ -62,15 +32,28 @@ func TestGridOffNameAndDays(t *testing.T) {
 func TestPatchGauges(t *testing.T) {
 	var cfg any
 	_ = json.Unmarshal([]byte(`{"views":[{"sections":[{"type":"grid","cards":[{"type":"heading"},
-		{"type":"gauge","entity":"sensor.deye_grid_power_kw"},{"type":"gauge","entity":"sensor.deye_pv_power_kw"}]}]}]}`), &cfg)
+		{"type":"gauge","entity":"sensor.deye_pv_power_kw"},
+		{"type":"gauge","entity":"sensor.energy_schema_battery_days"},{"type":"gauge","entity":"sensor.energy_schema_grid_off_hours"}]}]}]}`), &cfg)
+	cards := func() []any {
+		return cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
+	}
 	if ch, _ := patchGauges(cfg); !ch {
-		t.Fatal("gauges not added")
+		t.Fatal("not patched")
 	}
-	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
-	if len(cards) != 5 || cards[3].(map[string]any)["entity"] != battDaysEntity || cards[4].(map[string]any)["entity"] != gridOffEntity {
-		t.Fatalf("cards: %v", cards)
+	c := cards()
+	if len(c) != 6 || c[2].(map[string]any)["type"] != "custom:apexcharts-card" || c[4].(map[string]any)["visibility"] == nil || c[5].(map[string]any)["entity"] != pvTodayEntity {
+		t.Fatalf("cards: %v", c)
 	}
+	// после сохранения в HA числа приходят float64 — повтор всё равно без изменений
+	b, _ := json.Marshal(cfg)
+	cfg = nil
+	_ = json.Unmarshal(b, &cfg)
 	if ch, _ := patchGauges(cfg); ch {
 		t.Fatal("second patch must be a no-op")
+	}
+	// устаревший конфиг apexcharts обновляется на месте
+	cards()[2].(map[string]any)["apex_config"] = map[string]any{}
+	if ch, _ := patchGauges(cfg); !ch || len(cards()) != 6 {
+		t.Fatal("stale apex card not refreshed")
 	}
 }
