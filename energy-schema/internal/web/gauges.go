@@ -133,8 +133,8 @@ func battDaysCard(color string) map[string]any {
 				"startAngle": -90, "endAngle": 90, "hollow": map[string]any{"size": "62%"},
 				"track": map[string]any{"background": "#2a2a2a"},
 				"dataLabels": map[string]any{
-					"name": map[string]any{"show": true, "offsetY": 30, "fontSize": "14px", "color": "#e5e5e5"},
-					"value": map[string]any{"show": true, "offsetY": -12, "fontSize": "30px", "color": "#e5e5e5",
+					"name": map[string]any{"show": true, "offsetY": 24, "fontSize": "13px", "color": "#e5e5e5"},
+					"value": map[string]any{"show": true, "offsetY": -8, "fontSize": "22px", "color": "#e5e5e5",
 						"formatter": "EVAL:function(p){var m=Math.round(p*" + to + "*1440/100);var d=Math.floor(m/1440),h=Math.floor(m%1440/60),r=m%60;" +
 							"return d>0?d+' д '+String(h).padStart(2,'0')+' ч':(h>0?h+' ч '+String(r).padStart(2,'0')+' м':r+' м');}"},
 				},
@@ -202,6 +202,9 @@ func patchGauges(node any) (bool, error) {
 	if h == nil {
 		return false, nil
 	}
+	// нативные гейджи 0.6.74 убираем, где бы они ни стояли (их переносили в «Сеть и фазы»)
+	removed := removeOwnEntityCard(node, "gauge", battDaysEntity)
+	removed = removeOwnEntityCard(node, "gauge", gridOffEntity) || removed
 	holder, key := h[0].(map[string]any), h[1].(string)
 	want := append(battDaysCards(), map[string]any{})
 	for k, v := range pvTodayCard {
@@ -216,7 +219,7 @@ func patchGauges(node any) (bool, error) {
 		}
 	}
 	if mustJSON(ours) == mustJSON(want) {
-		return false, nil
+		return removed, nil
 	}
 	holder[key] = append(kept, want...)
 	return true, nil

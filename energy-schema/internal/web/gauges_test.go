@@ -33,7 +33,8 @@ func TestPatchGauges(t *testing.T) {
 	var cfg any
 	_ = json.Unmarshal([]byte(`{"views":[{"sections":[{"type":"grid","cards":[{"type":"heading"},
 		{"type":"gauge","entity":"sensor.deye_pv_power_kw"},
-		{"type":"gauge","entity":"sensor.energy_schema_battery_days"},{"type":"gauge","entity":"sensor.energy_schema_grid_off_hours"}]}]}]}`), &cfg)
+		{"type":"gauge","entity":"sensor.energy_schema_battery_days"}]},
+		{"type":"grid","cards":[{"type":"gauge","entity":"sensor.energy_schema_grid_off_hours"},{"type":"markdown"}]}]}]}`), &cfg)
 	cards := func() []any {
 		return cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
 	}
@@ -43,6 +44,9 @@ func TestPatchGauges(t *testing.T) {
 	c := cards()
 	if len(c) != 6 || c[2].(map[string]any)["type"] != "custom:apexcharts-card" || c[4].(map[string]any)["visibility"] == nil || c[5].(map[string]any)["entity"] != pvTodayEntity {
 		t.Fatalf("cards: %v", c)
+	}
+	if other := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[1].(map[string]any)["cards"].([]any); len(other) != 1 {
+		t.Fatalf("old gauge in another section not removed: %v", other)
 	}
 	// после сохранения в HA числа приходят float64 — повтор всё равно без изменений
 	b, _ := json.Marshal(cfg)
