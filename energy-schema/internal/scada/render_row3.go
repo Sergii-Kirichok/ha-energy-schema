@@ -125,9 +125,13 @@ func (f *frame) battery() {
 	// что публикует web в гейдже «АКБ хватит» (sensor.energy_schema_load_avg1h),
 	// чтобы карточка и гейдж не расходились. Нет сенсора (web ещё не посчитал) —
 	// откатываемся на мгновенную нагрузку.
+	// базис «Только от АКБ» выбирает переключатель AVG 1H на обороте карточки:
+	// вкл — средняя нагрузка за час (тот же sensor, что в гейдже), выкл — мгновенная.
+	useAvg := st.On("input_boolean.energy_schema_runtime_avg1h")
 	loadKW := load
-	if a := st.Num("sensor.energy_schema_load_avg1h"); a > 0 {
-		loadKW = a
+	avg1h := st.Num("sensor.energy_schema_load_avg1h")
+	if useAvg && avg1h > 0 {
+		loadKW = avg1h
 	}
 	pvKW := pvtot / 1000
 	// «ясный день» сезона — из реальной статистики (лучший суточный день за ~10
@@ -166,8 +170,12 @@ func (f *frame) battery() {
 		}
 	}
 	s.t(308, 716, 20, batCol, "end", battHours(batH, loadKW))
-	if loadKW > 0.05 {
-		s.t(308, 731, 9, cSub, "end", fmt.Sprintf("средн. за час ~%.2f кВт", loadKW))
+	if loadKW > 0.05 { // метка базиса: AVG 1H — средняя за час, тек. — мгновенная
+		tag := "тек."
+		if useAvg && avg1h > 0 {
+			tag = "AVG 1H"
+		}
+		s.t(150, 716, 10, cSub, "start", tag)
 	}
 	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
 	s.t(308, 742, 20, cGrn, "end", hfmt(autoH))

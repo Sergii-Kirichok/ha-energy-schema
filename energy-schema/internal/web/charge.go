@@ -41,6 +41,7 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_number", ID: "energy_schema_charge_target_soc", Name: "Заряд: цель на ночь", Min: 50, Max: 100, Step: 1, Initial: 90, Unit: "%", Icon: "mdi:battery-90"},
 		{Domain: "input_number", ID: "energy_schema_charge_full_days", Name: "Заряд: полный раз в", Min: 1, Max: t.FullDaysMax, Step: 1, Initial: math.Min(14, t.FullDaysMax), Unit: "д", Icon: "mdi:calendar-refresh"},
 		{Domain: "input_boolean", ID: "energy_schema_charge_full_now", Name: "Заряд: полный сейчас", Icon: "mdi:battery-charging-100"},
+		{Domain: "input_boolean", ID: "energy_schema_runtime_avg1h", Name: "Запас: усреднять за час", Icon: "mdi:chart-timeline-variant", Initial: 1},
 		{Domain: "input_boolean", ID: chargeBalanceEntity[len("input_boolean."):], Name: "Заряд: балансировка", Icon: "mdi:scale-balance"},
 		{Domain: "input_button", ID: chargeApplyBt[len("input_button."):], Name: "Заряд: применить", Icon: "mdi:content-save"},
 	}

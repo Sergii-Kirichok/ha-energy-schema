@@ -20,13 +20,14 @@ import (
 //     HA с подменённым текстом значения;
 //   - «Солнце сегодня» — выработка PV за день (кВт·ч), нативный gauge.
 const (
-	battDaysEntity  = "sensor.energy_schema_battery_days"
-	loadAvg1hEntity = "sensor.energy_schema_load_avg1h"     // средняя нагрузка за час (кВт) — общий источник для гейджа и карточки АКБ
-	gridOffEntity   = "sensor.energy_schema_grid_off_hours" // гейдж убран 0.6.75 — карточку вычищаем
-	pvTodayEntity   = "sensor.deye_sun_30k_today_production"
-	loadEntity      = "sensor.deye_sun_30k_load_power"
-	battDaysMax     = 99.0 // нагрузки почти нет — «очень долго»
-	battDaysGaugeTo = 7    // шкала гейджа, дней
+	battDaysEntity     = "sensor.energy_schema_battery_days"
+	loadAvg1hEntity    = "sensor.energy_schema_load_avg1h"           // средняя нагрузка за час (кВт) — общий источник для гейджа и карточки АКБ
+	runtimeAvg1hToggle = "input_boolean.energy_schema_runtime_avg1h" // переключатель AVG 1H: вкл — запас по средней за час, выкл — по мгновенной
+	gridOffEntity      = "sensor.energy_schema_grid_off_hours"       // гейдж убран 0.6.75 — карточку вычищаем
+	pvTodayEntity      = "sensor.deye_sun_30k_today_production"
+	loadEntity         = "sensor.deye_sun_30k_load_power"
+	battDaysMax        = 99.0 // нагрузки почти нет — «очень долго»
+	battDaysGaugeTo    = 7    // шкала гейджа, дней
 )
 
 // battDays — дни работы только от АКБ при нагрузке loadKW.
@@ -83,9 +84,11 @@ func (s *Server) loopGauges() {
 			nextAvg = now.Add(2 * time.Minute)
 		}
 		load := s.store.Num(loadEntity) / 1000
-		basis := avg
-		if basis <= 0 {
-			basis = load
+		// переключатель AVG 1H (по умолчанию вкл): базис — средняя за час либо мгновенная
+		useAvg := s.store.On(runtimeAvg1hToggle)
+		mode, basis := "inst", load
+		if useAvg && avg > 0 {
+			mode, basis = "avg1h", avg
 		}
 		u := scada.BattUsable(s.store, s.cfg.BattCap)
 		days := battDays(u.KWh, basis)
@@ -93,9 +96,10 @@ func (s *Server) loopGauges() {
 			"friendly_name": "АКБ хватит", "icon": "mdi:battery-clock", "unit_of_measurement": "дн",
 			"state_class": "measurement", "usable_kwh": math.Round(u.KWh*10) / 10,
 			"avg_load_kw_1h": math.Round(avg*100) / 100, "load_kw": math.Round(load*100) / 100,
-			"hours": math.Round(days*24*10) / 10,
+			"basis_kw": math.Round(basis*100) / 100, "mode": mode, "hours": math.Round(days*24*10) / 10,
 		})
-		_ = s.client.SetState(loadAvg1hEntity, fmt.Sprintf("%.3f", basis), map[string]any{
+		// истинная средняя за час — карточка АКБ берёт её же (тот же базис)
+		_ = s.client.SetState(loadAvg1hEntity, fmt.Sprintf("%.3f", avg), map[string]any{
 			"friendly_name": "Нагрузка (средн. за час)", "icon": "mdi:home-lightning-bolt",
 			"unit_of_measurement": "kW", "state_class": "measurement",
 		})

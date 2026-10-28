@@ -15,7 +15,8 @@ var QuickParams = []QuickParam{
 	{Key: "grid_a", Label: "Лимит от сети", Unit: "А", Entity: "input_number.energy_schema_charge_grid_a", Min: 1, Max: 15, Step: 1},
 	{Key: "target_soc", Label: "Цель на ночь", Unit: "%", Entity: "input_number.energy_schema_charge_target_soc", Min: 50, Max: 100, Step: 1},
 	{Key: "full_days", Label: "Полный раз в", Unit: "д", Entity: "input_number.energy_schema_charge_full_days", Min: 1, Max: 30, Step: 1},
-	{Key: "full_now", Label: "Полный заряд сейчас", Entity: "input_boolean.energy_schema_charge_full_now", Bool: true},
+	// «Запас/Только от АКБ»: ВКЛ — средняя нагрузка за час, ВЫКЛ — мгновенная.
+	{Key: "avg1h", Label: "AVG 1H", Entity: "input_boolean.energy_schema_runtime_avg1h", Bool: true},
 }
 
 // QuickParamByKey — поиск по ключу (nil, если нет такого).

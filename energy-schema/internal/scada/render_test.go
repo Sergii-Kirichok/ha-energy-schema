@@ -134,7 +134,7 @@ func TestBatteryBackFace(t *testing.T) {
 	svg := Render(storeFrom(m), config.Default())
 	for _, want := range []string{
 		`<g id="card-batt"><g class="face f-front">`, `class="face f-back"`, `data-flip="batt"`,
-		`data-qb="auto" data-v="1"`, `data-qd="max_a" data-d="1"`, `data-qd="max_a" data-d="-1"`, `data-qb="full_now"`, `data-qn="max_a" data-v="25"`, `data-qsave`, `data-qrow="max_a"`,
+		`data-qb="auto" data-v="1"`, `data-qd="max_a" data-d="1"`, `data-qd="max_a" data-d="-1"`, `data-qb="avg1h"`, `data-qn="max_a" data-v="25"`, `data-qsave`, `data-qrow="max_a"`,
 		">25 А<", ">ВКЛ<", "следующий 100 %: 2026-10-09",
 	} {
 		if !strings.Contains(svg, want) {
