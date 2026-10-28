@@ -21,6 +21,7 @@ import (
 //   - «Солнце сегодня» — выработка PV за день (кВт·ч), нативный gauge.
 const (
 	battDaysEntity  = "sensor.energy_schema_battery_days"
+	loadAvg1hEntity = "sensor.energy_schema_load_avg1h"     // средняя нагрузка за час (кВт) — общий источник для гейджа и карточки АКБ
 	gridOffEntity   = "sensor.energy_schema_grid_off_hours" // гейдж убран 0.6.75 — карточку вычищаем
 	pvTodayEntity   = "sensor.deye_sun_30k_today_production"
 	loadEntity      = "sensor.deye_sun_30k_load_power"
@@ -57,26 +58,29 @@ func avgPowerKW(sts []hass.HistState, since, now time.Time) (float64, bool) {
 			dur += d
 		}
 	}
-	if dur < 1 { // меньше часа данных — не среднее
+	if dur < 1.0/6 { // меньше ~10 мин данных — не считаем среднее
 		return 0, false
 	}
 	return sum / dur / 1000, true
 }
 
-// loopGauges публикует «АКБ хватит» раз в 30 с; среднюю нагрузку за сутки
-// пересчитывает по истории раз в 10 мин (до первого расчёта — текущая).
+// loopGauges публикует «АКБ хватит» раз в 30 с. Базовая нагрузка — средняя за
+// ПОСЛЕДНИЙ ЧАС (не сутки: при отключении света вчерашний обогрев завышал бы
+// расход и занижал оценку); пересчёт по истории раз в 2 мин. Эту же среднюю
+// публикуем в loadAvg1hEntity, чтобы карточка АКБ считала «Только от АКБ» по ней
+// же — гейдж и карточка не расходятся.
 func (s *Server) loopGauges() {
 	var avg float64
 	var nextAvg time.Time
 	for {
 		now := time.Now()
 		if now.After(nextAvg) {
-			if sts, err := s.client.HistoryStates(loadEntity, now.Add(-24*time.Hour)); err != nil {
+			if sts, err := s.client.HistoryStates(loadEntity, now.Add(-time.Hour)); err != nil {
 				log.Printf("gauges: load history: %v", err)
-			} else if a, ok := avgPowerKW(sts, now.Add(-24*time.Hour), now); ok {
+			} else if a, ok := avgPowerKW(sts, now.Add(-time.Hour), now); ok {
 				avg = a
 			}
-			nextAvg = now.Add(10 * time.Minute)
+			nextAvg = now.Add(2 * time.Minute)
 		}
 		load := s.store.Num(loadEntity) / 1000
 		basis := avg
@@ -88,8 +92,12 @@ func (s *Server) loopGauges() {
 		_ = s.client.SetState(battDaysEntity, fmt.Sprintf("%.2f", days), map[string]any{
 			"friendly_name": "АКБ хватит", "icon": "mdi:battery-clock", "unit_of_measurement": "дн",
 			"state_class": "measurement", "usable_kwh": math.Round(u.KWh*10) / 10,
-			"avg_load_kw_24h": math.Round(avg*100) / 100, "load_kw": math.Round(load*100) / 100,
+			"avg_load_kw_1h": math.Round(avg*100) / 100, "load_kw": math.Round(load*100) / 100,
 			"hours": math.Round(days*24*10) / 10,
+		})
+		_ = s.client.SetState(loadAvg1hEntity, fmt.Sprintf("%.3f", basis), map[string]any{
+			"friendly_name": "Нагрузка (средн. за час)", "icon": "mdi:home-lightning-bolt",
+			"unit_of_measurement": "kW", "state_class": "measurement",
 		})
 		time.Sleep(30 * time.Second)
 	}

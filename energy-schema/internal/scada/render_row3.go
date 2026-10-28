@@ -121,7 +121,14 @@ func (f *frame) battery() {
 	// и Ah×«живое» напряжение врут — не используем.
 	u := BattUsable(st, cfg.BattCap) // тот же расчёт публикует web (sensor…battery_days)
 	capNom, soh, capKWh, usableKWh := u.CapNom, u.SOH, u.CapKWh, u.KWh
+	// «Только от АКБ» считаем по средней нагрузке за ПОСЛЕДНИЙ ЧАС — тот же базис,
+	// что публикует web в гейдже «АКБ хватит» (sensor.energy_schema_load_avg1h),
+	// чтобы карточка и гейдж не расходились. Нет сенсора (web ещё не посчитал) —
+	// откатываемся на мгновенную нагрузку.
 	loadKW := load
+	if a := st.Num("sensor.energy_schema_load_avg1h"); a > 0 {
+		loadKW = a
+	}
 	pvKW := pvtot / 1000
 	// «ясный день» сезона — из реальной статистики (лучший суточный день за ~10
 	// дней), а не из шильдика; если статистики ещё нет — запасной коэффициент.
@@ -159,6 +166,9 @@ func (f *frame) battery() {
 		}
 	}
 	s.t(308, 716, 20, batCol, "end", battHours(batH, loadKW))
+	if loadKW > 0.05 {
+		s.t(308, 731, 9, cSub, "end", fmt.Sprintf("средн. за час ~%.2f кВт", loadKW))
+	}
 	s.t(40, 742, 13, cSub, "start", "Прогноз на 48 ч")
 	s.t(308, 742, 20, cGrn, "end", hfmt(autoH))
 	// откуда берётся прогноз генерации + детали симуляции

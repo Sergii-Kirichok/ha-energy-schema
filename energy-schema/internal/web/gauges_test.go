@@ -18,8 +18,12 @@ func TestAvgPowerKW(t *testing.T) {
 	if a, ok := avgPowerKW(sts, t0, h(6)); !ok || math.Abs(a-1.6) > 1e-9 {
 		t.Fatalf("avg %v %v", a, ok)
 	}
-	if _, ok := avgPowerKW(sts[3:], h(5), h(5).Add(30*time.Minute)); ok {
-		t.Fatal("under an hour of data must not count")
+	// базис — средняя за последний час; порог достоверности снижен до ~10 мин
+	if _, ok := avgPowerKW(sts[3:], h(5), h(5).Add(5*time.Minute)); ok {
+		t.Fatal("under ~10 min of data must not count")
+	}
+	if _, ok := avgPowerKW(sts[3:], h(5), h(5).Add(30*time.Minute)); !ok {
+		t.Fatal("30 min of data must count")
 	}
 	if d := battDays(144, 2); d != 3 {
 		t.Fatalf("days %v", d)
