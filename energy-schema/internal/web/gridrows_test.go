@@ -83,8 +83,8 @@ func TestPatchGridCard(t *testing.T) {
 		t.Errorf("L1 row = %v (name must stay friendly_name)", l1)
 	}
 	tap := l1["tap_action"].(map[string]any)
-	if tap["action"] != "more-info" || tap["entity"] != "sensor.energy_schema_grid_outage_l1" {
-		t.Errorf("L1 tap_action = %v, want more-info of the outage sensor", tap)
+	if tap["action"] != "more-info" || tap["entity"] != "sensor.deye_sun_30k_grid_l1_voltage" {
+		t.Errorf("L1 tap_action = %v, want more-info of the voltage sensor", tap)
 	}
 	// card-mod красит иконку по напряжению фазы
 	style := l1["card_mod"].(map[string]any)["style"].(string)

@@ -3,8 +3,11 @@ package web
 import "encoding/json"
 
 // Карточка «Сеть и фазы» — entities-card. Строки фаз L1..L3 кликабельны:
-// tap_action открывает more-info сенсора grid_outage_lN (состояния норма /
-// нет / низкое), то есть цветную полосу «когда был или не было напряжение».
+// tap_action открывает more-info сенсора напряжения grid_lN_voltage — линейный
+// график, где видно и когда пропадало напряжение (линия в 0 = нет, ~100–190 =
+// низкое, ~230 = норма), и само его значение. Сводный grid_outage_lN для этого
+// не годится: его состояние — накопительный текст, меняется каждые 5 мин, и
+// таймлайн превращается в радугу из сотен уникальных значений.
 // Цвет иконки фазы по текущему напряжению задаёт card-mod (если установлен —
 // HACS; без него строка работает, иконка просто серая): 200–253 В зелёная,
 // >253 красная, 20–200 оранжевая, <20 красная. Пороги — как в scada/theme.go.
@@ -29,7 +32,7 @@ func gridPhaseRow(ph int) map[string]any {
 	return map[string]any{
 		"entity":     gridRowEntity(ph),
 		"icon":       "mdi:transmission-tower",
-		"tap_action": map[string]any{"action": "more-info", "entity": gridOutageEntity(ph)},
+		"tap_action": map[string]any{"action": "more-info", "entity": gridVoltEntity(ph)},
 		"card_mod":   map[string]any{"style": gridIconStyle(ph)},
 	}
 }
