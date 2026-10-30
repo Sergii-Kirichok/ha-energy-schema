@@ -53,14 +53,11 @@ func TestPatchGridRows(t *testing.T) {
 }
 
 func TestPatchGridCard(t *testing.T) {
-	// дашборд после 0.6.56: entities-карточка со строками фаз и отключений
+	// прежняя markdown-версия карточки конвертируется обратно в entities
 	src := `{"views":[{"sections":[{"cards":[{"type":"heading","heading":"Сеть и фазы"},
-	  {"type":"entities","visibility":[{"condition":"screen"}],"entities":[
-	  {"entity":"sensor.deye_sun_30k_grid_power","name":"Мощность сети"},
-	  {"entity":"sensor.energy_schema_grid_l1","name":"L1"},
-	  {"entity":"sensor.energy_schema_grid_l2"},
-	  {"entity":"sensor.energy_schema_grid_outage_l1"},
-	  {"entity":"sensor.deye_sun_30k_grid_frequency"}]},{"type":"tile","entity":"x.y"}]}]}]}`
+	  {"type":"markdown","visibility":[{"condition":"screen"}],
+	   "content":"x {% set g = 'sensor.energy_schema_grid_l' ~ n %} y"},
+	  {"type":"tile","entity":"x.y"}]}]}]}`
 	var cfg any
 	_ = json.Unmarshal([]byte(src), &cfg)
 	if changed, err := patchGridCard(cfg); err != nil || !changed {
@@ -70,21 +67,28 @@ func TestPatchGridCard(t *testing.T) {
 		t.Error("second run must be a no-op")
 	}
 	if changed, _ := patchGridRows(cfg); changed {
-		t.Error("grid rows patch must not touch the markdown card")
+		t.Error("grid rows patch must not touch the converted card")
 	}
 	cards := cfg.(map[string]any)["views"].([]any)[0].(map[string]any)["sections"].([]any)[0].(map[string]any)["cards"].([]any)
-	md := cards[1].(map[string]any)
-	if len(cards) != 3 || md["type"] != "markdown" || md["content"] != gridCardMD || md["entities"] != nil || md["visibility"] == nil {
+	c := cards[1].(map[string]any)
+	if len(cards) != 3 || c["type"] != "entities" || c["content"] != nil || c["visibility"] == nil {
 		t.Fatalf("card not converted in place: %v", cards)
 	}
-	// старый шаблон обновляется
-	md["content"] = "{% set g = " + gridCardMark + " %}"
-	if changed, _ := patchGridCard(cfg); !changed || md["content"] != gridCardMD {
-		t.Error("stale template must be refreshed")
+	ents := c["entities"].([]any)
+	if len(ents) != 5 {
+		t.Fatalf("want 5 rows, got %d", len(ents))
 	}
-	for _, want := range []string{`state_attr(g, 'friendly_name')`, `<font color="{{ c }}">`, `mdi:transmission-tower{{ '-off'`, `align="right"`} {
-		if !strings.Contains(gridCardMD, want) {
-			t.Errorf("template lacks %s", want)
-		}
+	l1 := ents[2].(map[string]any)
+	if l1["entity"] != "sensor.energy_schema_grid_l1" || l1["name"] != nil {
+		t.Errorf("L1 row = %v (name must stay friendly_name)", l1)
+	}
+	tap := l1["tap_action"].(map[string]any)
+	if tap["action"] != "more-info" || tap["entity"] != "sensor.energy_schema_grid_outage_l1" {
+		t.Errorf("L1 tap_action = %v, want more-info of the outage sensor", tap)
+	}
+	// card-mod красит иконку по напряжению фазы
+	style := l1["card_mod"].(map[string]any)["style"].(string)
+	if !strings.Contains(style, "sensor.deye_sun_30k_grid_l1_voltage") || !strings.Contains(style, "--paper-item-icon-color") {
+		t.Errorf("card_mod style lacks the voltage colour rule: %s", style)
 	}
 }

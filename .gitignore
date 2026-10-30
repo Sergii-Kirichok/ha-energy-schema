@@ -12,8 +12,12 @@
 /deploy.local.mk
 /coverage.out
 
-# graphify (rebuilt by post-commit hook)
-/graphify-out/
+# graphify (rebuilt by post-commit hook) — any depth, incl. energy-schema/graphify-out/
+graphify-out/
 
 # battery evidence exports (private data, not for the public repo)
 evidence/
+
+# ad-hoc HA debug helpers run via `make remote-sh` — not for the public repo.
+# Already-tracked ha_*.sh stay tracked; new ones are local by default (git add -f to keep).
+scripts/ha_*.sh
