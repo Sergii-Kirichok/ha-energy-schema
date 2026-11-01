@@ -11,18 +11,15 @@ import (
 )
 
 // Динамический ток заряда. Регистры Deye (MODBUS RTU V104): 108 «Max A Charge»
-// (общий потолок, 1 А) и 128 «Grid charge the battery current» (от сети, 1 А);
-// в HA это number.*_battery_max_charging_current и *_battery_grid_charging_current.
-// Логика: до цели на ночь — полный «Общий лимит» (maxA), на цели — 0 (стоп),
-// ночью — снова полный лимит на утро (см. charge_law.go). Раз в fullDays дней
-// цель поднимается до 100 %; любое достижение 100 % обнуляет отсчёт. Все параметры —
-// хелперы HA (input_number/input_boolean), регулятор включается переключателем.
+// (общий потолок, 1 А) и 128 «Grid charge the battery current» (от сети, 1 А).
+// Логика (charge_law.go): до цели на ночь — полный «Общий лимит», на цели — 0,
+// ночью — снова полный на утро; раз в fullDays дней цель до 100 %, достижение
+// 100 % обнуляет отсчёт. Параметры — хелперы HA, регулятор включается тумблером.
 const (
 	chargeMaxEntity  = "number.deye_sun_30k_battery_max_charging_current"
 	chargeGridEntity = "number.deye_sun_30k_battery_grid_charging_current"
 	chargeAutoHelper = "input_boolean.energy_schema_charge_auto" // главный: включён — поля регулятора только у него
-	// «Заряд от сети» (рег. 130) — только вручную (страница инвертора, дашборд);
-	// заряжать ли от сети по времени суток решает расписание Time of Use инвертора
+	// «Заряд от сети» (рег. 130) — только вручную; расписание — Time of Use инвертора
 	gridChargeSwitch     = "switch.deye_sun_30k_battery_grid_charging"
 	chargeMinA           = 1.0
 	chargeZeroFloorGuess = 1.0             // остаток при 108=0 до первого измерения, А
@@ -99,6 +96,7 @@ func (s *Server) ensureChargeHelpers() {
 // (только при изменении), публикует уставку/режим/дату полного заряда.
 func (s *Server) loopCharge() {
 	s.ensureChargeHelpers()
+	s.ensureProbeHelpers()
 	st := loadChargeState(chargeFile)
 	lastMax, lastGrid := -1.0, -1.0
 	lastSig, lastRun := "", time.Time{}
@@ -167,15 +165,14 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		TargetSOC: cfgNum("input_number.energy_schema_charge_target_soc"),
 		FullDue:   fullDue, CellLevel: s.store.Attr("sensor.energy_schema_bms_balance", "level")}
 	// ночь — по генерации И по солнцу: пасмурный день (PV ~1 кВт) — не ночь
-	// (12.10: 10:41–10:45 ложная «ночь» → лишние переключения и записи).
-	// Недоступный PV — оставляем прежний режим (0 не значит «ночь»).
+	// (12.10 ложная «ночь» → лишние записи). Недоступный PV — режим не трогаем.
 	if s.store.Available("sensor.deye_sun_30k_pv_power") {
 		st.Night = nightHyst(num("sensor.deye_sun_30k_pv_power"), st.Night, s.cfg.Charge) && sunLow(s.store)
 	}
 	in.Holding = st.Holding
 	in.Tune = s.cfg.Charge
 	// остаток тока при 108=0 доберёт ещё немного до вечера — удержание раньше на
-	// этот запас (панели ЮВ: полезное солнце заканчивается ~за час до заката)
+	// этот запас (панели ЮВ: солнце кончается ~за час до заката)
 	floorA := st.ZeroFloorA
 	if !st.ZeroChecked && !st.ZeroBroken {
 		floorA = chargeZeroFloorGuess // ponytail: наблюдение 25–27.09 (1.04 А); заменится измеренным
@@ -202,6 +199,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if a, m, ok := s.balanceTick(st, soc, in.MaxA, auto); ok {
 		amps, mode = a, m // балансировка по верху (charge_balance.go)
 	}
+	if a, m, ok := s.probeTick(st, soc, in.MaxA, auto); ok {
+		amps, mode = a, m // диагностический прогон тока (charge_probe.go) — перебивает всё
+	}
 	st.Holding = strings.Contains(mode, "/hold")
 	defer s.publishWrites()
 	nf := "—"
@@ -210,10 +210,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	}
 	_ = s.client.SetState("sensor.energy_schema_charge_next_full", nf, map[string]any{"friendly_name": "Заряд: следующий 100 %",
 		"icon": "mdi:calendar-check", "last_full": st.LastFull.Format(time.RFC3339)})
-	// 102..130 одним чтением: ёмкость и пороги SOC (для схемы — свежее опроса
-	// Solarman раз в 5 мин), фактические лимиты в инверторе и множитель каналов
-	// («Parallel Bat&Bat2»=1 → ×2). Без известного множителя не пишем вовсе
-	// (иначе можно случайно дать вдвое больший ток).
+	// 102..130 одним чтением: ёмкость и пороги SOC (свежее опроса Solarman раз в
+	// 5 мин), фактические лимиты и множитель каналов («Parallel Bat&Bat2»=1 → ×2).
+	// Без известного множителя не пишем (иначе можно дать вдвое больший ток).
 	regs, err := s.client.ReadHoldingRegisters(bmsDeviceEntity, 102, 29)
 	if err == nil {
 		st.Factor = 1 + float64(regs[parallelReg]&1)
@@ -230,7 +229,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
 	if auto && st.balanceActive() {
 		s.balanceGrid(st, mode != "balance/rest") // ToU выкл. на заряд порции, вкл. на паузу
-	} else if auto {
+	} else if auto && !st.probeActive() {
 		s.fullCharge(st, fullDue, soc, in.MaxA, grid) // прогноз, при нехватке солнца — сеть через выключение ToU
 	} else {
 		s.touRestore(st) // ручной режим: ToU — как было
@@ -269,6 +268,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	// в chargeMinWriteGap; сразу — стоп (0), смена день/ночь,
 	// защита ячеек и полный заряд; в ручном режиме — когда ползунок отпустили
 	urgent := maxReg == 0 || strings.Contains(mode, "/cells") || strings.HasPrefix(mode, "full") ||
+		strings.HasPrefix(mode, "probe") || strings.HasPrefix(st.LastMode, "probe") || // смена фазы прогона — сразу (charge_probe.go)
 		strings.HasPrefix(mode, "balance") || strings.HasPrefix(st.LastMode, "balance") || // фазы балансировки и выход из неё
 		strings.HasPrefix(mode, "night-ready") != strings.HasPrefix(st.LastMode, "night-ready")
 	st.LastMode = mode

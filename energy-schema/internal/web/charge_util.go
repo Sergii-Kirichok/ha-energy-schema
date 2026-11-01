@@ -105,6 +105,11 @@ type chargeState struct {
 	BalStart    time.Time `json:"bal_start,omitempty"`   // …начало сессии (BalanceMaxDays)
 	BalRestAt   time.Time `json:"bal_rest_at,omitempty"` // …начало паузы (BalancePauseMin)
 	BalNote     string    `json:"bal_note,omitempty"`    // …итог («выровнено: …»)
+	ProbePhase  string    `json:"probe_phase,omitempty"` // диагностика тока: "" | high | low (charge_probe.go)
+	ProbeCycle  int       `json:"probe_cycle,omitempty"` // …пройдено циклов high+low
+	ProbeAt     time.Time `json:"probe_at,omitempty"`    // …начало текущей фазы
+	ProbeStart  time.Time `json:"probe_start,omitempty"` // …начало прогона
+	ProbeNote   string    `json:"probe_note,omitempty"`  // …итог прогона
 	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
 	touSince    time.Time // …с этого момента
 	LastMode    string    `json:"-"` // режим прошлого тика (смена день/ночь — запись сразу)
