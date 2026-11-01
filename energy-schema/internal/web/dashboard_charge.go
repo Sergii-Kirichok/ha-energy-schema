@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // Карточка «Заряд АКБ» — хелперы регулятора + его сенсоры; добавляется в ту же
@@ -42,13 +43,6 @@ var dashChargeCard = map[string]any{
 		map[string]any{"entity": "input_number.energy_schema_charge_grid_a", "name": "Лимит от сети, А"},
 		map[string]any{"entity": "input_number.energy_schema_charge_target_soc", "name": "Цель на ночь, %"},
 		map[string]any{"entity": "input_number.energy_schema_charge_full_days", "name": "Полный заряд раз в, дней"},
-		map[string]any{"entity": chargeProbeEntity, "name": "Диагностика: прогон тока"},
-		map[string]any{"entity": chargeProbeStatus, "name": "Диагностика"},
-		map[string]any{"entity": probeHighAEntity, "name": "Прогон: ток шага, А"},
-		map[string]any{"entity": probeHighMinEntity, "name": "Прогон: минут шага"},
-		map[string]any{"entity": probeLowAEntity, "name": "Прогон: ток паузы, А"},
-		map[string]any{"entity": probeLowMinEntity, "name": "Прогон: минут паузы"},
-		map[string]any{"entity": probeCyclesEntity, "name": "Прогон: циклов"},
 		map[string]any{"entity": chargeApplyBt, "name": "Применить изменения"},
 		map[string]any{"entity": chargePending, "name": "Изменения"},
 	},
@@ -91,6 +85,8 @@ func patchChargeCard(node any) (bool, error) {
 		switch {
 		case entityID(e) == "input_number.energy_schema_charge_taper_soc":
 			continue // «Снижать ток с» убран (0.6.12)
+		case strings.Contains(entityID(e), "probe"):
+			continue // прогон тока вынесен в карточку «Диагностика АКБ» (0.6.85)
 		case m != nil && m["entity"] == "input_boolean.energy_schema_charge_no_grid_day":
 			m["entity"], m["name"] = gridChargeSwitch, "Заряд от сети (вручную)" // хелпер убран (0.6.11)
 		case m != nil && m["entity"] == dashSetpointEntity && m["name"] == dashSetpointOldName:
