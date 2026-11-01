@@ -90,14 +90,15 @@ func (s *Server) probeTop(soc float64) bool {
 }
 
 // probeTick — шаг диагностического прогона. ok — ток ведёт прогон (amps, mode);
-// иначе обычная регуляция. Требует включённого авто-регулятора. Статус — каждый
-// тик. Переключение фаз — по времени из ползунков; верх/100 % останавливают.
-func (s *Server) probeTick(st *chargeState, soc, maxA float64, auto bool) (amps float64, mode string, ok bool) {
+// иначе обычная регуляция. Прогон едет сам, независимо от авто-регулятора —
+// перебивает и авто, и ручной режим. Статус — каждый тик. Переключение фаз —
+// по времени из ползунков; верх/100 % останавливают.
+func (s *Server) probeTick(st *chargeState, soc, maxA float64) (amps float64, mode string, ok bool) {
 	on := s.store.On(chargeProbeEntity)
 	hiA, hiMin, loA, loMin, cycles := s.probeConf(maxA)
 	now := time.Now()
 	defer func() {
-		_ = s.client.SetState(chargeProbeStatus, probeText(st, on, auto, hiA, loA, cycles), map[string]any{
+		_ = s.client.SetState(chargeProbeStatus, probeText(st, on, hiA, loA, cycles), map[string]any{
 			"friendly_name": "Диагностика тока", "icon": "mdi:pulse",
 			"phase": st.ProbePhase, "cycle": st.ProbeCycle, "cycles": cycles})
 	}()
@@ -109,8 +110,6 @@ func (s *Server) probeTick(st *chargeState, soc, maxA float64, auto bool) (amps 
 			st.save(chargeFile)
 		}
 		return 0, "", false
-	case !auto:
-		return 0, "", false // прогон едет на цикле авто-регулятора; выключен — пауза
 	case st.ProbePhase == "":
 		st.ProbePhase, st.ProbeCycle, st.ProbeStart, st.ProbeAt, st.ProbeNote = probeHigh, 0, now, now, ""
 		st.save(chargeFile)
@@ -158,14 +157,12 @@ func (s *Server) probeOff(st *chargeState) {
 }
 
 // probeText — строка статуса: фаза, ток, цикл, сколько осталось до смены фазы.
-func probeText(st *chargeState, on, auto bool, hiA, loA float64, cycles int) string {
+func probeText(st *chargeState, on bool, hiA, loA float64, cycles int) string {
 	switch {
 	case !on && st.ProbeNote != "":
 		return st.ProbeNote
 	case !on:
 		return "выкл"
-	case !auto:
-		return "пауза — авто-регулятор выключен"
 	case st.ProbePhase == probeHigh:
 		return fmt.Sprintf("шаг %.0f А · цикл %d/%d · идёт %.0f с", hiA, st.ProbeCycle+1, cycles, time.Since(st.ProbeAt).Seconds())
 	case st.ProbePhase == probeLow:

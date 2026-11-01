@@ -199,7 +199,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if a, m, ok := s.balanceTick(st, soc, in.MaxA, auto); ok {
 		amps, mode = a, m // балансировка по верху (charge_balance.go)
 	}
-	if a, m, ok := s.probeTick(st, soc, in.MaxA, auto); ok {
+	if a, m, ok := s.probeTick(st, soc, in.MaxA); ok {
 		amps, mode = a, m // диагностический прогон тока (charge_probe.go) — перебивает всё
 	}
 	st.Holding = strings.Contains(mode, "/hold")
@@ -273,7 +273,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		strings.HasPrefix(mode, "night-ready") != strings.HasPrefix(st.LastMode, "night-ready")
 	st.LastMode = mode
 	due := urgent || time.Since(st.Wrote108) >= chargeMinWriteGap
-	if !auto {
+	if !auto && !st.probeActive() {
 		due = st.settled("max", in.MaxA) // ручной режим: пишем, когда ползунок отпустили
 	}
 	if maxReg != *lastMax && due && !s.ovr.get("max_charge") {
