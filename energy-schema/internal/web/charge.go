@@ -199,9 +199,6 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if a, m, ok := s.balanceTick(st, soc, in.MaxA, auto); ok {
 		amps, mode = a, m // балансировка по верху (charge_balance.go)
 	}
-	if a, m, ok := s.probeTick(st, soc, in.MaxA); ok {
-		amps, mode = a, m // диагностический прогон тока (charge_probe.go) — перебивает всё
-	}
 	st.Holding = strings.Contains(mode, "/hold")
 	defer s.publishWrites()
 	nf := "—"
@@ -227,6 +224,9 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 		s.publishLimit(st.Factor, *lastMax, amps, mode, soc, fullDue, auto, st.ZeroFloorA, in.TargetSOC)
 	}()
 	grid := cfgNum("input_number.energy_schema_charge_grid_a")
+	if a, m, ok := s.probeTick(st, soc, s.cfg.Charge.GridALimit); ok {
+		grid, amps, mode = a, in.MaxA, m // прогон: ступень ведёт «Лимит от сети» (128), потолок 108 держим на общем лимите (charge_probe.go)
+	}
 	if auto && st.balanceActive() {
 		s.balanceGrid(st, mode != "balance/rest") // ToU выкл. на заряд порции, вкл. на паузу
 	} else if auto && !st.probeActive() {
@@ -288,7 +288,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			s.writes.add("reg108", 1)
 		}
 	}
-	if gridReg != *lastGrid && st.settled("grid", grid) && !s.ovr.get("grid_a") {
+	if gridReg != *lastGrid && (st.probeActive() || st.settled("grid", grid)) && !s.ovr.get("grid_a") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": gridReg}); err != nil {
 			log.Println("charge: set grid:", err)
 		} else {

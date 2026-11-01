@@ -12,17 +12,17 @@ import (
 // Диагностический прогон тока («пробник»). По кнопке в HA гоняет заряд
 // ступенями: шаг высоким током probe_high_a на probe_high_min минут, затем
 // «пауза» низким током probe_low_a на probe_low_min минут — и так probe_cycles
-// циклов. Пока прогон идёт, он перебивает авто-уставку и балансировку (но едет
-// на цикле авто-регулятора — тот должен быть включён, иначе прогон на паузе).
-// Сам ток в батарею берётся из источника КАК ЕСТЬ: пробник только задаёт
-// потолок (рег. 108). Чтобы реально текло 10 А — нужен источник (солнце или
-// включённый вручную «Заряд от сети»). Писать по-модульно (BMU) — дело внешней
-// программы BatteryWise; здесь ничего не логируем, только даём профиль и статус.
+// циклов. Прогон едет сам, независимо от авто-регулятора (перебивает и авто, и
+// ручной режим). Ведёт «Лимит от сети» — рег. 128 (ток заряда от сети): именно
+// он при заряде от сети узкое место, а не потолок 108. Потолок 108 держим на
+// общем лимите, чтобы он не резал ступень. Чтобы ток реально тёк, «Заряд от
+// сети» должен быть включён вручную (источник — сеть; днём вместо/плюс солнце).
+// Писать по-модульно (BMU) — дело внешней программы BatteryWise; здесь ничего
+// не логируем, только даём профиль и статус (фаза в attr mode уставки).
 // Защита: прогон сам останавливается на SOC 100 % или на верхе ячейки
 // (BalanceStopV / BMS снял лимит заряда) — полный/разбалансированный пакет не
-// дёргаем. Каждая смена фазы — одна запись рег. 108 (в обход 10-мин гапа):
-// probe_cycles×2 записей за прогон в энергонезависимую память — это ручной
-// диагностический режим, не постоянный.
+// дёргаем. Смена фазы — запись рег. 128 (в обход settle): probe_cycles×2
+// записей за прогон — ручной диагностический режим, не постоянный.
 const (
 	chargeProbeEntity  = "input_boolean.energy_schema_charge_probe"
 	chargeProbeStatus  = "sensor.energy_schema_charge_probe_status"
@@ -60,17 +60,18 @@ func (s *Server) ensureProbeHelpers() {
 func (st *chargeState) probeActive() bool { return st.ProbePhase != "" }
 
 // probeConf — профиль из ползунков с запасными значениями, пока HA не прочитан;
-// ток шага не выше общего лимита maxA.
-func (s *Server) probeConf(maxA float64) (hiA, hiMin, loA, loMin float64, cycles int) {
+// токи ступеней не выше потолка «Лимита от сети» gridMax (рег. 128).
+func (s *Server) probeConf(gridMax float64) (hiA, hiMin, loA, loMin float64, cycles int) {
 	numOr := func(e string, def float64) float64 {
 		if v := s.store.Num(e); v > 0 {
 			return v
 		}
 		return def
 	}
-	hiA = math.Min(numOr(probeHighAEntity, 10), math.Max(1, maxA))
+	cap := math.Max(1, gridMax)
+	hiA = math.Min(numOr(probeHighAEntity, 10), cap)
 	hiMin = numOr(probeHighMinEntity, 3)
-	loA = numOr(probeLowAEntity, 2)
+	loA = math.Min(numOr(probeLowAEntity, 2), cap)
 	loMin = numOr(probeLowMinEntity, 5)
 	cycles = int(numOr(probeCyclesEntity, 18))
 	return
@@ -93,9 +94,9 @@ func (s *Server) probeTop(soc float64) bool {
 // иначе обычная регуляция. Прогон едет сам, независимо от авто-регулятора —
 // перебивает и авто, и ручной режим. Статус — каждый тик. Переключение фаз —
 // по времени из ползунков; верх/100 % останавливают.
-func (s *Server) probeTick(st *chargeState, soc, maxA float64) (amps float64, mode string, ok bool) {
+func (s *Server) probeTick(st *chargeState, soc, gridMax float64) (amps float64, mode string, ok bool) {
 	on := s.store.On(chargeProbeEntity)
-	hiA, hiMin, loA, loMin, cycles := s.probeConf(maxA)
+	hiA, hiMin, loA, loMin, cycles := s.probeConf(gridMax)
 	now := time.Now()
 	defer func() {
 		_ = s.client.SetState(chargeProbeStatus, probeText(st, on, hiA, loA, cycles), map[string]any{
