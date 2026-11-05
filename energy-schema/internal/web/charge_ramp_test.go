@@ -86,6 +86,14 @@ func TestRampNeverAboveSlider(t *testing.T) {
 	}
 }
 
+func TestRampGuardSwitchOff(t *testing.T) {
+	s, st := rampSetup(t, map[string]string{gridUpEntity: "on", rampGuardHelper: "off", gridVoltEntity(1): "183"})
+	st.RampA = 4
+	if g := s.rampTick(st, 15); g != 15 || st.rampActive() {
+		t.Fatalf("guard off: g=%v, want slider 15 untouched by sag", g)
+	}
+}
+
 func TestRampOffWithoutGridCharge(t *testing.T) {
 	s, st := rampSetup(t, map[string]string{gridChargeSwitch: "off"})
 	if g := s.rampTick(st, 15); g != 15 || st.rampActive() {

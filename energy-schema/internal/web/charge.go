@@ -41,6 +41,7 @@ func chargeHelpers(t config.ChargeTuning) []hass.Helper {
 		{Domain: "input_boolean", ID: "energy_schema_runtime_avg1h", Name: "Запас: усреднять за час", Icon: "mdi:chart-timeline-variant", Initial: 1},
 		{Domain: "input_boolean", ID: chargeBalanceEntity[len("input_boolean."):], Name: "Заряд: балансировка", Icon: "mdi:scale-balance"},
 		{Domain: "input_button", ID: chargeApplyBt[len("input_button."):], Name: "Заряд: применить", Icon: "mdi:content-save"},
+		{Domain: "input_boolean", ID: rampGuardHelper[len("input_boolean."):], Name: "Заряд: сторож сети", Icon: "mdi:shield-sun", Initial: 1},
 	}
 }
 
@@ -114,8 +115,7 @@ func (s *Server) loopCharge() {
 			}
 			lastBtn = b
 		}
-		// событийно: отпечаток входов берётся из общего опроса HA (локально,
-		// инвертор не трогаем); к инвертору идём при изменении или раз в минуту
+		// событийно: отпечаток входов из общего опроса HA; к инвертору — при изменении или раз в минуту
 		if sig := s.chargeSignature() + s.vBand(&st); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
 			s.chargeTick(&st, &lastMax, &lastGrid)
 			s.publishPending()

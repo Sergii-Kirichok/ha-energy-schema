@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -19,13 +20,15 @@ import (
 //
 // Ползунок уменьшили — сразу к нему. Шаги не чаще RampEveryS (кроме сильной
 // просадки). Дошли до ползунка и сеть в норме — регистр не трогаем, сторож
-// только смотрит. Только при включённом «Заряд от сети». Каждый тик с сетью —
+// только смотрит. Только при включённых «Заряд от сети» и «Сторож сети». Каждый тик с сетью —
 // строка статистики для подстройки (charge_ramp_stats.go).
 const (
-	gridUpEntity  = "binary_sensor.deye_sun_30k_grid" // реле сети замкнуто (рег. 552, бит 2)
-	gridVHighReg  = 185                               // верхний порог напряжения сети, ×0,1 В (186 — нижний)
-	rampVLowGuess = 185.0                             // ponytail: если 185..186 не прочитались; заменится чтением
-	rampLimitsAge = time.Hour                         // пороги перечитываются (их меняют со страницы инвертора)
+	rampGuardHelper  = "input_boolean.energy_schema_charge_grid_guard" // выкл — ток от сети ровно по ползунку
+	rampStatusEntity = "sensor.energy_schema_charge_grid_guard"
+	gridUpEntity     = "binary_sensor.deye_sun_30k_grid" // реле сети замкнуто (рег. 552, бит 2)
+	gridVHighReg     = 185                               // верхний порог напряжения сети, ×0,1 В (186 — нижний)
+	rampVLowGuess    = 185.0                             // ponytail: если 185..186 не прочитались; заменится чтением
+	rampLimitsAge    = time.Hour                         // пороги перечитываются (их меняют со страницы инвертора)
 )
 
 const (
@@ -65,10 +68,34 @@ func (s *Server) vBand(st *chargeState) string {
 	return bandOK
 }
 
-// rampTick — ток от сети с учётом сторожа напряжения (grid — с ползунка/режима).
+var bandText = map[string]string{bandOK: "можно больше", bandHold: "держим", bandLow: "близко к низу — вниз", bandSevere: "сильная просадка — минимум"}
+
+// rampTick — ток от сети с учётом сторожа напряжения (grid — с ползунка/режима)
+// + статус сторожа на дашборд.
 func (s *Server) rampTick(st *chargeState, grid float64) float64 {
+	g := s.rampDecide(st, grid)
+	minV, _ := s.phaseMinMax()
+	var text string
+	switch {
+	case s.store.State(gridChargeSwitch) != "on":
+		text = "не нужен — заряд от сети выкл"
+	case s.store.State(rampGuardHelper) == "off":
+		text = fmt.Sprintf("выкл — ток по ползунку, %.0f А", g)
+	case !s.store.Available(gridUpEntity):
+		text = "нет данных о сети"
+	case !s.store.On(gridUpEntity):
+		text = fmt.Sprintf("сети нет — заранее %.0f А", g)
+	default:
+		text = fmt.Sprintf("%.0f из %.0f А · %s · мин. фаза %.0f В (порог %.0f)", g, grid, bandText[s.vBand(st)], minV, st.RampVLow)
+	}
+	_ = s.client.SetState(rampStatusEntity, text, map[string]any{"friendly_name": "Заряд: сторож сети", "icon": "mdi:shield-sun",
+		"grid_a": g, "slider_a": grid, "band": s.vBand(st), "min_v": minV, "v_low": st.RampVLow, "v_high": st.RampVHigh})
+	return g
+}
+
+func (s *Server) rampDecide(st *chargeState, grid float64) float64 {
 	t := s.cfg.Charge
-	if s.store.State(gridChargeSwitch) != "on" {
+	if s.store.State(gridChargeSwitch) != "on" || s.store.State(rampGuardHelper) == "off" {
 		if st.rampActive() {
 			st.RampA = 0
 			st.save(chargeFile)
