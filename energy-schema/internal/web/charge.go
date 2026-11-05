@@ -116,7 +116,7 @@ func (s *Server) loopCharge() {
 		}
 		// событийно: отпечаток входов берётся из общего опроса HA (локально,
 		// инвертор не трогаем); к инвертору идём при изменении или раз в минуту
-		if sig := s.chargeSignature(); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
+		if sig := s.chargeSignature() + s.vBand(&st); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
 			s.chargeTick(&st, &lastMax, &lastGrid)
 			s.publishPending()
 			lastSig, lastRun = sig, time.Now()
@@ -227,7 +227,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if a, m, ok := s.probeTick(st, soc, s.cfg.Charge.GridALimit); ok {
 		grid, amps, mode = a, in.MaxA, m // прогон: ступень ведёт «Лимит от сети» (128), потолок 108 держим на общем лимите (charge_probe.go)
 	}
-	grid = s.rampTick(st, grid) // плавный старт после пропажи сети (charge_ramp.go)
+	grid = s.rampTick(st, grid) // сторож напряжения фаз: плавный старт, откат при просадке (charge_ramp.go)
 	if auto && st.balanceActive() {
 		s.balanceGrid(st, mode != "balance/rest") // ToU выкл. на заряд порции, вкл. на паузу
 	} else if auto && !st.probeActive() {

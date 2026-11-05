@@ -8,17 +8,18 @@ import (
 
 var rampBase map[string]string
 
+// пороги 180…253 В, запас 10: <185 сильно, <190 низко, >243 высоко, 190–195 / 238–243 — держим
 func rampSetup(t *testing.T, states map[string]string) (*Server, *chargeState) {
 	t.Helper()
 	prev := chargeFile
 	chargeFile = filepath.Join(t.TempDir(), "charge.json")
 	t.Cleanup(func() { chargeFile = prev })
 	rampBase = map[string]string{gridChargeSwitch: "on", gridUpEntity: "off",
-		gridVoltEntity(1): "230", gridVoltEntity(2): "230", gridVoltEntity(3): "230"}
+		gridVoltEntity(1): "220", gridVoltEntity(2): "220", gridVoltEntity(3): "220"}
 	for k, v := range states {
 		rampBase[k] = v
 	}
-	s, _ := tickSetup(t, rampBase, map[int]int{gridVLowReg: 1800}) // нижний порог 180 В
+	s, _ := tickSetup(t, rampBase, map[int]int{gridVHighReg: 2530, gridVHighReg + 1: 1800})
 	st := recentState()
 	return s, &st
 }
@@ -30,36 +31,64 @@ func setStates(s *Server, kv map[string]string) {
 	s.store.ReplaceStates(tickStates(rampBase))
 }
 
+// step — тик после паузы шага.
+func step(s *Server, st *chargeState, grid float64) float64 {
+	st.RampAt = time.Now().Add(-2 * time.Minute)
+	return s.rampTick(st, grid)
+}
+
 func TestRampPresetsWhileGridDownThenSteps(t *testing.T) {
 	s, st := rampSetup(t, nil)
-	if g := s.rampTick(st, 15); g != 2 || st.RampVLow != 180 {
-		t.Fatalf("grid down: g=%v vlow=%v, want 2 A preset, 180 V", g, st.RampVLow)
+	if g := s.rampTick(st, 15); g != 2 || st.RampVLow != 180 || st.RampVHigh != 253 {
+		t.Fatalf("grid down: g=%v thresholds %v…%v, want 2 A preset, 180…253 V", g, st.RampVLow, st.RampVHigh)
 	}
 	setStates(s, map[string]string{gridUpEntity: "on"})
 	if g := s.rampTick(st, 15); g != 2 {
 		t.Fatalf("just reconnected: g=%v, want hold 2 A until the step pause", g)
 	}
-	st.RampAt = time.Now().Add(-2 * time.Minute)
-	if g := s.rampTick(st, 15); g != 4 { // 230 В ≥ 180+10 — прибавка
+	if g := step(s, st, 15); g != 4 {
 		t.Fatalf("step up: g=%v, want 4", g)
 	}
-	setStates(s, map[string]string{gridVoltEntity(2): "184"}) // 184 < 180+5 — шаг назад
-	st.RampAt = time.Now().Add(-2 * time.Minute)
-	if g := s.rampTick(st, 15); g != 2 {
-		t.Fatalf("sag: g=%v, want back to 2", g)
+	setStates(s, map[string]string{gridVoltEntity(2): "192"}) // полоса гистерезиса — держим
+	if g := step(s, st, 15); g != 4 {
+		t.Fatalf("hold: g=%v, want 4", g)
 	}
-	setStates(s, map[string]string{gridVoltEntity(2): "187"}) // между запасом и половиной — держим
-	st.RampAt = time.Now().Add(-2 * time.Minute)
-	if g := s.rampTick(st, 15); g != 2 {
-		t.Fatalf("hold: g=%v, want 2", g)
+	setStates(s, map[string]string{gridVoltEntity(2): "188"}) // близко к низу — шаг вниз
+	if g := step(s, st, 15); g != 2 {
+		t.Fatalf("low: g=%v, want 2", g)
 	}
 }
 
-func TestRampFinishesAtGridLimit(t *testing.T) {
+func TestRampSevereSagDropsToMinAtOnce(t *testing.T) {
 	s, st := rampSetup(t, map[string]string{gridUpEntity: "on"})
-	st.RampA, st.RampVLow, st.RampAt = 4, 180, time.Now().Add(-2*time.Minute)
-	if g := s.rampTick(st, 5); g != 5 || st.rampActive() {
-		t.Fatalf("done: g=%v active=%v, want full 5 A and ramp over", g, st.rampActive())
+	st.RampA, st.RampAt = 14, time.Now() // пауза шага не прошла — всё равно сразу
+	setStates(s, map[string]string{gridVoltEntity(3): "183"})
+	if g := s.rampTick(st, 15); g != 2 {
+		t.Fatalf("severe: g=%v, want minimum 2 A immediately", g)
+	}
+}
+
+func TestRampHighPhasePushesAboveSlider(t *testing.T) {
+	s, st := rampSetup(t, map[string]string{gridUpEntity: "on", gridVoltEntity(1): "246"})
+	st.RampA = 10
+	if g := step(s, st, 10); g != 12 {
+		t.Fatalf("high: g=%v, want 12 (above slider 10, up to 25)", g)
+	}
+	setStates(s, map[string]string{gridVoltEntity(1): "230"}) // норма — сразу назад к ползунку
+	if g := s.rampTick(st, 10); g != 10 {
+		t.Fatalf("back to normal: g=%v, want slider 10", g)
+	}
+	setStates(s, map[string]string{gridVoltEntity(1): "246", gridVoltEntity(2): "188"}) // низ важнее верха
+	if g := step(s, st, 10); g != 8 {
+		t.Fatalf("low beats high: g=%v, want 8", g)
+	}
+}
+
+func TestRampSliderDownIsImmediate(t *testing.T) {
+	s, st := rampSetup(t, map[string]string{gridUpEntity: "on"})
+	st.RampA, st.RampAt = 20, time.Now()
+	if g := s.rampTick(st, 6); g != 6 {
+		t.Fatalf("slider lowered: g=%v, want 6 at once", g)
 	}
 }
 
