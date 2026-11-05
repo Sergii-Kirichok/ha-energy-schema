@@ -27,7 +27,8 @@ type ChargeTuning struct {
 	RampStartA      float64 // плавный старт сети: ток от сети сразу после включения, А
 	RampStepA       float64 // …прибавка за шаг, А
 	RampEveryS      float64 // …шаг не чаще, с (инвертор применяет лимит с задержкой)
-	RampMarginV     float64 // …прибавляем, пока мин. фаза выше нижнего порога сети на столько, В
+	RampMarginV     float64 // …мин. фаза ближе к нижнему порогу сети — шаг вниз (ближе половины — сразу минимум), В
+	RampHystV       float64 // …шаг вверх, только когда мин. фаза выше порога + запас + столько, В
 }
 
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
@@ -35,7 +36,7 @@ func DefaultCharge() ChargeTuning {
 	return ChargeTuning{MaxALimit: 30, GridALimit: 25, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
 		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true,
 		BalanceStopV: 3.55, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalancePauseMin: 60, BalanceResumeV: 3.45, BalanceFastSOC: 97, BalanceDoneMV: 40, BalanceMaxDays: 3,
-		RampStartA: 2, RampStepA: 2, RampEveryS: 60, RampMarginV: 10}
+		RampStartA: 2, RampStepA: 2, RampEveryS: 60, RampMarginV: 10, RampHystV: 10}
 }
 
 // chargeOptions — зеркало необязательных опций config.yaml (nil/0 = по умолчанию).
@@ -62,6 +63,7 @@ type chargeOptions struct {
 	RampStepA       float64 `json:"charge_ramp_step_a"`
 	RampEveryS      float64 `json:"charge_ramp_every_s"`
 	RampMarginV     float64 `json:"charge_ramp_margin_v"`
+	RampHystV       float64 `json:"charge_ramp_hyst_v"`
 }
 
 func (t *ChargeTuning) apply(o chargeOptions) {
@@ -73,7 +75,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
 		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
 		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceSoftMV, o.BalanceSoftMV}, {&t.BalanceSoftV, o.BalanceSoftV}, {&t.BalancePauseMin, o.BalancePauseMin}, {&t.BalanceResumeV, o.BalanceResumeV}, {&t.BalanceFastSOC, o.BalanceFastSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV}, {&t.BalanceMaxDays, o.BalanceMaxDays},
-		{&t.RampStartA, o.RampStartA}, {&t.RampStepA, o.RampStepA}, {&t.RampEveryS, o.RampEveryS}, {&t.RampMarginV, o.RampMarginV},
+		{&t.RampStartA, o.RampStartA}, {&t.RampStepA, o.RampStepA}, {&t.RampEveryS, o.RampEveryS}, {&t.RampMarginV, o.RampMarginV}, {&t.RampHystV, o.RampHystV},
 	} {
 		if p.v > 0 {
 			*p.dst = p.v

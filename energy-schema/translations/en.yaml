@@ -121,7 +121,10 @@ configuration:
     description: "The inverter applies a new limit with a delay, so the next step waits this long to see the voltage react. Default 60 s."
   charge_ramp_margin_v:
     name: "Charge: grid soft start — margin to low threshold, V"
-    description: "The guard runs all the time on all three phases. Lowest phase closer than this to the inverter's grid low threshold (reg 186): step down; closer than half: straight to the initial current. Highest phase closer than this to the high threshold (reg 185): step up, even above the slider up to the grid limit ceiling. Low wins over high. Hysteresis is half the margin. Default 10 V."
+    description: "The guard watches the lowest of the three phases. Closer than this to the inverter's grid low threshold (reg 186): step down; closer than half: straight to the initial current. The current never goes above the grid limit slider. Default 10 V."
+  charge_ramp_hyst_v:
+    name: "Charge: grid guard — hysteresis, V"
+    description: "Step up only when the lowest phase is above threshold + margin + this value, so after a step back the current does not swing on every wobble. Default 10 V."
   refresh_seconds:
     name: "Wrapper file refresh, s"
     description: "How often the schematic reloads in /local/energy_schema.html (view-only page for dashboards and TVs outside ingress). The add-on panel refreshes every second regardless. Default 3."

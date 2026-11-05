@@ -183,6 +183,7 @@ func (s *Server) Run() error {
 	http.HandleFunc("/inverter", s.handleInverterPage)
 	http.HandleFunc("/inverter/state", s.inverterState)
 	http.HandleFunc("/inverter/save", s.inverterSave)
+	http.HandleFunc("/ramp/stats", s.handleRampStats)
 	http.HandleFunc("/", s.handleIndex)
 	log.Println("energy-schema add-on on", listen)
 	return http.ListenAndServe(listen, nil)

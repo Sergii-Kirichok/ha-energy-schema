@@ -115,6 +115,7 @@ type chargeState struct {
 	RampVLow    float64   `json:"ramp_v_low,omitempty"`  // …нижний порог сети инвертора (рег. 186), В
 	RampVHigh   float64   `json:"ramp_v_high,omitempty"` // …верхний (рег. 185), В; 0 — неизвестен
 	limitsAt    time.Time // …когда пороги читались
+	statAt      time.Time // …последняя строка статистики (charge_ramp_stats.go)
 	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
 	touSince    time.Time // …с этого момента
 	LastMode    string    `json:"-"` // режим прошлого тика (смена день/ночь — запись сразу)
