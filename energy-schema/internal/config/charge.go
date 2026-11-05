@@ -24,13 +24,18 @@ type ChargeTuning struct {
 	BalanceFastSOC  float64 // …ниже этого SOC (и ячейки на плоской части) — порция «Общим лимитом», %
 	BalanceDoneMV   float64 // …выровнено, если разбег на верху не больше, мВ
 	BalanceMaxDays  float64 // …выключить через столько дней, даже если не выровнено
+	RampStartA      float64 // плавный старт сети: ток от сети сразу после включения, А
+	RampStepA       float64 // …прибавка за шаг, А
+	RampEveryS      float64 // …шаг не чаще, с (инвертор применяет лимит с задержкой)
+	RampMarginV     float64 // …прибавляем, пока мин. фаза выше нижнего порога сети на столько, В
 }
 
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
 func DefaultCharge() ChargeTuning {
-	return ChargeTuning{MaxALimit: 30, GridALimit: 15, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
+	return ChargeTuning{MaxALimit: 30, GridALimit: 25, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
 		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true,
-		BalanceStopV: 3.55, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalancePauseMin: 60, BalanceResumeV: 3.45, BalanceFastSOC: 97, BalanceDoneMV: 40, BalanceMaxDays: 3}
+		BalanceStopV: 3.55, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalancePauseMin: 60, BalanceResumeV: 3.45, BalanceFastSOC: 97, BalanceDoneMV: 40, BalanceMaxDays: 3,
+		RampStartA: 2, RampStepA: 2, RampEveryS: 60, RampMarginV: 10}
 }
 
 // chargeOptions — зеркало необязательных опций config.yaml (nil/0 = по умолчанию).
@@ -53,6 +58,10 @@ type chargeOptions struct {
 	BalanceFastSOC  float64 `json:"charge_balance_resume_soc"`
 	BalanceDoneMV   float64 `json:"charge_balance_done_mv"`
 	BalanceMaxDays  float64 `json:"charge_balance_max_days"` // charge_balance_resume_soc, _max_cycles — не используются с 0.6.54
+	RampStartA      float64 `json:"charge_ramp_start_a"`
+	RampStepA       float64 `json:"charge_ramp_step_a"`
+	RampEveryS      float64 `json:"charge_ramp_every_s"`
+	RampMarginV     float64 `json:"charge_ramp_margin_v"`
 }
 
 func (t *ChargeTuning) apply(o chargeOptions) {
@@ -64,6 +73,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
 		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
 		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceSoftMV, o.BalanceSoftMV}, {&t.BalanceSoftV, o.BalanceSoftV}, {&t.BalancePauseMin, o.BalancePauseMin}, {&t.BalanceResumeV, o.BalanceResumeV}, {&t.BalanceFastSOC, o.BalanceFastSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV}, {&t.BalanceMaxDays, o.BalanceMaxDays},
+		{&t.RampStartA, o.RampStartA}, {&t.RampStepA, o.RampStepA}, {&t.RampEveryS, o.RampEveryS}, {&t.RampMarginV, o.RampMarginV},
 	} {
 		if p.v > 0 {
 			*p.dst = p.v

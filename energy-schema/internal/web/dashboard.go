@@ -67,7 +67,7 @@ func (s *Server) ensureDashboard(urlPath string) {
 	for _, p := range []struct {
 		name  string
 		patch func(any) (bool, error)
-	}{{"charge card", patchChargeCard}, {"probe card", patchProbeCard}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid card", patchGridCard},
+	}{{"charge card", patchChargeCard}, {"probe card", patchProbeCard}, {"alarms", patchAlarms}, {"delta cleanup", patchDeltaCleanup}, {"grid rows", patchGridRows}, {"grid card", patchGridCard},
 		{"bms table", patchBMSTable}, {"bms cards", patchBMSCards}, {"flow battery", patchFlowBattery}, {"battery power", patchBattPower}, {"gauges", func(n any) (bool, error) {
 			if !cardOK { // без ресурса карточка показала бы ошибку — дашборд не трогаем
 				return false, nil

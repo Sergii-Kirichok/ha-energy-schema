@@ -65,7 +65,8 @@ func (f *frame) row2() {
 	df := st.State("sensor.deye_sun_30k_device_fault")
 	da := st.State("sensor.deye_sun_30k_device_alarm")
 	invState := st.State("sensor.deye_sun_30k_device_state")
-	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK")
+	alarms := st.State("sensor.energy_schema_inverter_alarms") // коды F/W от аддона (web/alarms.go)
+	invProb := (invState != "" && invState != "Normal") || (df != "" && df != "OK") || (da != "" && da != "OK") || (alarms != "" && alarms != "OK")
 	s.p(`<g transform="translate(-80 0)">`) // инвертор: 400 → 320 (равные промежутки ряда)
 	s.box(400, 300, 340, 175)
 	hc := map[bool]string{true: cGrn, false: cGry}[genRun || gridIn]
@@ -101,7 +102,14 @@ func (f *frame) row2() {
 	}
 	// статус инвертора — СПРАВА (норма видна и зелёной точкой в шапке)
 	if invProb {
-		s.t(726, 351, 12, cRed, "end", "Ошибка: "+invState)
+		msg := "Ошибка: " + invState
+		if alarms != "" && alarms != "OK" {
+			msg = "⚠ " + alarms
+		}
+		// тревога в шапке и строка статуса — тап открывает страницу инвертора со списком ошибок
+		s.t(712, 329, 18, cRed, "middle", "⚠")
+		s.t(726, 351, 12, cRed, "end", msg)
+		s.p(`<rect x="590" y="306" width="146" height="52" rx="6" fill="transparent" style="cursor:pointer" data-nav="inverter"/>`)
 	} else {
 		s.t(726, 351, 12, cGrn, "end", "Статус: норма")
 	}

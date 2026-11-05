@@ -99,7 +99,7 @@ func TestChargeTuningOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := Load(p, "")
-	if c.Charge.MaxALimit != 60 || c.Charge.GridALimit != 15 || c.Charge.NightBelowW != 800 ||
+	if c.Charge.MaxALimit != 60 || c.Charge.GridALimit != 25 || c.Charge.RampStartA != 2 || c.Charge.NightBelowW != 800 ||
 		c.Charge.BalanceStopV != 3.58 || c.Charge.BalancePauseMin != 60 || c.Charge.BalanceResumeV != 3.45 || c.Charge.BalanceMaxDays != 3 || c.Charge.BalanceDoneMV != 40 {
 		t.Errorf("charge = %+v", c.Charge)
 	}

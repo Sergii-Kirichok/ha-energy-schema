@@ -58,7 +58,7 @@ configuration:
     description: "Upper bound of the «Общий лимит» slider. Default 30 A."
   charge_grid_a_limit:
     name: "Charge: grid limit slider max, A"
-    description: "Upper bound of the grid-charge slider. Default 15 A."
+    description: "Upper bound of the grid-charge slider. Default 25 A."
   charge_full_days_max:
     name: "Charge: full-charge period max, days"
     description: "Upper bound of the full-charge period slider. Default 30."
@@ -110,6 +110,18 @@ configuration:
   charge_balance_max_cycles:
     name: "Charge: balancing — at most cycles (unused)"
     description: "Unused since 0.6.54: the limit is now by time (at most, days). The key is kept so saved options stay valid."
+  charge_ramp_start_a:
+    name: "Charge: grid soft start — initial current, A"
+    description: "When the grid returns, the grid charge current (reg 128) starts here and grows in steps up to the grid limit while the phase voltage holds. Written while the grid is still down so the inverter reconnects with a small current. Default 2 A."
+  charge_ramp_step_a:
+    name: "Charge: grid soft start — step, A"
+    description: "Current added per step; a voltage sag steps back. Default 2 A."
+  charge_ramp_every_s:
+    name: "Charge: grid soft start — step at most every, s"
+    description: "The inverter applies a new limit with a delay, so the next step waits this long to see the voltage react. Default 60 s."
+  charge_ramp_margin_v:
+    name: "Charge: grid soft start — margin to low threshold, V"
+    description: "Current is added while the lowest phase stays this far above the inverter's grid low-voltage threshold (reg 186); below half the margin it steps back. Default 10 V."
   refresh_seconds:
     name: "Wrapper file refresh, s"
     description: "How often the schematic reloads in /local/energy_schema.html (view-only page for dashboards and TVs outside ingress). The add-on panel refreshes every second regardless. Default 3."

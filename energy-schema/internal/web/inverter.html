@@ -34,7 +34,7 @@ h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;ga
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--gry);transition:left .15s}
 .sw.on{background:#22c55e44}.sw.on::after{left:23px;background:var(--grn)}
 .dis{opacity:.45;pointer-events:none}
-.tou{grid-column:1/-1}
+.tou,.alarm{grid-column:1/-1}.alarm{border-color:var(--red);background:#ef44441a}.alarm h2{color:var(--red)}.alarm ul{margin:0;padding-left:20px;line-height:1.7;font-size:15px}
 .days{display:flex;gap:6px;margin-left:auto}.days button{background:transparent;border:1px solid var(--brd);color:var(--sub);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer}
 .days button.on{color:var(--grn);border-color:#22c55e88}
 svg text{font-family:Arial,Helvetica,sans-serif}
@@ -76,6 +76,7 @@ td{padding:6px 8px;border-top:1px solid #23272f;font-size:14px}tr.cur td{backgro
  <button class="act" id="reread">⟳ Перечитать</button><button class="act save" id="save" disabled>Сохранить</button>
 </div>
 <div class="grid">
+ <div class="card alarm" id="alarms" hidden><h2>⚠ Ошибки инвертора сейчас</h2><ul id="alarmList"></ul><div class="note" style="margin-top:8px">История — в HA: вкладка «Ошибки» (сенсор «Инвертор: ошибки»). Коды F/W — как на экране Deye.</div></div>
  <div class="card"><h2>Режим работы</h2>
   <div class="row" data-k="work_mode"><span class="lbl">Режим</span><div class="seg"><button>Продажа в сеть</button><button>Ноль в нагрузку</button><button>Ноль по CT</button></div></div>
   <div class="row" data-k="energy_pattern"><span class="lbl">Приоритет энергии</span><div class="seg"><button>Сначала АКБ</button><button>Сначала нагрузка</button></div></div>
@@ -196,6 +197,7 @@ $$('[data-p]').forEach(function(b){b.onclick=function(){P[b.dataset.p].forEach(f
 function load(st){V=JSON.parse(JSON.stringify(st.values));O=JSON.parse(JSON.stringify(st.values));M=Object.assign({},st.manual||{});RG=!!st.regulator;MO=Object.assign({},M);
  if(st.channels)CH=st.channels;if(st.packs)PK=st.packs;if(st.live)LIVE=st.live;if(st.can!==undefined)CAN=st.can;ST={};
  $('#cTemp').textContent=(LIVE.temp||0).toFixed(1)+' °C';$('#cGrid').textContent='сеть '+(+LIVE.f).toFixed(2)+' Гц · '+LIVE.v.map(function(v){return (+v).toFixed(0)}).join(' / ')+' В';
+ var al=st.alarms||[];$('#alarms').hidden=!al.length;$('#alarmList').innerHTML='';al.forEach(function(a){var li=document.createElement('li');li.textContent=a;$('#alarmList').appendChild(li)});
  $('#cLink').textContent='прочитано '+st.ts;$('#cLink').className='chip ok';$('#ro').hidden=CAN;$('#save').hidden=!CAN;render()}
 function phase(b,c,t){b.className='act '+c;b.textContent=t}
 function reread(){var b=$('#reread');var n=changed().length;if(n&&!confirm('Несохранённые изменения ('+n+') будут заменены значениями из инвертора. Перечитать?'))return;

@@ -110,6 +110,9 @@ type chargeState struct {
 	ProbeAt     time.Time `json:"probe_at,omitempty"`    // …начало текущей фазы
 	ProbeStart  time.Time `json:"probe_start,omitempty"` // …начало прогона
 	ProbeNote   string    `json:"probe_note,omitempty"`  // …итог прогона
+	RampA       float64   `json:"ramp_a,omitempty"`      // плавный старт сети: текущий потолок рег. 128, А; 0 — не идёт (charge_ramp.go)
+	RampAt      time.Time `json:"ramp_at,omitempty"`     // …последний шаг (или последний тик без сети)
+	RampVLow    float64   `json:"ramp_v_low,omitempty"`  // …нижний порог сети инвертора (рег. 186), В
 	touWant     bool      // решение «ToU выкл» ждёт подтверждения (touSettle)
 	touSince    time.Time // …с этого момента
 	LastMode    string    `json:"-"` // режим прошлого тика (смена день/ночь — запись сразу)

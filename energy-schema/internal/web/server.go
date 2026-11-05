@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"energy-schema/internal/config"
@@ -29,14 +30,15 @@ type Server struct {
 	cfg     config.Config
 	store   *hass.Store
 	client  *hass.Client
-	solar   *solar.Provider // прогноз генерации (nil, если стринги/координаты не заданы)
-	ovr     *overrides      // поля регулятора, переведённые на странице инвертора во «вручную»
-	cells   *cellStats      // статистика крайних ячеек BMS (поиск слабой)
-	writes  *writeLog       // учёт записей в инвертор за сутки
-	applied *chargeApplied  // применённые настройки регулятора (хелперы — черновик)
-	soc     socEst          // SOC с десятыми (кулонометрия между целыми % BMS)
-	svgMu   sync.Mutex      // один писатель файла схемы за раз
-	mb      sync.Mutex      // одна Modbus-транзакция (регулятор / страница инвертора) за раз
+	solar   *solar.Provider          // прогноз генерации (nil, если стринги/координаты не заданы)
+	ovr     *overrides               // поля регулятора, переведённые на странице инвертора во «вручную»
+	cells   *cellStats               // статистика крайних ячеек BMS (поиск слабой)
+	writes  *writeLog                // учёт записей в инвертор за сутки
+	applied *chargeApplied           // применённые настройки регулятора (хелперы — черновик)
+	soc     socEst                   // SOC с десятыми (кулонометрия между целыми % BMS)
+	svgMu   sync.Mutex               // один писатель файла схемы за раз
+	mb      sync.Mutex               // одна Modbus-транзакция (регулятор / страница инвертора) за раз
+	alarms  atomic.Pointer[[]string] // текущие ошибки инвертора (alarms.go)
 }
 
 // New builds a Server.
@@ -146,6 +148,7 @@ func (s *Server) Run() error {
 	go s.loopCharge()
 	go s.loopGridRows()
 	go s.loopGauges()
+	go s.loopAlarms()
 	if s.cfg.BMSDashboard != "" {
 		go s.ensureDashboard(s.cfg.BMSDashboard)
 	}

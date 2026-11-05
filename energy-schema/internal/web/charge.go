@@ -128,7 +128,7 @@ func (s *Server) loopCharge() {
 // chargeSignature — всё, от чего зависит уставка: хелперы, SOC, баланс ячеек.
 func (s *Server) chargeSignature() string {
 	sig := s.store.State("sensor.deye_sun_30k_battery") + "|" + s.store.Attr("sensor.energy_schema_bms_balance", "level") +
-		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"), s.cfg.Charge) + "|" + s.store.State(gridChargeSwitch)
+		"|" + pvBucket(s.store.Num("sensor.deye_sun_30k_pv_power"), s.cfg.Charge) + "|" + s.store.State(gridChargeSwitch) + "|" + s.store.State(gridUpEntity)
 	for _, h := range chargeHelpers(s.cfg.Charge) {
 		sig += "|" + s.store.State(h.Domain+"."+h.ID)
 	}
@@ -227,6 +227,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if a, m, ok := s.probeTick(st, soc, s.cfg.Charge.GridALimit); ok {
 		grid, amps, mode = a, in.MaxA, m // прогон: ступень ведёт «Лимит от сети» (128), потолок 108 держим на общем лимите (charge_probe.go)
 	}
+	grid = s.rampTick(st, grid) // плавный старт после пропажи сети (charge_ramp.go)
 	if auto && st.balanceActive() {
 		s.balanceGrid(st, mode != "balance/rest") // ToU выкл. на заряд порции, вкл. на паузу
 	} else if auto && !st.probeActive() {
@@ -264,9 +265,8 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			st.ZeroSince = time.Time{} // проверено, больше не смотрим
 		}
 	}
-	// регистр в энергонезависимой памяти: некритичные изменения не чаще раза
-	// в chargeMinWriteGap; сразу — стоп (0), смена день/ночь,
-	// защита ячеек и полный заряд; в ручном режиме — когда ползунок отпустили
+	// регистр в энергонезависимой памяти: некритичные изменения не чаще chargeMinWriteGap; сразу — стоп (0),
+	// смена день/ночь, защита ячеек и полный заряд; в ручном режиме — когда ползунок отпустили
 	urgent := maxReg == 0 || strings.Contains(mode, "/cells") || strings.HasPrefix(mode, "full") ||
 		strings.HasPrefix(mode, "probe") || strings.HasPrefix(st.LastMode, "probe") || // смена фазы прогона — сразу (charge_probe.go)
 		strings.HasPrefix(mode, "balance") || strings.HasPrefix(st.LastMode, "balance") || // фазы балансировки и выход из неё
@@ -288,7 +288,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 			s.writes.add("reg108", 1)
 		}
 	}
-	if gridReg != *lastGrid && (st.probeActive() || st.settled("grid", grid)) && !s.ovr.get("grid_a") {
+	if gridReg != *lastGrid && (st.probeActive() || st.rampActive() || st.settled("grid", grid)) && !s.ovr.get("grid_a") {
 		if err := s.client.CallService("number", "set_value", map[string]any{"entity_id": chargeGridEntity, "value": gridReg}); err != nil {
 			log.Println("charge: set grid:", err)
 		} else {

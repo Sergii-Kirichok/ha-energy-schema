@@ -126,8 +126,9 @@ func (s *Server) inverterState(w http.ResponseWriter, r *http.Request) {
 			"f":    num("sensor.deye_sun_30k_grid_frequency"),
 			"temp": num("sensor.deye_sun_30k_temperature"),
 		},
-		"auto": map[string]float64{"max_charge_a": num("sensor.energy_schema_charge_setpoint")},
-		"ts":   time.Now().Format("15:04:05"),
+		"auto":   map[string]float64{"max_charge_a": num("sensor.energy_schema_charge_setpoint")},
+		"alarms": s.currentAlarms(),
+		"ts":     time.Now().Format("15:04:05"),
 	})
 }
 
