@@ -80,6 +80,9 @@ configuration:
   charge_full_tail_a:
     name: "Charge: full-charge tail current, A"
     description: "Actual current for the last percent of a full charge. Default 6 A (about 0.02C for 314 Ah)."
+  charge_full_stop_v:
+    name: "Charge: full-charge safety stop by cell, V"
+    description: "The BMS ends a full charge itself: the tail runs until it drops the charge limit (BMS SOC 100 % is not the top yet, it also shows on the flat part). If the BMS has not dropped the limit and the highest cell reaches this voltage — stop. Default 3.62 V."
   charge_zero_on_target:
     name: "Charge: stop at the night target"
     description: "On — write 0 (stop) at the target, off — 1 (minimum). Default on."

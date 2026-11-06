@@ -115,7 +115,7 @@ func (s *Server) loopCharge() {
 			}
 			lastBtn = b
 		}
-		// событийно: отпечаток входов из общего опроса HA; к инвертору — при изменении или раз в минуту
+		// событийно: отпечаток входов из опроса HA; к инвертору — при изменении / раз в минуту
 		if sig := s.chargeSignature() + s.vBand(&st); sig != lastSig || time.Since(lastRun) >= chargeIdleEvery {
 			s.chargeTick(&st, &lastMax, &lastGrid)
 			s.publishPending()
@@ -148,16 +148,17 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	fullDays := cfgNum("input_number.energy_schema_charge_full_days")
 	// первый запуск: отсчёт с сегодня, а не «полный заряд немедленно» — иначе
 	// регулятор молча тянет к 100 % в первый же день вместо цели на ночь
-	if st.LastFull.IsZero() || soc >= 100 && st.LastFull.Format("2006-01-02") != time.Now().Format("2006-01-02") {
+	top := s.fullTop(soc) // верх — BMS сняла лимит заряда (не SOC 100 %), charge_full.go
+	if st.LastFull.IsZero() || top && st.LastFull.Format("2006-01-02") != time.Now().Format("2006-01-02") {
 		st.LastFull = time.Now() // раз в сутки, а не каждую минуту на 100 %
 		st.save(chargeFile)
 	}
 	nextFull := st.LastFull.Add(time.Duration(fullDays*24) * time.Hour)
 	fullDue := fullDays > 0 && !time.Now().Before(nextFull)
-	// внеплановый полный заряд по кнопке; при 100 % кнопка гасится сама
+	// внеплановый полный заряд по кнопке; на верху кнопка гасится сама
 	if s.store.On(chargeFullNowEntity) {
-		fullDue = true
-		if soc >= 100 {
+		fullDue = !top
+		if top {
 			_ = s.client.CallService("input_boolean", "turn_off", map[string]any{"entity_id": chargeFullNowEntity})
 		}
 	}
@@ -241,8 +242,7 @@ func (s *Server) chargeTick(st *chargeState, lastMax, lastGrid *float64) {
 	if maxReg == 0 && st.ZeroBroken {
 		maxReg, mode = 1, mode+"/zero-unsupported"
 	}
-	// 0 уже стоит в инверторе (например, после рестарта аддона), а остаток
-	// ещё не измерен — запускаем проверку и без новой записи
+	// 0 уже стоит (рестарт аддона), а остаток не измерен — проверка без новой записи
 	if maxReg == 0 && *lastMax == 0 && st.ZeroSince.IsZero() && !st.ZeroChecked && !st.ZeroBroken {
 		st.ZeroSince = time.Now()
 	}

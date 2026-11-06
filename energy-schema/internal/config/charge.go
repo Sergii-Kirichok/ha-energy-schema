@@ -15,6 +15,7 @@ type ChargeTuning struct {
 	CellCapSOC      float64 // …начиная с этого SOC, %
 	FullTailSOC     float64 // полный заряд: с этого SOC — ток хвоста, %
 	FullTailA       float64 // полный заряд: ток хвоста (факт), А
+	FullStopV       float64 // полный заряд: страховка — стоп, если BMS не сняла лимит, а макс. ячейка уже столько, В
 	ZeroOnTarget    bool    // на цели на ночь писать 0 (стоп заряда), иначе 1
 	BalanceStopV    float64 // балансировка: порция заряда до этого напряжения макс. ячейки, В
 	BalanceSoftMV   float64 // …с этого разбега ячеек — минимальный ток до конца сессии, мВ
@@ -34,7 +35,7 @@ type ChargeTuning struct {
 // DefaultCharge — значения, с которыми регулятор работает без настроек.
 func DefaultCharge() ChargeTuning {
 	return ChargeTuning{MaxALimit: 30, GridALimit: 25, FullDaysMax: 30, NightBelowW: 1000, DayAboveW: 1500,
-		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, ZeroOnTarget: true,
+		CellCapA: 5, CellCapSOC: 70, FullTailSOC: 95, FullTailA: 6, FullStopV: 3.62, ZeroOnTarget: true,
 		BalanceStopV: 3.55, BalanceSoftMV: 10, BalanceSoftV: 3.45, BalancePauseMin: 60, BalanceResumeV: 3.45, BalanceFastSOC: 97, BalanceDoneMV: 40, BalanceMaxDays: 3,
 		RampStartA: 2, RampStepA: 2, RampEveryS: 60, RampMarginV: 10, RampHystV: 10}
 }
@@ -50,6 +51,7 @@ type chargeOptions struct {
 	CellCapSOC      float64 `json:"charge_cell_cap_soc"`
 	FullTailSOC     float64 `json:"charge_full_tail_soc"`
 	FullTailA       float64 `json:"charge_full_tail_a"`
+	FullStopV       float64 `json:"charge_full_stop_v"`
 	ZeroOnTarget    *bool   `json:"charge_zero_on_target"`
 	BalanceStopV    float64 `json:"charge_balance_stop_v"`
 	BalanceSoftMV   float64 `json:"charge_balance_soft_mv"`
@@ -73,7 +75,7 @@ func (t *ChargeTuning) apply(o chargeOptions) {
 	}{
 		{&t.MaxALimit, o.MaxALimit}, {&t.GridALimit, o.GridALimit}, {&t.FullDaysMax, o.FullDaysMax},
 		{&t.NightBelowW, o.NightBelowW}, {&t.DayAboveW, o.DayAboveW}, {&t.CellCapA, o.CellCapA}, {&t.CellCapSOC, o.CellCapSOC},
-		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA},
+		{&t.FullTailSOC, o.FullTailSOC}, {&t.FullTailA, o.FullTailA}, {&t.FullStopV, o.FullStopV},
 		{&t.BalanceStopV, o.BalanceStopV}, {&t.BalanceSoftMV, o.BalanceSoftMV}, {&t.BalanceSoftV, o.BalanceSoftV}, {&t.BalancePauseMin, o.BalancePauseMin}, {&t.BalanceResumeV, o.BalanceResumeV}, {&t.BalanceFastSOC, o.BalanceFastSOC}, {&t.BalanceDoneMV, o.BalanceDoneMV}, {&t.BalanceMaxDays, o.BalanceMaxDays},
 		{&t.RampStartA, o.RampStartA}, {&t.RampStepA, o.RampStepA}, {&t.RampEveryS, o.RampEveryS}, {&t.RampMarginV, o.RampMarginV}, {&t.RampHystV, o.RampHystV},
 	} {

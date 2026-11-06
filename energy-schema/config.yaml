@@ -1,5 +1,5 @@
 name: Energy Schema
-version: "0.6.91"
+version: "0.6.92"
 slug: energy_schema
 description: Живая однолинейная схема энергосистемы BobRIXOS (Go renderer)
 url: https://github.com/Sergii-Kirichok/ha-energy-schema
@@ -89,6 +89,7 @@ schema:
   charge_cell_cap_soc: int(0,100)?
   charge_full_tail_soc: int(50,100)?
   charge_full_tail_a: float(1,185)?
+  charge_full_stop_v: float(3.45,3.65)?
   charge_zero_on_target: bool?
   charge_balance_stop_v: float(3.4,3.65)?
   charge_balance_soft_mv: int(3,100)?

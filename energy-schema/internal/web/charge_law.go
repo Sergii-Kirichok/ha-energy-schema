@@ -29,7 +29,7 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 	// ночью ток не нужен, а утро должно начаться с полного лимита даже без
 	// связи с HA — поэтому на ночь пишем «Общий лимит», а не 0. Полный заряд
 	// ночью идёт по своим правилам (хвост малым током), иначе ушёл бы «Общим лимитом».
-	if in.Night && !(in.FullDue && in.SOC < 100) {
+	if in.Night && !in.FullDue {
 		return math.Max(chargeMinA, math.Round(in.MaxA)), "night-ready"
 	}
 	// Полный заряд — не «тянуть к 100 % большим током», а добрать минимальным
@@ -51,9 +51,10 @@ func chargeSetpoint(in chargeInput) (float64, string) {
 		hold() // без дребезга у цели (05.10: 4 пары записей за день)
 	case in.SOC < target:
 		a, mode = in.MaxA, "max"
-	case in.FullDue && in.SOC < 100:
+	case in.FullDue:
 		// до порога хвоста — «Общим лимитом», последние проценты — малым током
-		// (мягкий подход к колену LiFePO4, BMS успевает выровнять ячейки)
+		// (мягкий подход к колену LiFePO4, BMS успевает выровнять ячейки). Конец —
+		// не SOC 100 %, а верх (fullTop): FullDue снимается в chargeTick
 		a, mode = in.MaxA, "full"
 		if t := in.Tune.FullTailSOC; t > 0 && in.SOC >= t {
 			a, mode = math.Min(in.MaxA, math.Max(chargeMinA, in.Tune.FullTailA)), "full/tail"

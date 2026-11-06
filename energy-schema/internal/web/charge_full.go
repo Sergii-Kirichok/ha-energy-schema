@@ -80,10 +80,27 @@ func planFull(in fullIn) fullOut {
 	return fullOut{UseGrid: true, Hours: h, Short: h > in.HoursMidnight, Why: "солнце + сеть"}
 }
 
+// fullTop — полный заряд закончен. Штатно — BMS сама сняла лимит заряда у верха
+// (19.10: на 3,60 В объявила 100 % и запретила заряд); SOC ниже порога хвоста —
+// запрет на плоской части, не верх. SOC 100 % сам по себе не верх (16.10: 100 %
+// при 3,36 В). Страховка — макс. ячейка ≥ FullStopV. Без обоих сенсоров — по SOC.
+func (s *Server) fullTop(soc float64) bool {
+	t := s.cfg.Charge
+	cellKnown := s.store.Available(bmsCellMaxEntity)
+	if cellKnown && s.store.Num(bmsCellMaxEntity) >= t.FullStopV {
+		return true
+	}
+	limit, known := s.store.AttrNum(bmsLimitsEntity, "charge_a"), s.store.Attr(bmsLimitsEntity, "charge_a") != ""
+	if !known && !cellKnown {
+		return soc >= 100
+	}
+	return known && limit <= 0 && soc >= t.FullTailSOC
+}
+
 // fullCharge — план полного заряда, публикация и правка слота ToU по плану.
 // Вызывается из chargeTick под s.mb (Modbus-транзакции не пересекаются).
 func (s *Server) fullCharge(st *chargeState, fullDue bool, soc, maxA, gridA float64) {
-	if !fullDue || soc >= 100 {
+	if !fullDue {
 		s.touRestore(st)
 		_ = s.client.SetState(chargeFullPlan, "—", map[string]any{"friendly_name": "Заряд: полный до 100 %", "icon": "mdi:battery-clock"})
 		return
@@ -93,6 +110,7 @@ func (s *Server) fullCharge(st *chargeState, fullDue bool, soc, maxA, gridA floa
 	if socF <= 0 {
 		socF = soc
 	}
+	socF = math.Min(socF, 99) // 100 % BMS — ещё не верх (fullTop): хвост добираем, план не обнуляем
 	soh := s.store.Num("sensor.energy_schema_bms_soh")
 	if soh <= 0 || soh > 100 {
 		soh = 100
