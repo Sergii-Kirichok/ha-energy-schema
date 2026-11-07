@@ -4,7 +4,7 @@
 <style>
 :root{--bg:#0f1115;--box:#171a20;--brd:#2b2f38;--txt:#e5e7eb;--sub:#9ca3af;--grn:#22c55e;--amb:#f5b300;--org:#f59e0b;--red:#ef4444;--blu:#60a5fa;--pur:#a78bfa;--gry:#6b7280;--dim:#9aa1ad}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px Arial,Helvetica,sans-serif}
-.wrap{max-width:1440px;margin:0 auto;padding:16px 20px 28px}
+.wrap{max-width:1880px;margin:0 auto;padding:16px 20px 28px}
 .actbar{position:fixed;right:20px;bottom:20px;z-index:10;display:flex;align-items:center;gap:10px;background:var(--box);border:1px solid var(--brd);border-radius:12px;padding:10px 12px;box-shadow:0 8px 24px #000a;max-width:calc(100% - 40px)}
 .actbar #msg:empty{display:none}.actbar #msg{max-width:340px}
 .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -20,7 +20,8 @@ h1{font-size:20px;font-weight:normal;margin:0;display:flex;align-items:center;ga
 .card h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--grn);margin-left:auto}
 .row{display:flex;align-items:center;gap:8px 10px;min-height:34px;border-top:1px solid #23272f;flex-wrap:wrap;padding:4px 0}
 .card{min-width:0}.tblw{overflow-x:auto}
-.row:first-of-type{border-top:0}.row .lbl{flex:1;color:var(--sub);font-size:13px}
+.row:first-of-type{border-top:0}.row .lbl{flex:1;color:var(--sub);font-size:13px;white-space:nowrap}
+.slrow svg{display:block;height:58px}
 .row .val{min-width:62px;text-align:right;font-size:15px}
 .tag{font-size:11px;border-radius:9px;padding:2px 7px;color:var(--blu);border:1px solid #60a5fa55}
 .wn{color:var(--amb);cursor:help;font-size:14px}.twarn{color:var(--amb);font-size:13px;margin:8px 4px;line-height:1.5}
@@ -149,8 +150,10 @@ $$('.row[data-k]').forEach(function(r){var k=r.dataset.k,a=r.dataset.auto;
  var sw=$('.sw',r);if(sw)sw.onclick=function(){if(a&&RG)return;if(r.dataset.bit!==undefined)V[k]=(V[k]||0)^(1<<+r.dataset.bit);else V[k]=V[k]?0:1;man();touch()};
  var rv=$('.rev',r);if(rv)rv.onclick=function(){M[a]=false;V[k]=O[k];touch()}});
 // ---- ползунки порогов ----
-var SX=10,SW=320;function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
+// viewBox = реальная ширина в px: текст не растёт с шириной карточки, подписи у краёв не обрезаются
+var SX=24,SW=292;function sx(b,v){return SX+SW*(v-b.min)/(b.max-b.min)}
 function slRender(id){var b=SL[id],two=!!b.lo,y=26,s='',lo=two?V[b.lo]:b.min,hi=two?V[b.hi]:V[b.v];if(hi===undefined)return;
+ var svg=$('#sl'+id),w=Math.round(svg.getBoundingClientRect().width)||340;svg.setAttribute('viewBox','0 0 '+w+' 58');SW=w-2*SX;
  s+='<rect x="'+SX+'" y="22" width="'+SW+'" height="8" rx="4" fill="'+(two?'#ef444433':'#2b2f38')+'"/><rect x="'+sx(b,lo)+'" y="22" width="'+(sx(b,hi)-sx(b,lo))+'" height="8" fill="'+(two?'#22c55e55':'#60a5fa88')+'"/>';
  var mk=id==='V'?LIVE.v.map(function(v,i){return {n:i+1,v:v,c:PH[i]}}):id==='F'?[{n:'f',v:LIVE.f,c:'#e5e7eb'}]:[];
  mk.forEach(function(m){if(!m.v)return;var ok=m.v>lo&&m.v<hi,x=sx(b,Math.min(b.max,Math.max(b.min,m.v)));s+='<polygon points="'+(x-8)+',1 '+(x+8)+',1 '+x+',17" fill="'+m.c+'"'+(ok?'':' stroke="#ef4444" stroke-width="2.5"')+'/><text x="'+x+'" y="10" fill="#0f1115" font-size="10" font-weight="bold" text-anchor="middle">'+m.n+'</text>'});
@@ -158,9 +161,9 @@ function slRender(id){var b=SL[id],two=!!b.lo,y=26,s='',lo=two?V[b.lo]:b.min,hi=
  $('#sl'+id).innerHTML=s;var row=$('#row'+id);$('.slv',row).textContent=two?(+lo).toFixed(b.d)+'–'+(+hi).toFixed(b.d)+b.u:(+hi).toFixed(b.d)+b.u;
  var nw=$('.now',row);if(nw)nw.innerHTML=mk.map(function(m){var ok=m.v>lo&&m.v<hi;return '<b style="color:'+(ok?m.c:'#ef4444')+'">'+(+m.v).toFixed(id==='F'?2:0)+'</b>'}).join(' · ');
  mark(row,two?[b.lo,b.hi]:[b.v])}
-var drag=null;
+var drag=null;window.addEventListener('resize',function(){['V','F','R'].forEach(slRender)});
 document.addEventListener('pointerdown',function(e){var g=e.target.closest('.knob');if(!g||!CAN)return;drag={b:SL[g.dataset.s],h:g.dataset.h,svg:g.ownerSVGElement};e.preventDefault()});
-document.addEventListener('pointermove',function(e){if(!drag)return;var b=drag.b,r=drag.svg.getBoundingClientRect(),x=(e.clientX-r.left)*340/r.width,v=b.min+(x-SX)/SW*(b.max-b.min);
+document.addEventListener('pointermove',function(e){if(!drag)return;var b=drag.b,r=drag.svg.getBoundingClientRect(),x=e.clientX-r.left;SW=r.width-2*SX;var v=b.min+(x-SX)/SW*(b.max-b.min);
  v=+(Math.round(v/b.step)*b.step).toFixed(b.d);var k=b[drag.h];if(drag.h==='lo')v=Math.min(V[b.hi]-b.step,v);if(drag.h==='hi')v=Math.max(V[b.lo]+b.step,v);
  v=Math.min(b.max,Math.max(b.min,v));if(!eq(V[k],v)){V[k]=v;touch()}});
 document.addEventListener('pointerup',function(){drag=null});
