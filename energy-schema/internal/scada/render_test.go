@@ -1,6 +1,8 @@
 package scada
 
 import (
+	"encoding/xml"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -104,6 +106,15 @@ func fixtureStore() *hass.Store {
 func TestRenderGolden(t *testing.T) {
 	clockNow = func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) } // детерминизм меток времени
 	got := Render(fixtureStore(), config.Default())
+	// ТВ рендерит схему через rsvg-convert — строгий XML-парсер: браузер прощает
+	// атрибут без значения, rsvg нет (поток на ТВ застыл на старом кадре)
+	for d := xml.NewDecoder(strings.NewReader(got)); ; {
+		if _, err := d.Token(); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("SVG is not well-formed XML: %v", err)
+		}
+	}
 	golden := filepath.Join("testdata", "golden.svg")
 
 	if os.Getenv("UPDATE_GOLDEN") != "" {

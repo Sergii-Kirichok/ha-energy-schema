@@ -51,7 +51,7 @@ func (f *frame) batteryBack() {
 		}
 		y += 26
 	}
-	s.p(`<g data-qsave style="cursor:pointer"><rect x="214" y="728" width="94" height="24" rx="6" fill="%s" fill-opacity="0.12" stroke="%s"/>`, cBrd, cBrd)
+	s.p(`<g data-qsave="1" style="cursor:pointer"><rect x="214" y="728" width="94" height="24" rx="6" fill="%s" fill-opacity="0.12" stroke="%s"/>`, cBrd, cBrd)
 	s.p(`<text x="261" y="745" font-size="12" fill="%s" text-anchor="middle">Сохранить</text></g>`, cSub)
 	// итог: что регулятор пишет прямо сейчас
 	sp := "—"
